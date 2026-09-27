@@ -1,0 +1,22 @@
+.workspace-footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  padding: var(--s2) 0 var(--s4);
+}
+.loading-state {
+  text-align: center;
+  padding: var(--s16) var(--s6);
+  color: var(--muted);
+}
+.loading-state h2 {
+  color: var(--ink);
+  margin: var(--s4) 0 var(--s2);
+}
+.section-context {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}

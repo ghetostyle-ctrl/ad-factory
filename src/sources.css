@@ -1,0 +1,211 @@
+.source-record {
+  padding: var(--s5) var(--s6);
+  min-width: 0;
+}
+.source-library-tabs {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.source-library-tabs .button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.source-record-title {
+  gap: var(--s2);
+}
+.source-record-heading {
+  align-items: flex-start;
+  margin-bottom: var(--s2);
+}
+.source-record-heading > div {
+  min-width: 0;
+}
+.source-record h3,
+.source-record p,
+.source-record a,
+.source-import-preview,
+.hypothesis-card {
+  overflow-wrap: anywhere;
+}
+.source-details {
+  margin-top: var(--s3);
+}
+.source-details summary,
+.evidence-details summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+.source-details summary:focus-visible,
+.evidence-details summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (max-width: 760px) {
+  .evidence-details summary {
+    min-height: var(--touch);
+    padding-block: var(--s3);
+  }
+}
+.source-details > div,
+.evidence-details > div {
+  margin-top: var(--s4);
+}
+.source-content {
+  white-space: pre-wrap;
+  color: var(--muted);
+}
+.source-content,
+.source-content-input,
+.source-citation p,
+.evidence-details p,
+.evidence-summary p,
+.evidence-list li {
+  text-wrap: pretty;
+}
+:where(.source-library) .panel-body > p,
+:where(.source-library) .panel-header p {
+  text-wrap: pretty;
+}
+.source-library .panel-header {
+  flex-wrap: wrap;
+}
+.source-library .panel-header > div {
+  flex: 1 1 var(--rail-width);
+}
+.source-import-preview {
+  background: var(--surface-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--s4);
+}
+.source-import-meta {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  margin-top: var(--s1);
+}
+.source-snapshot .source-record {
+  padding-inline: 0;
+}
+.source-ledger > .source-record + .source-record {
+  border-top: 1px solid var(--line);
+}
+.source-snapshot .source-record + .source-record {
+  border-top: 1px solid var(--line);
+}
+.evidence-summary {
+  background: var(--surface-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--s4);
+}
+.hypothesis-card {
+  border-top: 1px solid var(--line);
+  padding-top: var(--s6);
+}
+.hypothesis-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+.hypothesis-number {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: var(--control);
+  height: var(--control);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+  font-variant-numeric: tabular-nums;
+}
+.hypothesis-heading h3 {
+  font-size: var(--text-lg);
+  text-wrap: balance;
+}
+.hypothesis-heading p {
+  text-wrap: balance;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  margin-top: var(--s1);
+}
+.hypothesis-card .operation-definition dd {
+  text-wrap: balance;
+}
+.source-citation {
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border-left: 2px solid var(--line-strong);
+  color: var(--muted);
+}
+.source-citation cite {
+  display: block;
+  font-style: normal;
+  font-size: var(--text-xs);
+  margin-top: var(--s2);
+}
+.variant-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: calc(var(--rail-width) + var(--s16));
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: var(--surface-soft);
+  border-radius: var(--radius-sm);
+}
+.evidence-list {
+  margin: 0;
+  padding-left: var(--s5);
+  color: var(--muted);
+}
+.evidence-list li + li {
+  margin-top: var(--s2);
+}
+@media (max-width: 760px) {
+  .source-empty .panel-body {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .source-empty .button {
+    width: 100%;
+  }
+  .source-record {
+    padding: var(--s5);
+  }
+  .source-record-heading,
+  .source-library .panel-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .source-library .panel-header > .button {
+    width: 100%;
+  }
+  .source-library .panel-header > div {
+    flex-basis: auto;
+  }
+  .source-library .empty-small .button {
+    margin-top: var(--s4);
+  }
+}
+.media-analysis-scroll {
+  overflow-x: auto;
+}
+.media-analysis-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.media-analysis-table th,
+.media-analysis-table td {
+  border-bottom: 1px solid var(--line);
+  padding: var(--s2);
+  text-align: left;
+  vertical-align: top;
+}
+.media-analysis-table th {
+  white-space: nowrap;
+}

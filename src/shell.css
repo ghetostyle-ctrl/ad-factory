@@ -1,0 +1,18 @@
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  height: 100dvh;
+  overflow: hidden;
+}
+.skip-link {
+  position: fixed;
+  z-index: 50;
+  top: var(--s2);
+  left: var(--s2);
+  transform: translateY(-160%);
+  background: var(--surface);
+  padding: var(--s2) var(--s4);
+}
+.skip-link:focus {
+  transform: translateY(0);
+}

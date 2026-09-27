@@ -1,0 +1,99 @@
+.small-copy {
+  font-size: var(--text-sm);
+}
+.welcome-panel {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s6);
+  padding: var(--s8);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  min-height: 290px;
+}
+.welcome-copy {
+  position: relative;
+  z-index: 1;
+}
+.welcome-copy > .eyebrow {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+.welcome-copy h2 {
+  font-size: var(--text-title);
+  line-height: 1.4;
+  margin: var(--s3) 0;
+}
+.welcome-copy p {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.8;
+  margin-bottom: var(--s6);
+}
+.welcome-copy .button {
+  gap: var(--s3);
+}
+.welcome-paper {
+  position: relative;
+  flex: 0 0 152px;
+  height: 180px;
+}
+.paper-back {
+  position: absolute;
+  inset: 0 var(--s2) 0 0;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  border-radius: var(--radius-sm);
+  transform: rotate(-8deg);
+}
+.paper-front {
+  position: absolute;
+  inset: var(--s2) 0 calc(-1 * var(--s2)) var(--s2);
+  padding: var(--s5);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  transform: rotate(5deg);
+}
+.paper-front > svg {
+  color: var(--muted);
+  margin-bottom: var(--s2);
+}
+.paper-front > span {
+  display: block;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: var(--s3);
+}
+.paper-front i {
+  display: block;
+  height: 3px;
+  background: var(--line);
+  margin-bottom: 6px;
+  border-radius: var(--radius-pill);
+}
+.paper-front i:nth-of-type(2) {
+  width: 80%;
+}
+.paper-front i:nth-of-type(3) {
+  width: 60%;
+}
+.paper-front > div {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  color: var(--faint);
+  font-size: 7px;
+  margin-top: var(--s5);
+  white-space: nowrap;
+}
+.plus-mark {
+  font-size: var(--text-xl);
+  line-height: 1;
+}

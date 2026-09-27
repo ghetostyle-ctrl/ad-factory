@@ -1,0 +1,90 @@
+.form-kicker {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--text-sm);
+}
+.form-kicker > span:last-child {
+  margin-left: auto;
+  font-size: var(--text-xs);
+}
+.field .textarea-short {
+  min-height: 80px;
+}
+.connection-list {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.connection-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s4);
+}
+.connection-row + .connection-row {
+  border-top: 1px solid var(--line);
+}
+.connection-icon {
+  display: grid;
+  place-items: center;
+  width: var(--control);
+  height: var(--control);
+  background: var(--surface-soft);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+}
+.connection-row > div {
+  flex: 1;
+}
+.connection-row strong {
+  font-size: var(--text-sm);
+}
+.connection-row p {
+  font-size: var(--text-xs);
+}
+.settings-details {
+  border-top: 1px solid var(--line);
+  padding-top: var(--s4);
+}
+.settings-details summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.settings-details p {
+  margin-top: var(--s4);
+}
+.account-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+}
+.account-option {
+  display: flex;
+  gap: var(--s3);
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--s4);
+  cursor: pointer;
+}
+.account-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.account-option input {
+  accent-color: var(--accent);
+}
+.account-option small {
+  display: block;
+  color: var(--muted);
+}
+.account-option > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

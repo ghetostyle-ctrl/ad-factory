@@ -1,0 +1,107 @@
+.workflow-count {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.workflow-count span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.agent-board .panel-header {
+  padding: var(--s5) var(--s6);
+}
+.agent-rows {
+  padding: var(--s2) var(--s3);
+}
+.agent-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  min-height: 90px;
+  padding: var(--s4) var(--s3);
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  position: relative;
+}
+.agent-row:hover {
+  background: var(--surface-soft);
+}
+.agent-row.selected {
+  background: var(--accent-soft);
+}
+.agent-path {
+  align-self: stretch;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  padding-top: 2px;
+}
+.agent-icon {
+  width: var(--control);
+  height: var(--control);
+  display: grid;
+  place-items: center;
+  background: var(--surface-soft);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.agent-row.selected .agent-icon {
+  color: var(--accent);
+  background: var(--surface);
+  border-color: var(--line-strong);
+}
+.agent-icon.done {
+  color: var(--success);
+  background: var(--success-soft);
+}
+.path-arrow {
+  position: absolute;
+  top: calc(var(--control) + var(--s2));
+  left: 14px;
+  color: var(--line-strong);
+}
+.agent-main {
+  flex: 1;
+  min-width: 0;
+}
+.agent-main strong {
+  font-weight: 600;
+  font-size: var(--text-base);
+}
+.agent-main p {
+  text-wrap: balance;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-top: var(--s1);
+  overflow-wrap: anywhere;
+}
+.agent-role {
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+.agent-row > .badge {
+  margin-left: auto;
+}
+.board-caption {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s6);
+  background: var(--surface-soft);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.workflow-lane-title {
+  padding: 12px 16px 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

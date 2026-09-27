@@ -1,0 +1,77 @@
+.production-record-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--rail-width), 100%), 1fr));
+  gap: var(--s5);
+  align-items: start;
+}
+.production-record-main,
+.production-record-layout > div {
+  min-width: 0;
+}
+.production-video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.production-metadata {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.production-success {
+  color: var(--success);
+}
+.production-form-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.production-targets {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  margin: 0;
+  padding: var(--s3);
+  min-width: 0;
+}
+.production-targets legend {
+  padding-inline: var(--s1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.production-video-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--s16), 100%), 1fr));
+  gap: var(--s3);
+}
+.production-video-choices .approval-check {
+  margin: 0;
+}
+.source-library .panel-header > .production-actions {
+  flex: 0 1 auto;
+}
+.production-manifest {
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+.production-veo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: var(--s4);
+}
+@media (max-width: 760px) {
+  .production-record-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .production-video-choices .approval-check {
+    min-height: var(--touch);
+  }
+  .production-actions,
+  .production-manifest .button {
+    width: 100%;
+  }
+}

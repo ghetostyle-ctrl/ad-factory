@@ -1,0 +1,108 @@
+.activity-rail {
+  min-width: 0;
+  padding-left: var(--s6);
+  border-left: 1px solid var(--line);
+}
+.activity-heading {
+  padding-top: var(--s1);
+  gap: var(--s2);
+}
+.activity-heading h2 {
+  font-size: var(--text-base);
+}
+.stream-status {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.stream-status.connected {
+  color: var(--success);
+}
+.rail-description {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  margin-top: var(--s2);
+}
+.rail-empty {
+  padding: var(--s16) 0;
+  text-align: center;
+  color: var(--faint);
+}
+.rail-empty h3 {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin: var(--s4) 0 var(--s2);
+}
+.rail-empty p {
+  font-size: var(--text-xs);
+  line-height: 1.8;
+}
+.rail-note {
+  display: flex;
+  gap: var(--s2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+}
+.rail-note svg {
+  margin-top: var(--s1);
+}
+.activity-list {
+  padding: var(--s6) 0;
+  margin: 0;
+  list-style: none;
+}
+.activity-item {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  gap: var(--s3);
+  padding-bottom: var(--s6);
+  position: relative;
+}
+.activity-item::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: var(--s3);
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.activity-item:last-child::before {
+  display: none;
+}
+.event-mark {
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  background: var(--faint);
+  border-radius: 50%;
+}
+.activity-success .event-mark {
+  background: var(--success);
+}
+.activity-warning .event-mark {
+  background: var(--warning);
+}
+.activity-error .event-mark {
+  background: var(--danger);
+}
+.activity-item strong,
+.activity-item time {
+  font-size: var(--text-xs);
+}
+.activity-item time {
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.activity-item p {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-top: var(--s1);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}

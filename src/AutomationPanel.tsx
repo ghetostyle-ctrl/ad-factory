@@ -1,0 +1,213 @@
+import { CirclePause, LoaderCircle, Play, Settings2, Square } from "lucide-react";
+import { lazy, Suspense, useState } from "react";
+import type { AutomationState } from "../shared/automation";
+import type { ConfigStatus, Job, StudioState } from "../shared/schema";
+import { AutomationStatus, operationDate } from "./AutomationStatus";
+import { errorMessage, postJob } from "./api";
+import { ModelProvenance } from "./ModelProvenance";
+import { Button, Notice } from "./primitives";
+
+const AutomationSetup = lazy(() =>
+  import("./AutomationSetup").then((module) => ({ default: module.AutomationSetup })),
+);
+const statuses = {
+  queued: ["실행 대기", "neutral"],
+  running: ["자동 작업 중", "accent"],
+  waiting: ["다음 분석 대기", "neutral"],
+  blocked: ["설정 대기", "warning"],
+  attention: ["확인 필요", "warning"],
+  stopped: ["자동 운영 중지", "neutral"],
+  completed: ["운영 완료", "success"],
+} as const satisfies Record<AutomationState["status"], readonly [string, string]>;
+
+export function AutomationPanel({
+  job,
+  config,
+  engine,
+  onSettings,
+  onRefresh,
+  onCreate,
+}: {
+  readonly job: Job;
+  readonly config: ConfigStatus;
+  readonly engine: StudioState["engine"];
+  readonly onSettings: () => void;
+  readonly onRefresh: () => void;
+  readonly onCreate: () => void;
+}) {
+  const [setup, setSetup] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const automation = job.automation;
+  const legacy = Boolean(job.staged) || job.artifacts.length > 0;
+  const needsCodexModel = config.textProvider === "codex" && !config.modelSettings.codexModel;
+  const missingTools = [
+    !config.openai && "OpenAI API 키",
+    config.textProvider === "none" && "텍스트 공급자",
+  ].filter(Boolean);
+  const mutate = async (action: "stop" | "resume" | "reset") => {
+    setPending(true);
+    setError(null);
+    try {
+      await postJob(
+        `jobs/${job.id}/automation/${action}`,
+        action === "stop" ? undefined : { confirmation: true },
+      );
+      onRefresh();
+    } catch (cause) {
+      setError(await errorMessage(cause));
+    } finally {
+      setPending(false);
+    }
+  };
+  const canStop = automation && !["stopped", "completed"].includes(automation.status);
+  return (
+    <section className="panel operation-panel" aria-labelledby="operation-title">
+      <header className="panel-header spread">
+        <div>
+          <h2 id="operation-title">
+            {automation && automation.policy.mode !== "creative"
+              ? "광고 자동 운영"
+              : "소재 자동 제작"}
+          </h2>
+          <p>
+            {automation && automation.policy.mode !== "creative"
+              ? "기존 광고 운영의 진행 상황입니다."
+              : "상품 자료 분석과 영상 대본·컷 설계 후 이미지 제작·검토와 Veo 원본 클립 제작을 진행합니다."}
+          </p>
+        </div>
+        <span className={`badge badge-${automation ? statuses[automation.status][1] : "neutral"}`}>
+          {automation?.status === "running" ? (
+            <LoaderCircle size={12} className="spin" />
+          ) : (
+            <CirclePause size={12} />
+          )}
+          {automation ? statuses[automation.status][0] : "시작 전"}
+        </span>
+      </header>
+      <div className="panel-body stack">
+        {automation ? (
+          <>
+            <AutomationStatus job={job} automation={automation} />
+            <div className="cluster operation-actions">
+              {canStop && (
+                <Button
+                  variant="danger"
+                  pending={pending}
+                  onClick={() => {
+                    void mutate("stop");
+                  }}
+                >
+                  <Square size={14} />
+                  자동 운영 중지
+                </Button>
+              )}
+              {(automation.status === "blocked" ||
+                automation.status === "stopped" ||
+                (automation.status === "attention" &&
+                  (automation.videoOperation !== null ||
+                    automation.policy.mode === "creative"))) && (
+                <Button
+                  pending={pending}
+                  onClick={() => {
+                    void mutate("resume");
+                  }}
+                >
+                  <Play size={14} />
+                  {automation.status === "attention" && automation.policy.mode === "creative"
+                    ? "검토 결과 확인 후 계속 진행"
+                    : automation.status === "attention"
+                      ? "기존 Veo 작업 재확인"
+                      : "중지된 작업 재개"}
+                </Button>
+              )}
+              {(automation.status === "stopped" || automation.status === "blocked") && (
+                <Button
+                  variant="ghost"
+                  pending={pending}
+                  onClick={() => {
+                    if (
+                      window.confirm("자동 운영과 생성 결과물을 초기화할까요? 되돌릴 수 없습니다.")
+                    )
+                      void mutate("reset");
+                  }}
+                >
+                  초기화 후 새로 시작
+                </Button>
+              )}
+              {automation.status === "blocked" && (
+                <Button variant="ghost" onClick={onSettings}>
+                  <Settings2 size={14} />
+                  연결 설정
+                </Button>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <p>
+              프로젝트 자료와 이미지 모델을 확인한 뒤 시작하세요. 광고 계정이나 예산 없이 소재를
+              제작하고 검토합니다.
+            </p>
+            {job.sourceSnapshot && (
+              <Notice>
+                프로젝트 자료를 분석해 영상별 대본·컷·Flow 지시를 먼저 저장하고 이미지를 제작합니다.
+                Veo 결과는 8초 세로 원본 클립이며 최종 편집본은 아닙니다.
+              </Notice>
+            )}
+            {missingTools.length > 0 && (
+              <Notice tone="warning">
+                제작 연결 대기: {missingTools.join(" · ")}. 연결 설정에서 입력할 수 있습니다.
+              </Notice>
+            )}
+            {legacy && (
+              <Notice>
+                이미 결과물이 있는 작업입니다. 기존 작업은 자동 운영에 등록되지 않습니다. 새
+                작업에서 자동 운영을 설정하세요.
+              </Notice>
+            )}
+            {needsCodexModel && (
+              <Notice tone="warning">
+                Codex 자동 운영에는 고정할 텍스트 모델 ID가 필요합니다. 연결 설정에서 Codex 모델을
+                입력하세요.
+              </Notice>
+            )}
+            <div className="cluster operation-actions">
+              <Button
+                variant="primary"
+                disabled={legacy || needsCodexModel || job.status === "running"}
+                onClick={() => setSetup(true)}
+              >
+                <Play size={15} />
+                소재 자동 제작 설정
+              </Button>
+              {legacy && <Button onClick={onCreate}>새 작업 만들기</Button>}
+              {(missingTools.length > 0 || needsCodexModel) && (
+                <Button variant="ghost" onClick={onSettings}>
+                  연결 설정
+                </Button>
+              )}
+            </div>
+          </>
+        )}
+        <ModelProvenance job={job} />
+        <p className="muted small-copy">
+          운영 엔진: {engine.running ? "가동 중" : "중지됨"} · 자동 운영 {engine.activeJobs}개 ·
+          마지막 확인 {operationDate(engine.lastTickAt)}. 이 컴퓨터의 서버가 실행 중이어야 예약
+          작업이 진행됩니다.
+        </p>
+        {error && <Notice tone="error">{error}</Notice>}
+      </div>
+      {setup && (
+        <Suspense fallback={<Notice>운영 설정을 불러오고 있습니다…</Notice>}>
+          <AutomationSetup
+            job={job}
+            geminiConnected={config.gemini}
+            onClose={() => setSetup(false)}
+            onSaved={onRefresh}
+          />
+        </Suspense>
+      )}
+    </section>
+  );
+}

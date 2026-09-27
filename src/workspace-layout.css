@@ -1,0 +1,70 @@
+.main-shell {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: var(--header-height);
+  padding: 0 var(--s8);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.breadcrumbs strong {
+  font-weight: 400;
+  color: var(--ink);
+}
+.topbar .button {
+  padding: var(--s2);
+}
+.local-badge {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  padding: 2px var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.workspace-body {
+  padding: var(--s8);
+  max-width: 1480px;
+  margin: auto;
+}
+.page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  margin-bottom: var(--s8);
+}
+.page-heading .eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--s1);
+}
+.page-heading p {
+  color: var(--muted);
+  margin-top: var(--s2);
+  font-size: var(--text-sm);
+}
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rail-width);
+  gap: var(--s8);
+  align-items: start;
+}
+.workspace-main {
+  gap: var(--s6);
+}
+.workspace-body > .notice {
+  margin-bottom: var(--s5);
+}

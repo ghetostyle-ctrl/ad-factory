@@ -1,0 +1,67 @@
+.document-heading {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: var(--s5);
+}
+.document-heading h3 {
+  font-size: var(--text-xl);
+  margin-top: var(--s2);
+}
+.document-heading p {
+  color: var(--muted);
+  margin-top: var(--s2);
+}
+.document-section {
+  padding: var(--s2) 0;
+}
+.document-section h3 {
+  margin-bottom: var(--s2);
+}
+.document-section p,
+.document-section li,
+.document-prose {
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+.document-section ul {
+  margin: 0;
+  padding-left: var(--s5);
+}
+.document-section p,
+.document-section li,
+.copy-preview p {
+  text-wrap: pretty;
+}
+.document-section li + li {
+  margin-top: var(--s2);
+}
+.copy-preview {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--s5);
+}
+.copy-preview > p {
+  margin: var(--s3) 0 var(--s5);
+  white-space: pre-wrap;
+  text-wrap: balance;
+}
+.copy-preview > div {
+  background: var(--surface-soft);
+  padding: var(--s4);
+  border-radius: var(--radius-sm);
+}
+.copy-preview > div p {
+  color: var(--muted);
+  margin-top: var(--s1);
+  font-size: var(--text-sm);
+}
+.copy-cta {
+  display: inline-block;
+  margin-top: var(--s4);
+  padding: var(--s2) var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
