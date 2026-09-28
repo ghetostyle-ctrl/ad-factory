@@ -1,5 +1,5 @@
 import { ChevronRight, Plus, RefreshCw, Settings2 } from "lucide-react";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useDeferredValue, useEffect, useRef, useState } from "react";
 import type { AgentId, Job } from "../shared/schema";
 import type { ProjectId } from "../shared/sources";
 
@@ -37,11 +37,22 @@ const viewNames: Record<View, string> = {
   review: "게시 검토",
   analysis: "성과 분석",
 };
+const viewDescriptions: Record<View, string> = {
+  overview: "선택한 작업의 진행 상황과 다음 단계를 확인합니다.",
+  sources: "제품 자료와 레퍼런스를 모아 두고 작업에 연결합니다.",
+  "success-ai": "Success AI 광고수집기에서 모은 구글·메타 광고 레퍼런스를 프로젝트에 저장합니다.",
+  artifacts: "에이전트가 만든 문서·이미지·영상을 확인하고 내려받습니다.",
+  review: "게시 전에 소재와 설정을 최종 확인합니다.",
+  analysis: "집행한 광고의 성과를 확인합니다.",
+};
 export function App() {
   const { state, error, loading, live, refresh } = useStudio();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<ProjectId | null>(null);
   const [view, setView] = useState<View>("overview");
+  // 사이드바·브레드크럼은 클릭 즉시 새 view를 보여 주고, 무거운 본문은 뒤따라 렌더링한다 (SUITE-DESIGN §10.6).
+  const shownView = useDeferredValue(view);
+  const withRail = shownView === "overview";
   const [successAiHandoff, setSuccessAiHandoff] = useState<{
     platform: "meta";
     keyword: string;
@@ -141,21 +152,20 @@ export function App() {
             </Button>
           </div>
         </header>
-        <div className="workspace-body">
+        <div
+          className={`workspace-body ${withRail ? "" : "without-rail"}`}
+          aria-busy={shownView !== view ? true : undefined}
+        >
           <div className="page-heading">
             <div>
               <div className="eyebrow">
-                {view === "success-ai" ? "레퍼런스 수집" : "광고 스튜디오"}
+                {shownView === "success-ai" ? "레퍼런스 수집" : "광고 스튜디오"}
               </div>
-              <h1>{viewNames[view]}</h1>
-              <p>
-                {view === "success-ai"
-                  ? "Success AI 광고수집기에서 모은 구글·메타 광고 레퍼런스를 프로젝트에 저장합니다."
-                  : "아이디어에서 광고까지, 모든 과정이 보이는 스튜디오."}
-              </p>
+              <h1>{viewNames[shownView]}</h1>
+              <p>{viewDescriptions[shownView]}</p>
             </div>
             <Button
-              variant={view === "overview" && job ? "primary" : "secondary"}
+              variant={shownView === "overview" && job ? "primary" : "secondary"}
               onClick={() => setModal("create")}
             >
               <Plus size={16} aria-hidden="true" />새 작업 만들기
@@ -182,7 +192,7 @@ export function App() {
           ) : (
             <div className="workspace-grid">
               <div className="workspace-main stack">
-                {view === "overview" && (
+                {shownView === "overview" && (
                   <>
                     <JobOverview
                       job={job}
@@ -226,7 +236,7 @@ export function App() {
                     {job && <VideoScripts job={job} />}
                   </>
                 )}
-                {view === "artifacts" && (
+                {shownView === "artifacts" && (
                   <>
                     <div className="section-context">
                       {job ? `${job.name}의 결과물` : "선택한 작업 없음"}
@@ -235,12 +245,12 @@ export function App() {
                   </>
                 )}
                 <Suspense fallback={<Notice>선택한 화면을 불러오고 있습니다…</Notice>}>
-                  {(view === "sources" || view === "success-ai") && (
+                  {(shownView === "sources" || shownView === "success-ai") && (
                     <SourceLibrary
                       projects={state.projects}
                       selectedId={projectId}
                       successAiHandoff={successAiHandoff}
-                      successAiIntent={view === "success-ai"}
+                      successAiIntent={shownView === "success-ai"}
                       onHandoffDone={() => setSuccessAiHandoff(null)}
                       onSelect={setProjectId}
                       onRefresh={refreshed}
@@ -250,14 +260,14 @@ export function App() {
                       }}
                     />
                   )}
-                  {view === "review" && (
+                  {shownView === "review" && (
                     <PublishReview
                       job={job}
                       onRefresh={refreshed}
                       onAccount={() => setModal("account")}
                     />
                   )}
-                  {view === "analysis" && <Analytics job={job} onRefresh={refreshed} />}
+                  {shownView === "analysis" && <Analytics job={job} onRefresh={refreshed} />}
                 </Suspense>
                 <footer className="workspace-footer">
                   <span>
@@ -268,7 +278,7 @@ export function App() {
                   <span>작업 데이터는 이 컴퓨터에 저장됩니다.</span>
                 </footer>
               </div>
-              <ActivityRail job={job} live={live} />
+              {withRail && <ActivityRail job={job} live={live} />}
             </div>
           )}
         </div>

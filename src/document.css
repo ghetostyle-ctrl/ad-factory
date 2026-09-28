@@ -54,7 +54,7 @@
 .copy-preview > div p {
   color: var(--muted);
   margin-top: var(--s1);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
 }
 .copy-cta {
   display: inline-block;

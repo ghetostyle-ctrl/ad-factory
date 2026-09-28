@@ -133,7 +133,10 @@ export function Artifacts({
       ) : (
         <div className="artifact-grid">
           {files.map((artifact) => (
-            <article className="artifact-card" key={artifact.id}>
+            <article
+              className={`artifact-card ${artifact.kind === "image" ? "" : "is-file"}`}
+              key={artifact.id}
+            >
               <button
                 type="button"
                 className="artifact-preview"
@@ -145,9 +148,9 @@ export function Artifacts({
                 {artifact.kind === "image" ? (
                   <img src={artifact.url} alt={artifact.name} loading="lazy" />
                 ) : artifact.kind === "text" ? (
-                  <FileText size={30} strokeWidth={1.2} />
+                  <FileText size={20} strokeWidth={1.75} aria-hidden="true" />
                 ) : (
-                  <FileIcon size={30} strokeWidth={1.2} />
+                  <FileIcon size={20} strokeWidth={1.75} aria-hidden="true" />
                 )}
               </button>
               <div className="artifact-info">

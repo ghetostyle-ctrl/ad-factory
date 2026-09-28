@@ -80,6 +80,13 @@
   gap: var(--s6);
   align-items: start;
 }
+/* 실행 기록 레일은 작업 공간 뷰에만 있다. 다른 뷰는 본문 한 열, 최대 1200px (SUITE-DESIGN §10.5). */
+.workspace-body.without-rail {
+  max-width: calc(1200px + 2 * var(--page-pad));
+}
+.without-rail .workspace-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
 .workspace-main {
   gap: var(--s6);
 }

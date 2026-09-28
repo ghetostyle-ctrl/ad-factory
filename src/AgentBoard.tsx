@@ -45,10 +45,7 @@ export function AgentBoard({
           </span>
         </div>
         <div className="agent-main">
-          <div className="cluster">
-            <strong>{label ?? `${meta.title} 에이전트`}</strong>
-            <span className="agent-role">{meta.role}</span>
-          </div>
+          <strong>{label ?? `${meta.title} 에이전트`}</strong>
           <p>{agent?.action || meta.description}</p>
         </div>
         <StatusBadge status={agent?.status ?? "idle"} />
@@ -90,10 +87,7 @@ export function AgentBoard({
                   {index < ids.length - 1 && <ArrowDown size={12} className="path-arrow" />}
                 </div>
                 <div className="agent-main">
-                  <div className="cluster">
-                    <strong>{meta.title} 에이전트</strong>
-                    <span className="agent-role">{meta.role}</span>
-                  </div>
+                  <strong>{meta.title} 에이전트</strong>
                   <p>{agent?.action || meta.description}</p>
                 </div>
                 <StatusBadge status={agent?.status ?? "idle"} />

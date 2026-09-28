@@ -99,7 +99,7 @@
 .empty-small p {
   max-width: 44ch;
   margin-inline: auto;
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
 }
 .empty-small > .button {
   margin-top: var(--s4);

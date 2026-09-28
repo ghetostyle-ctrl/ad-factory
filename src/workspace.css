@@ -143,7 +143,7 @@
     gap: var(--s3);
     align-items: center;
     margin-top: var(--s2);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
     color: var(--sidebar-muted);
   }
   .mobile-job-picker select {

@@ -13,7 +13,7 @@ export function MetricsSummary({ metrics }: { readonly metrics: Metrics }) {
   ];
   return (
     <div className="stack">
-      <div className="metric-grid">
+      <div className="metric-grid" data-count={values.length}>
         {values.map(([label, value]) => (
           <div className="metric" key={label}>
             <span>{label}</span>
