@@ -171,7 +171,7 @@ export function SourceLibrary({
             </>
           ) : (
             <div className="empty-small">
-              <Library size={30} />
+              <Library size={20} strokeWidth={1.75} aria-hidden="true" />
               <h3>첫 프로젝트에 자료를 모아 보세요</h3>
               <p>
                 프로젝트를 만들면 <strong>Success AI 광고수집기에서 가져오기</strong>가 나타납니다.

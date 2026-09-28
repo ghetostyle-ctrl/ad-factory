@@ -1,5 +1,5 @@
 .brief-top {
-  padding: var(--s6);
+  padding: var(--s5);
 }
 .brief-title {
   display: flex;
@@ -35,9 +35,9 @@
 }
 .brief-details {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: var(--s4);
-  padding: var(--s5) var(--s6);
+  padding: var(--s4) var(--s5);
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   background: var(--surface-soft);
@@ -57,7 +57,7 @@
   justify-content: space-between;
   align-items: center;
   gap: var(--s4);
-  padding: var(--s4) var(--s6);
+  padding: var(--s4) var(--s5);
 }
 .brief-actions p {
   display: flex;
@@ -67,7 +67,7 @@
   font-size: var(--text-xs);
 }
 .brief-alert {
-  padding: 0 var(--s6) var(--s5);
+  padding: 0 var(--s5) var(--s5);
 }
 .next-step {
   display: flex;

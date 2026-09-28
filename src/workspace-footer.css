@@ -5,7 +5,8 @@
   gap: var(--s2);
   color: var(--muted);
   font-size: var(--text-xs);
-  padding: var(--s2) 0 var(--s4);
+  padding: var(--s4) 0 0;
+  border-top: 1px solid var(--line);
 }
 .loading-state {
   text-align: center;

@@ -5,6 +5,7 @@ import { Notice } from "./primitives";
 
 const Showcase = lazy(() => import("./Showcase").then((module) => ({ default: module.Showcase })));
 
+import "./suite-tokens.css";
 import "./tokens.css";
 import "./primitives.css";
 

@@ -154,7 +154,7 @@ export function ProductionLibrary({ project }: { readonly project: Project }) {
           </div>
         ) : (
           <div className="empty-small">
-            <Film size={30} />
+            <Film size={20} strokeWidth={1.75} aria-hidden="true" />
             <h3>직접 촬영한 영상을 추가하세요</h3>
             <p>
               제품 시연, 사용 장면, 브랜드 영상을 업로드하고 사용할 구간과 영상 번호를 지정할 수

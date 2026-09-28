@@ -117,21 +117,27 @@ export function App() {
         onSuccessAi={() => {
           window.location.href = "http://127.0.0.1:3001/";
         }}
+        live={live}
       />
       <main className="main-shell" id="main-content">
         <header className="topbar">
-          <div className="breadcrumbs">
+          <nav className="breadcrumbs" aria-label="현재 위치">
             <span>내 스튜디오</span>
-            <ChevronRight size={13} />
-            <strong>{viewNames[view]}</strong>
-          </div>
+            <ChevronRight size={14} aria-hidden="true" />
+            <strong aria-current="page">{viewNames[view]}</strong>
+          </nav>
           <div className="cluster">
-            <span className="local-badge">LOCAL</span>
-            <Button variant="ghost" aria-label="상태 새로고침" onClick={refreshed}>
-              <RefreshCw size={17} />
+            <span className={`local-badge ${live ? "connected" : ""}`}>로컬</span>
+            <Button variant="ghost" size="icon" aria-label="상태 새로고침" onClick={refreshed}>
+              <RefreshCw size={16} aria-hidden="true" />
             </Button>
-            <Button variant="ghost" aria-label="연결 설정" onClick={() => setModal("settings")}>
-              <Settings2 size={17} />
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="연결 설정"
+              onClick={() => setModal("settings")}
+            >
+              <Settings2 size={16} aria-hidden="true" />
             </Button>
           </div>
         </header>
@@ -139,7 +145,7 @@ export function App() {
           <div className="page-heading">
             <div>
               <div className="eyebrow">
-                {view === "success-ai" ? "AD REFERENCE COLLECTOR" : "META AD STUDIO"}
+                {view === "success-ai" ? "레퍼런스 수집" : "광고 스튜디오"}
               </div>
               <h1>{viewNames[view]}</h1>
               <p>
@@ -148,8 +154,11 @@ export function App() {
                   : "아이디어에서 광고까지, 모든 과정이 보이는 스튜디오."}
               </p>
             </div>
-            <Button variant="primary" onClick={() => setModal("create")}>
-              <Plus size={16} />새 작업 만들기
+            <Button
+              variant={view === "overview" && job ? "primary" : "secondary"}
+              onClick={() => setModal("create")}
+            >
+              <Plus size={16} aria-hidden="true" />새 작업 만들기
             </Button>
           </div>
           {(error || actionError) && <Notice tone="error">{actionError ?? error}</Notice>}

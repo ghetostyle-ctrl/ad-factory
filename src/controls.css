@@ -1,18 +1,18 @@
 .button {
   min-height: var(--control);
-  padding: var(--s2) var(--s4);
+  padding: 0 var(--s4);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--s2);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   font-size: var(--text-sm);
   white-space: nowrap;
   transition:
-    transform var(--motion-fast) ease-out,
-    opacity var(--motion-fast) ease-out;
+    var(--transition-colors),
+    transform var(--motion-fast) var(--ease);
   text-decoration: none;
 }
 .button:active:not(:disabled) {
@@ -20,7 +20,7 @@
 }
 .button-primary {
   background: var(--accent);
-  color: var(--surface);
+  color: var(--on-accent);
 }
 .button-primary:hover:not(:disabled) {
   background: var(--accent-hover);
@@ -28,19 +28,43 @@
 .button-secondary {
   background: var(--surface);
   color: var(--ink);
-  border-color: var(--line);
+  border-color: var(--line-strong);
 }
-.button-secondary:hover:not(:disabled),
-.button-ghost:hover:not(:disabled) {
+.button-secondary:hover:not(:disabled) {
   background: var(--surface-soft);
+  border-color: var(--line-control);
 }
 .button-ghost {
   color: var(--muted);
   background: transparent;
 }
+.button-ghost:hover:not(:disabled) {
+  background: var(--surface-soft);
+  color: var(--ink);
+}
 .button-danger {
   color: var(--danger);
   background: var(--danger-soft);
+  border-color: var(--danger-line);
+}
+.button-danger:hover:not(:disabled) {
+  border-color: var(--danger);
+}
+.button-sm {
+  min-height: var(--control-sm);
+  padding: 0 var(--s3);
+  font-size: var(--text-xs);
+}
+.button-icon {
+  width: 36px;
+  min-height: 36px;
+  height: 36px;
+  padding: 0;
+}
+.button-icon.button-sm {
+  width: var(--control-sm);
+  min-height: var(--control-sm);
+  height: var(--control-sm);
 }
 .button:disabled {
   opacity: 0.48;
@@ -49,11 +73,12 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s1);
-  padding: 2px var(--s2);
+  height: 22px;
+  padding: 0 var(--s2);
   border-radius: var(--radius-sm);
   font-size: var(--text-xs);
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: var(--weight-medium);
 }
 .badge-neutral {
   background: var(--surface-soft);
@@ -61,7 +86,7 @@
 }
 .badge-accent {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 .badge-success {
   background: var(--success-soft);
@@ -77,34 +102,38 @@
 }
 .notice {
   display: flex;
-  gap: var(--s3);
+  gap: 10px;
   align-items: flex-start;
-  padding: var(--s3) var(--s4);
+  padding: 10px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
+  line-height: 1.6;
 }
-.notice svg {
-  margin-top: var(--s1);
+.notice > svg {
+  margin-top: 2px;
 }
 .notice-info {
   background: var(--surface-soft);
+  color: var(--ink);
+}
+.notice-info > svg {
   color: var(--muted);
 }
 .notice-error {
   background: var(--danger-soft);
   color: var(--danger);
-  border-color: var(--danger-soft);
+  border-color: var(--danger-line);
 }
 .notice-warning {
   background: var(--warning-soft);
   color: var(--warning);
-  border-color: var(--warning-soft);
+  border-color: var(--warning-line);
 }
 .field {
   display: flex;
   flex-direction: column;
-  gap: var(--s2);
+  gap: 6px;
   min-width: 0;
 }
 .notice > div {
@@ -115,8 +144,9 @@
   max-width: 100%;
 }
 .field > span {
+  color: var(--ink);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 .field input,
 .field textarea,
@@ -124,12 +154,37 @@
 .search-input {
   width: 100%;
   min-height: var(--control);
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line-control);
   border-radius: var(--radius-sm);
   padding: var(--s2) var(--s3);
   color: var(--ink);
   background: var(--surface);
   font-size: var(--text-base);
+  transition: var(--transition-colors);
+}
+.field input:hover:not(:disabled),
+.field textarea:hover:not(:disabled),
+.field select:hover:not(:disabled),
+.search-input:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+.field input:focus-visible,
+.field textarea:focus-visible,
+.field select:focus-visible,
+.search-input:focus-visible {
+  border-color: var(--accent);
+  outline-offset: 1px;
+}
+.field input:disabled,
+.field textarea:disabled,
+.field select:disabled,
+.search-input:disabled {
+  background: var(--surface-sunken);
+  color: var(--faint);
+}
+.field input[type="checkbox"],
+.field input[type="radio"] {
+  accent-color: var(--accent);
 }
 .field textarea {
   resize: vertical;
@@ -139,7 +194,9 @@
 .field textarea::placeholder {
   color: var(--faint);
 }
-.field input[aria-invalid="true"] {
+.field input[aria-invalid="true"],
+.field textarea[aria-invalid="true"],
+.field select[aria-invalid="true"] {
   border-color: var(--danger);
 }
 .form-grid {

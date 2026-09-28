@@ -74,7 +74,7 @@
   cursor: pointer;
 }
 .account-option.selected {
-  border-color: var(--accent);
+  border-color: var(--accent-line);
   background: var(--accent-soft);
 }
 .account-option input {

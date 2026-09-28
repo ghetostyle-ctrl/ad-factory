@@ -39,7 +39,7 @@ export function ArtifactContent({
     return (
       <div className="document-content stack">
         <div className="document-heading">
-          <span className="eyebrow">STRATEGY DOCUMENT</span>
+          <span className="eyebrow">전략 문서</span>
           <h3>광고 전략</h3>
           <p>제품과 고객을 연결하는 메시지의 방향</p>
         </div>
@@ -58,7 +58,7 @@ export function ArtifactContent({
     return (
       <div className="document-content stack">
         <div className="document-heading">
-          <span className="eyebrow">CREATIVE PLAN</span>
+          <span className="eyebrow">소재 기획</span>
           <h3>크리에이티브 기획</h3>
           <p>{result.concept}</p>
         </div>
@@ -84,7 +84,7 @@ export function ArtifactContent({
     return (
       <div className="document-content stack">
         <div className="document-heading">
-          <span className="eyebrow">AI CREATIVE REVIEW</span>
+          <span className="eyebrow">AI 소재 검토</span>
           <h3>{review.data.status === "pass" ? "이미지·카피 검토 통과" : "이미지 수정 요청"}</h3>
           <p>{review.data.summary}</p>
         </div>
@@ -104,7 +104,7 @@ export function ArtifactContent({
     return (
       <div className="document-content stack">
         <div className="document-heading">
-          <span className="eyebrow">PERFORMANCE REPORT</span>
+          <span className="eyebrow">성과 리포트</span>
           <h3>AI 성과 분석</h3>
           <p>{report.summary}</p>
           <p className="muted small-copy">

@@ -6,21 +6,15 @@
 @import "./review.css";
 @import "./forms.css";
 @import "./automation.css";
-@media (max-width: 1300px) and (min-width: 1101px) {
-  .welcome-paper {
-    display: none;
+@media (max-width: 1100px) {
+  .welcome-panel {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s6);
   }
 }
 @media (max-width: 760px) {
   .welcome-panel {
     padding: var(--s6);
-    min-height: 260px;
-  }
-  .welcome-copy h2 {
-    font-size: var(--text-title);
-  }
-  .welcome-paper {
-    display: none;
   }
   .panel-header,
   .agent-board .panel-header {
@@ -47,10 +41,6 @@
   .agent-path {
     padding-top: var(--s1);
   }
-  .agent-row > .badge {
-    font-size: 10px;
-    padding: 2px 6px;
-  }
   .agent-main strong {
     font-size: var(--text-sm);
   }
@@ -72,11 +62,7 @@
     padding: var(--s5);
   }
   .brief-details {
-    grid-template-columns: 1fr 1fr;
     padding: var(--s4) var(--s5);
-  }
-  .brief-details > div:first-child {
-    grid-column: 1 / -1;
   }
   .brief-actions {
     padding: var(--s4) var(--s5);
@@ -95,9 +81,6 @@
   .definition-list > div {
     grid-template-columns: 100px minmax(0, 1fr);
     gap: var(--s3);
-  }
-  .metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .connection-row {
     padding: var(--s3);

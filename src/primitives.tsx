@@ -1,14 +1,27 @@
-import { AlertCircle, Circle, CircleCheck, CirclePause, LoaderCircle, X } from "lucide-react";
+import {
+  Circle,
+  CircleAlert,
+  CircleCheck,
+  CirclePause,
+  CircleX,
+  Info,
+  LoaderCircle,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { useId, useLayoutEffect, useRef } from "react";
 import type { AgentState } from "../shared/schema";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   readonly variant?: "primary" | "secondary" | "ghost" | "danger";
+  readonly size?: "md" | "sm" | "icon";
   readonly pending?: boolean;
 };
+const buttonSizes = { md: "", sm: "button-sm", icon: "button-icon" } as const;
 export function Button({
   variant = "secondary",
+  size = "md",
   pending = false,
   children,
   className = "",
@@ -21,7 +34,7 @@ export function Button({
       {...props}
       disabled={disabled || pending}
       aria-busy={pending}
-      className={`button button-${variant} ${className}`}
+      className={`button button-${variant} ${buttonSizes[size]} ${className}`}
     >
       {pending && <LoaderCircle size={16} className="spin" aria-hidden="true" />}
       {children}
@@ -36,7 +49,7 @@ const statuses = {
   review: { label: "검토", tone: "warning", icon: CirclePause },
   completed: { label: "완료", tone: "success", icon: CircleCheck },
   cancelled: { label: "중지됨", tone: "neutral", icon: CirclePause },
-  failed: { label: "실패", tone: "danger", icon: AlertCircle },
+  failed: { label: "실패", tone: "danger", icon: CircleX },
 } as const;
 export function StatusBadge({ status }: { readonly status: AgentState["status"] }) {
   const item = statuses[status];
@@ -48,6 +61,7 @@ export function StatusBadge({ status }: { readonly status: AgentState["status"] 
     </span>
   );
 }
+const noticeIcons = { info: Info, error: CircleAlert, warning: TriangleAlert } as const;
 export function Notice({
   children,
   tone = "info",
@@ -55,9 +69,10 @@ export function Notice({
   readonly children: ReactNode;
   readonly tone?: "info" | "error" | "warning";
 }) {
+  const NoticeIcon = noticeIcons[tone];
   return (
     <div className={`notice notice-${tone}`} role={tone === "error" ? "alert" : "status"}>
-      <AlertCircle size={16} aria-hidden="true" />
+      <NoticeIcon size={16} aria-hidden="true" />
       <div>{children}</div>
     </div>
   );
@@ -136,8 +151,14 @@ export function Dialog({
           <h2 id={labelId}>{title}</h2>
           {description && <p className="muted">{description}</p>}
         </div>
-        <Button variant="ghost" aria-label="닫기" onClick={close} disabled={closeDisabled}>
-          <X size={20} />
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="닫기"
+          onClick={close}
+          disabled={closeDisabled}
+        >
+          <X size={16} aria-hidden="true" />
         </Button>
       </div>
       <div className="dialog-body">{children}</div>

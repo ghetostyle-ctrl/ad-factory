@@ -82,7 +82,7 @@ export function Analytics({
         </div>
       ) : (
         <div className="empty-small">
-          <ChartNoAxesCombined size={32} strokeWidth={1.4} />
+          <ChartNoAxesCombined size={20} strokeWidth={1.75} aria-hidden="true" />
           <h3>아직 분석할 데이터가 없어요</h3>
           <p>
             자동 운영에서 예약된 시각에 성과를 조회합니다.

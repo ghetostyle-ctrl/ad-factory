@@ -61,7 +61,7 @@ export function AgentBoard({
         <div className="cluster">
           <Layers3 size={17} />
           <h2>에이전트 워크플로</h2>
-          <span className="muted small-copy">{stageCount} stages</span>
+          <span className="muted small-copy">{stageCount}단계</span>
         </div>
         <span className="workflow-count">
           {completedStages}

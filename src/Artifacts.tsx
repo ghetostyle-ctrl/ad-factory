@@ -122,7 +122,7 @@ export function Artifacts({
       )}
       {files.length === 0 ? (
         <div className="empty-small">
-          <FolderOpen size={32} strokeWidth={1.4} />
+          <FolderOpen size={20} strokeWidth={1.75} aria-hidden="true" />
           <h3>아직 생성된 결과물이 없어요</h3>
           <p>
             {job

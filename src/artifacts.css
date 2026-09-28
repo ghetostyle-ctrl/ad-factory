@@ -1,19 +1,21 @@
 .count-label {
   font-size: var(--text-xs);
   color: var(--muted);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
+  font-variant-numeric: tabular-nums;
   margin-left: var(--s2);
 }
 .artifact-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: var(--s4);
-  padding: var(--s6);
+  padding: var(--s5);
 }
 .artifact-card {
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
+  transition: var(--transition-colors);
   overflow: hidden;
 }
 .artifact-preview {
@@ -28,6 +30,10 @@
   border-bottom: 1px solid var(--line);
   padding: 0;
   overflow: hidden;
+}
+.artifact-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-xs);
 }
 .artifact-preview:hover {
   color: var(--accent);
@@ -78,8 +84,8 @@
   cursor: pointer;
 }
 .upload-button:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
 }
 .upload-button:has(input:disabled) {
   opacity: 0.5;

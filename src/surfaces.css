@@ -1,5 +1,6 @@
 .dialog {
   width: min(580px, calc(100% - var(--s8)));
+  background: var(--surface);
   max-height: 90dvh;
   padding: 0;
   color: var(--ink);
@@ -9,20 +10,20 @@
   overflow: auto;
 }
 .dialog-wide {
-  width: min(700px, calc(100% - var(--s8)));
+  width: min(720px, calc(100% - var(--s8)));
 }
 .dialog::backdrop {
   background: var(--overlay);
 }
 .dialog[open] {
-  animation: dialog-in var(--motion-normal) ease-out;
+  animation: dialog-in var(--motion-normal) var(--ease);
 }
 .dialog-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--s4);
-  padding: var(--s6);
+  padding: 18px var(--s6);
   border-bottom: 1px solid var(--line);
 }
 .dialog-header h2 {
@@ -33,9 +34,8 @@
   font-size: var(--text-sm);
 }
 .dialog-header .button {
-  margin-top: calc(-1 * var(--s2));
+  margin-top: -6px;
   margin-right: calc(-1 * var(--s2));
-  padding: var(--s2);
 }
 .dialog-body {
   padding: var(--s6);
@@ -48,11 +48,18 @@
   overflow: hidden;
 }
 .panel-header {
-  padding: var(--s5) var(--s6);
+  min-height: 52px;
+  padding: 14px var(--s5);
   border-bottom: 1px solid var(--line);
 }
+.panel-header.spread {
+  gap: var(--s3);
+}
+.panel-header h2 {
+  font-size: var(--text-lg);
+}
 .panel-body {
-  padding: var(--s6);
+  padding: var(--s5);
 }
 .panel-header p {
   color: var(--muted);
@@ -60,26 +67,45 @@
   margin-top: var(--s1);
 }
 .eyebrow {
+  display: block;
   font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
   color: var(--muted);
-  letter-spacing: 0.05em;
+  letter-spacing: normal;
+}
+.cluster > .eyebrow {
+  display: inline;
 }
 .empty-small {
   padding: var(--s10) var(--s6);
   text-align: center;
   color: var(--muted);
 }
-.empty-small svg {
+.empty-small > svg {
   display: block;
-  margin: 0 auto var(--s4);
+  box-sizing: content-box;
+  margin: 0 auto var(--s3);
+  padding: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-soft);
   color: var(--faint);
 }
+.empty-small h2,
 .empty-small h3 {
   color: var(--ink);
+  font-size: var(--text-lg);
   margin-bottom: var(--s2);
 }
 .empty-small p {
+  max-width: 44ch;
+  margin-inline: auto;
   font-size: var(--text-sm);
+}
+.empty-small > .button {
+  margin-top: var(--s4);
+}
+.panel-header > .cluster > svg {
+  color: var(--faint);
 }
 .spin {
   animation: spin 1.2s linear infinite;
@@ -119,6 +145,10 @@
   }
   .form-grid {
     grid-template-columns: 1fr;
+  }
+  .button-icon {
+    width: var(--touch);
+    height: var(--touch);
   }
   .dialog-body,
   .dialog-header {

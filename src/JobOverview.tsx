@@ -1,13 +1,4 @@
-import {
-  ArrowRight,
-  ArrowUpRight,
-  FilePlus2,
-  Pencil,
-  Play,
-  RotateCcw,
-  Square,
-  Target,
-} from "lucide-react";
+import { ArrowUpRight, Pencil, Play, Plus, RotateCcw, Square, Target } from "lucide-react";
 import type { Job } from "../shared/schema";
 import { Button, Notice, StatusBadge } from "./primitives";
 
@@ -24,7 +15,7 @@ export function JobOverview({ job, pending, onCreate, onRun, onCancel, onEdit }:
     return (
       <section className="welcome-panel">
         <div className="welcome-copy">
-          <span className="eyebrow">YOUR NEXT CAMPAIGN</span>
+          <span className="eyebrow">다음 캠페인</span>
           <h2>
             좋은 광고의 시작,
             <br />
@@ -35,24 +26,20 @@ export function JobOverview({ job, pending, onCreate, onRun, onCancel, onEdit }:
             <br />세 에이전트의 작업을 한곳에서 확인하세요.
           </p>
           <Button variant="primary" onClick={onCreate}>
-            <PlusMark />첫 작업 만들기
-            <ArrowRight size={16} />
+            <Plus size={16} aria-hidden="true" />첫 작업 만들기
           </Button>
         </div>
-        <div className="welcome-paper" aria-hidden="true">
-          <div className="paper-back" />
-          <div className="paper-front">
-            <FilePlus2 size={30} strokeWidth={1.3} />
-            <span>PRODUCT BRIEF</span>
-            <i />
-            <i />
-            <i />
-            <div>
-              <span className="tiny-dot" />
-              Ready when you are
-            </div>
-          </div>
-        </div>
+        <ol className="welcome-steps" aria-label="시작 순서">
+          <li>
+            <span aria-hidden="true">1</span>제품 링크와 자료로 작업을 만듭니다
+          </li>
+          <li>
+            <span aria-hidden="true">2</span>전략·기획·제작 에이전트가 차례로 진행합니다
+          </li>
+          <li>
+            <span aria-hidden="true">3</span>결과물을 확인하고, 필요하면 게시 검토로 넘깁니다
+          </li>
+        </ol>
       </section>
     );
   const canEdit = !job.staged && !job.automation && job.status !== "running";
@@ -61,7 +48,7 @@ export function JobOverview({ job, pending, onCreate, onRun, onCancel, onEdit }:
     <section className="panel brief-panel">
       <div className="brief-top">
         <div className="cluster">
-          <span className="eyebrow">SELECTED TASK</span>
+          <span className="eyebrow">선택한 작업</span>
           <StatusBadge status={job.status} />
         </div>
         <div className="brief-title">
@@ -128,12 +115,5 @@ export function JobOverview({ job, pending, onCreate, onRun, onCancel, onEdit }:
         </div>
       )}
     </section>
-  );
-}
-function PlusMark() {
-  return (
-    <span className="plus-mark" aria-hidden="true">
-      +
-    </span>
   );
 }

@@ -1,0 +1,176 @@
+/* ==========================================================================
+   suite-tokens.css — v1 (2026-09-28)
+   AD FACTORY · 키워드와처 · Success AI 공용 디자인 토큰
+   ----------------------------------------------------------------------------
+   - 세 레포에 이 파일을 "그대로" 복사한다. 앱별로 달라지는 것은
+     <html data-app="..."> 속성 하나뿐이다.
+       AD FACTORY  : data-app="adfactory"  (속성이 없어도 기본값 = 인디고)
+       키워드와처    : data-app="trendwatch"
+       Success AI  : data-app="successai"
+   - 이름은 AD FACTORY src/tokens.css 기존 이름을 그대로 쓴다.
+     새 이름은 꼭 필요한 것만 추가했다 (주석에 NEW 표시).
+   - 대비 수치는 WCAG 2.x 상대휘도 공식으로 계산한 값 (SUITE-DESIGN.md §2).
+   - 요소 리셋(body/h1..)·유틸리티는 각 앱 tokens.css(base)에 남긴다.
+   ========================================================================== */
+
+:root {
+  /* ---- 중립색 ------------------------------------------------------------ */
+  --canvas: #f7f8fa; /* 페이지 배경 */
+  --surface: #ffffff; /* 패널·헤더·다이얼로그·입력 */
+  --surface-soft: #f4f5f7; /* 표 헤더·호버 행·세그먼트 트랙·info 알림 */
+  --surface-sunken: #eef0f3; /* NEW 비활성 입력·썸네일 자리·진행바 트랙 */
+  --ink: #24262d; /* 제목·본문            15.11:1 on white */
+  --muted: #5c616d; /* 보조 텍스트 (was #656a76) 6.20 white / 5.84 canvas / 5.69 soft */
+  --faint: #6b7080; /* 3단계 텍스트 (was #666c78) 4.94 white / 4.64 canvas / 4.52 soft */
+  --line: #e5e7ed; /* 헤어라인·패널 테두리 (장식) */
+  --line-strong: #c8cbd5; /* 보조 버튼 테두리·표 외곽 */
+  --line-control: #8e929e; /* NEW 입력·체크박스 경계 3.11:1 (WCAG 1.4.11) */
+  --overlay: rgba(23, 25, 34, 0.4);
+
+  /* ---- 사이드바 (세 앱 공통 차콜) ---------------------------------------- */
+  --sidebar: #22242b;
+  --sidebar-hover: rgba(255, 255, 255, 0.05); /* NEW */
+  --sidebar-elevated: #2c2e36; /* 활성 항목·열린 스위처 (was #32343e) */
+  --sidebar-line: #32343e; /* NEW 카드 테두리·구분선 */
+  --sidebar-text: #f5f5f8; /* 14.24:1 */
+  --sidebar-muted: #b4b6c2; /* 7.68 sidebar / 6.71 elevated */
+  --sidebar-faint: #8d909c; /* NEW 4.87:1 — 그룹 라벨 */
+  --sidebar-success: #6fcf97; /* NEW 상태점 전용 8.15:1 */
+  --sidebar-danger: #f28b8b; /* NEW 상태점 전용 6.52:1 */
+
+  /* ---- 의미색 (accent와 분리, 성공은 항상 녹색) -------------------------- */
+  --success: #286c50;
+  --success-soft: #edf6f0;
+  --success-line: #cfe5d8; /* 6.27 white / 5.68 soft */
+  --warning: #8c601b;
+  --warning-soft: #fcf5e6;
+  --warning-line: #f0dfb8; /* 5.52 / 5.08 */
+  --danger: #b33d46;
+  --danger-soft: #fceff0;
+  --danger-line: #f2cfd2; /* 5.72 / 5.10 */
+
+  /* ---- 타이포 ------------------------------------------------------------ */
+  --font-sans: "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --text-xs: 12px; /* 최소값. 12px 미만 금지 */
+  --text-sm: 13px; /* 버튼·라벨·nav·브레드크럼·보조 문단 */
+  --text-base: 14px; /* 본문·입력·표 셀 */
+  --text-lg: 16px; /* 패널 제목 h2 */
+  --text-xl: 20px; /* 다이얼로그 제목·선택 항목 제목·지표 값 */
+  --text-title: 28px; /* 페이지 h1 (AD FACTORY 유지) */
+  --text-display: 28px; /* KPI 대형 숫자, 화면당 1곳 (was 32, 미사용) */
+  --weight-regular: 400; /* NEW 굵기는 400/500/600 세 단계만 */
+  --weight-medium: 500;
+  --weight-strong: 600;
+  --tracking-body: -0.015em;
+  --tracking-heading: -0.03em; /* h1 */
+  --tracking-title: -0.02em; /* NEW h2·h3 */
+
+  /* ---- 간격 (AD FACTORY 동일) ------------------------------------------- */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --s10: 40px;
+  --s12: 48px;
+  --s16: 64px;
+
+  /* ---- 크기·레이아웃 ----------------------------------------------------- */
+  --control: 40px; /* 데스크톱 버튼·입력 높이 */
+  --control-sm: 32px; /* NEW 표 행·툴바 안 작은 버튼 (데스크톱 전용) */
+  --touch: 44px; /* ≤760px 모든 인터랙티브 최소값 */
+  --sidebar-width: 232px; /* 키워드와처 --sidebar(너비)는 이 이름으로 개명 */
+  --rail-width: 280px;
+  --rail-width-compact: 240px; /* NEW ≤1200px */
+  --header-height: 56px; /* was 72 */
+  --content-max: 1440px; /* NEW (AF 1480 리터럴 대체) */
+  --prose-max: 64ch; /* NEW 부제·설명·빈 상태 문장 */
+  --page-pad: 32px; /* NEW ≤1200: 24px, ≤760: 16px */
+  /* 브레이크포인트(미디어쿼리는 변수를 못 읽으므로 상수로 사용): 1200 / 1100 / 760 / 480 */
+
+  /* ---- 모서리 (AD FACTORY 값 유지) --------------------------------------- */
+  --radius-xs: 4px; /* NEW 칩·세그먼트 내부 항목·스켈레톤 */
+  --radius-sm: 6px; /* 버튼·입력·배지·nav·알림 */
+  --radius: 10px; /* 패널·카드·표 외곽·결과물 카드·스위처 메뉴 */
+  --radius-lg: 14px; /* 다이얼로그 */
+  --radius-pill: 999px; /* 카운트 칩·상태점·진행바·토글만 */
+
+  /* ---- 그림자 (평상시 패널은 없음) --------------------------------------- */
+  --shadow-none: none;
+  --shadow-xs: 0 1px 2px rgba(23, 25, 34, 0.05); /* NEW 선택 세그먼트·클릭 카드 hover */
+  --shadow-pop:
+    0 1px 2px rgba(23, 25, 34, 0.06), 0 8px 24px rgba(23, 25, 34, 0.1); /* NEW 메뉴·자동완성·팝오버 */
+  --shadow-dialog: 0 24px 80px rgba(23, 25, 34, 0.16);
+
+  /* ---- 모션 -------------------------------------------------------------- */
+  --motion-fast: 120ms;
+  --motion-normal: 180ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1); /* NEW */
+  --transition-colors:
+    background-color var(--motion-fast) var(--ease), border-color var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease), box-shadow var(--motion-fast) var(--ease); /* NEW */
+
+  /* ---- 스위처 아바타: 대상 앱의 고정 색 (세 레포 동일) ------------------- */
+  --app-color-adfactory: #565fc7;
+  --app-color-trendwatch: #c2410c;
+  --app-color-successai: #2359e6;
+
+  /* ---- accent 그룹 기본값 = AD FACTORY 인디고 ---------------------------- */
+  --accent: #565fc7; /* white 위 5.44 / canvas 5.12 / 흰 라벨 5.44 */
+  --accent-hover: #454db0; /* 흰 라벨 7.14 */
+  --accent-soft: #eeeffb; /* 선택 배경 */
+  --accent-line: #c9ccf0; /* NEW 선택 테두리 (장식) */
+  --accent-ink: #454db0; /* NEW soft 위 텍스트 6.25 */
+  --on-accent: #ffffff; /* NEW */
+  --accent-on-dark: #a5acf0; /* NEW 사이드바 막대·아이콘·포커스 7.20 sidebar / 6.29 elevated */
+
+  /* ---- 포커스 ------------------------------------------------------------ */
+  --focus-color: var(--accent); /* NEW .sidebar 안에서는 var(--accent-on-dark)로 재지정 */
+  --focus-width: 2px;
+  --focus-offset: 2px;
+
+  color-scheme: light;
+}
+
+/* ---- 앱별 accent 그룹: 이 8줄만 다르다 ------------------------------------ */
+
+:root[data-app="adfactory"] {
+  --accent: #565fc7;
+  --accent-hover: #454db0;
+  --accent-soft: #eeeffb;
+  --accent-line: #c9ccf0;
+  --accent-ink: #454db0;
+  --on-accent: #ffffff;
+  --accent-on-dark: #a5acf0;
+}
+
+:root[data-app="trendwatch"] {
+  /* #ff6b00 은 로고 SVG 안에만 남긴다 (흰 라벨 2.9:1 로 UI 채움 불가) */
+  --accent: #c2410c; /* white 5.18 / canvas 4.87 / 흰 라벨 5.18 */
+  --accent-hover: #9a3412; /* 흰 라벨 7.31 */
+  --accent-soft: #fff3eb;
+  --accent-line: #f5c9ad;
+  --accent-ink: #9a3412; /* soft 위 6.71 */
+  --on-accent: #ffffff;
+  --accent-on-dark: #fdba74; /* sidebar 9.19 / elevated 8.03 */
+}
+
+:root[data-app="successai"] {
+  /* #2f6bff 는 white 4.50 경계값이라 한 단계 진하게 */
+  --accent: #2359e6; /* white 5.76 / canvas 5.42 / 흰 라벨 5.76 */
+  --accent-hover: #1a47c2; /* 흰 라벨 7.71 */
+  --accent-soft: #edf2ff;
+  --accent-line: #bcd0fa;
+  --accent-ink: #1a47c2; /* soft 위 6.88 */
+  --on-accent: #ffffff;
+  --accent-on-dark: #93b4ff; /* sidebar 7.54 / elevated 6.58 */
+}
+
+/* 사이드바 안: 포커스와 활성 표시는 어두운 배경용 accent를 쓴다
+   (--accent 를 사이드바에 쓰면 2.69–2.99:1 로 미달) */
+.sidebar {
+  --focus-color: var(--accent-on-dark);
+}

@@ -20,7 +20,7 @@
 }
 .manual-actions {
   border-top: 1px solid var(--line);
-  padding: var(--s4) var(--s6);
+  padding: var(--s4) var(--s5);
 }
 .manual-actions summary {
   color: var(--muted);

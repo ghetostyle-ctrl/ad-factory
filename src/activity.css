@@ -1,14 +1,20 @@
 .activity-rail {
+  position: sticky;
+  top: calc(var(--header-height) + var(--s4));
+  max-height: calc(100dvh - var(--header-height) - var(--s8));
+  overflow-y: auto;
   min-width: 0;
-  padding-left: var(--s6);
-  border-left: 1px solid var(--line);
+  padding: var(--s5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
 }
 .activity-heading {
-  padding-top: var(--s1);
   gap: var(--s2);
 }
 .activity-heading h2 {
   font-size: var(--text-base);
+  font-weight: var(--weight-strong);
 }
 .stream-status {
   display: flex;
@@ -26,7 +32,7 @@
   margin-top: var(--s2);
 }
 .rail-empty {
-  padding: var(--s16) 0;
+  padding: var(--s10) 0;
   text-align: center;
   color: var(--faint);
 }
@@ -51,7 +57,7 @@
   margin-top: var(--s1);
 }
 .activity-list {
-  padding: var(--s6) 0;
+  padding: var(--s5) 0;
   margin: 0;
   list-style: none;
 }
@@ -59,7 +65,7 @@
   display: grid;
   grid-template-columns: 8px minmax(0, 1fr);
   gap: var(--s3);
-  padding-bottom: var(--s6);
+  padding-bottom: var(--s5);
   position: relative;
 }
 .activity-item::before {
@@ -75,11 +81,11 @@
   display: none;
 }
 .event-mark {
-  width: 7px;
-  height: 7px;
-  margin-top: 6px;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
   background: var(--faint);
-  border-radius: 50%;
+  border-radius: var(--radius-pill);
 }
 .activity-success .event-mark {
   background: var(--success);
@@ -95,7 +101,7 @@
   font-size: var(--text-xs);
 }
 .activity-item time {
-  color: var(--muted);
+  color: var(--faint);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }

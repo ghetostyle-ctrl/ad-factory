@@ -32,7 +32,7 @@ export function ActivityRail({ job, live }: { readonly job: Job | null; readonly
         </ol>
       ) : (
         <div className="rail-empty">
-          <Activity size={30} strokeWidth={1.4} />
+          <Activity size={20} strokeWidth={1.75} aria-hidden="true" />
           <h3>아직 실행 기록이 없어요</h3>
           <p>
             작업을 실행하면 도구 호출과

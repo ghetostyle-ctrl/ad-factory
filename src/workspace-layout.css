@@ -4,62 +4,80 @@
   overflow: auto;
 }
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--s4);
   height: var(--header-height);
-  padding: 0 var(--s8);
+  padding: 0 var(--page-pad);
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
 .breadcrumbs {
   display: flex;
   align-items: center;
-  gap: var(--s3);
+  gap: 6px;
+  min-width: 0;
   color: var(--muted);
   font-size: var(--text-sm);
 }
+.breadcrumbs > svg {
+  color: var(--faint);
+}
 .breadcrumbs strong {
-  font-weight: 400;
+  font-weight: var(--weight-medium);
   color: var(--ink);
 }
-.topbar .button {
-  padding: var(--s2);
-}
 .local-badge {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: var(--text-xs);
-  color: var(--muted);
-  padding: 2px var(--s2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--s6);
+  padding: 0 var(--s2);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.local-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--faint);
+}
+.local-badge.connected::before {
+  background: var(--success);
 }
 .workspace-body {
-  padding: var(--s8);
-  max-width: 1480px;
-  margin: auto;
+  padding: var(--s6) var(--page-pad) var(--s10);
+  max-width: var(--content-max);
+  margin-inline: auto;
 }
 .page-heading {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: space-between;
   gap: var(--s4);
-  margin-bottom: var(--s8);
+  margin-bottom: var(--s6);
 }
 .page-heading .eyebrow {
-  font-size: 10px;
-  letter-spacing: 0.1em;
   margin-bottom: var(--s1);
 }
 .page-heading p {
+  max-width: var(--prose-max);
   color: var(--muted);
-  margin-top: var(--s2);
+  margin-top: 6px;
   font-size: var(--text-sm);
 }
 .workspace-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--rail-width);
-  gap: var(--s8);
+  gap: var(--s6);
   align-items: start;
 }
 .workspace-main {
