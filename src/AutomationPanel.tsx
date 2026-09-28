@@ -4,6 +4,7 @@ import type { AutomationState } from "../shared/automation";
 import type { ConfigStatus, Job, StudioState } from "../shared/schema";
 import { AutomationStatus, operationDate } from "./AutomationStatus";
 import { errorMessage, postJob } from "./api";
+import { confirmDialog } from "./confirm-dialog";
 import { ModelProvenance } from "./ModelProvenance";
 import { Button, Notice } from "./primitives";
 
@@ -125,9 +126,12 @@ export function AutomationPanel({
                 <Button
                   variant="ghost"
                   pending={pending}
-                  onClick={() => {
+                  onClick={async () => {
                     if (
-                      window.confirm("자동 운영과 생성 결과물을 초기화할까요? 되돌릴 수 없습니다.")
+                      await confirmDialog(
+                        "자동 운영과 생성 결과물을 초기화할까요? 되돌릴 수 없습니다.",
+                        { confirmLabel: "초기화", danger: true },
+                      )
                     )
                       void mutate("reset");
                   }}
