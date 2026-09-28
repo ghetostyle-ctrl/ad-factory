@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 <#
 .SYNOPSIS
-  AD FACTORY · Success AI · 키워드와처 세 앱을 한 번에 받고 설치합니다 (Windows).
+  AD 스위트(AD FACTORY · Success AI · 키워드와처)를 한 번에 받고 설치합니다 (Windows).
 
 .DESCRIPTION
   1) 필요한 도구 확인: Node.js 20+(Success AI), Bun(AD FACTORY·키워드와처, 없으면 사용자 폴더에 자동 설치)
@@ -95,7 +95,7 @@ function Update-FromZip($app, $target) {
   }
 }
 
-Step "세 앱 받기 → $InstallDir"
+Step "AD 스위트 받기 (AD FACTORY · Success AI · 키워드와처) → $InstallDir"
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 foreach ($app in $apps) {
   $target = Join-Path $InstallDir $app.Dir
@@ -160,7 +160,7 @@ try {
 } finally { Pop-Location }
 
 # 4. 안내 ----------------------------------------------------------------------
-Write-Host "`n세 앱 설치 완료: $InstallDir" -ForegroundColor Green
+Write-Host "`nAD 스위트 설치 완료: $InstallDir" -ForegroundColor Green
 Write-Host @"
 
 실행 (각각 더블클릭, 창을 닫으면 해당 앱이 꺼집니다)

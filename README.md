@@ -4,7 +4,7 @@
 
 **개발용 베타 공개본**입니다. 각자 API 키를 연결하고 소스를 수정해 사용할 수 있습니다. Windows 설치 실행 파일(EXE)이 아니라 Bun으로 실행하는 소스 배포입니다. 실제 사용 전 [현재 제한 사항](docs/KNOWN-ISSUES.md)을 확인하세요.
 
-## 세 앱 한 번에 설치 (AD FACTORY · Success AI · 키워드와처)
+## AD 스위트 한 번에 설치 (AD FACTORY · Success AI · 키워드와처)
 
 광고 레퍼런스 수집기 [Success AI](https://github.com/ghetostyle-ctrl/success_ai)와 검색량 트렌드 대시보드 [키워드와처](https://github.com/ghetostyle-ctrl/keyword-watcher)까지 한 폴더(`%USERPROFILE%\ad-suite`)에 받아 준비합니다. [Node.js](https://nodejs.org) 20 이상이 필요하고, Bun은 없으면 자동 설치합니다.
 

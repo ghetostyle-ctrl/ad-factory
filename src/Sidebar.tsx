@@ -92,7 +92,10 @@ export function Sidebar({
           <ChevronsUpDown size={14} strokeWidth={1.75} aria-hidden="true" />
         </button>
         {workspaceOpen && (
-          <div className="workspace-menu" role="menu" aria-label="앱 선택">
+          <div className="workspace-menu" role="menu" aria-label="AD 스위트 앱 선택">
+            <div className="workspace-menu-title" aria-hidden="true">
+              AD 스위트
+            </div>
             <button
               type="button"
               role="menuitem"
