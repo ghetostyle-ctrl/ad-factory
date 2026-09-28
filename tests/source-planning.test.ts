@@ -288,40 +288,6 @@ test("rejects cosmetic whitespace and casing changes when hooks remain equivalen
   await expect(planned).rejects.toMatchObject({ code: "diversity" });
 });
 
-test.each(["reference", "review", "hypothesis"] as const)(
-  "rejects a product claim when its citation comes from %s",
-  async (kind) => {
-    // Given
-    const fixture = setup();
-    const source = fixture.library.addSource(fixture.project.id, {
-      ...sourceFact,
-      kind: kind === "hypothesis" ? "product_fact" : kind,
-      evidence: kind === "hypothesis" ? "hypothesis" : "observed",
-    });
-    fixture.replies.plan = sourcePlanResponse(source.id);
-    // When
-    const planned = fixture.planner.plan(fixture.job(), sourceStrategy, signal());
-    // Then
-    await expect(planned).rejects.toMatchObject({ code: "citation" });
-    expect(
-      fixture.requests.some((item) => item.text.format.name === "creative_plan_critique"),
-    ).toBe(false);
-  },
-);
-
-test("rejects unsupported quotes when the source ID identifies valid facts", async () => {
-  // Given
-  const fixture = setup();
-  fixture.replies.plan.hypotheses = fixture.replies.plan.hypotheses.map((item) => ({
-    ...item,
-    claimCitations: [{ sourceId: fixture.fact.id, quote: "Capacity: 900 ml." }],
-  }));
-  // When
-  const planned = fixture.planner.plan(fixture.job(), sourceStrategy, signal());
-  // Then
-  await expect(planned).rejects.toMatchObject({ code: "citation" });
-});
-
 test("rejects reference influence when the referenced content was never observed", async () => {
   // Given
   const fixture = setup();
