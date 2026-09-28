@@ -11,6 +11,7 @@ import { AutomationPanel } from "./AutomationPanel";
 import type { View } from "./agentMeta";
 import { errorMessage, postJob, useStudio } from "./api";
 import { CreativeEvidence } from "./CreativeEvidence";
+import { DeleteJobDialog } from "./DeleteJobDialog";
 import { JobOverview } from "./JobOverview";
 import { Button, Notice } from "./primitives";
 import { Sidebar } from "./Sidebar";
@@ -68,6 +69,7 @@ export function App() {
   const handoffRouted = useRef(false);
   const [filter, setFilter] = useState<AgentId | null>(null);
   const [modal, setModal] = useState<StudioModal>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const jobs = state?.jobs ?? [];
@@ -78,6 +80,7 @@ export function App() {
     window.history.replaceState(null, "", window.location.pathname);
   }, [successAiHandoff, state]);
   const job = jobs.find((item) => item.id === selectedId) ?? jobs[0] ?? null;
+  const deleteTarget = jobs.find((item) => item.id === deleteId) ?? null;
   const action = async (kind: "run" | "cancel") => {
     if (!job) return;
     setPending(true);
@@ -124,6 +127,7 @@ export function App() {
         onView={changeView}
         onSelect={changeJob}
         onCreate={() => setModal("create")}
+        onDelete={setDeleteId}
         onSettings={() => setModal("settings")}
         onSuccessAi={() => {
           window.location.href = "http://127.0.0.1:3001/";
@@ -205,6 +209,7 @@ export function App() {
                         void action("cancel");
                       }}
                       onEdit={() => setModal("edit")}
+                      onDelete={() => job && setDeleteId(job.id)}
                     />
                     {job && (
                       <AutomationPanel
@@ -283,6 +288,18 @@ export function App() {
           )}
         </div>
       </main>
+      {deleteTarget && (
+        <DeleteJobDialog
+          job={deleteTarget}
+          onClose={() => setDeleteId(null)}
+          onDeleted={() => {
+            if (selectedId === deleteTarget.id) setSelectedId(null);
+            setDeleteId(null);
+            setView("overview");
+            void refresh();
+          }}
+        />
+      )}
       <StudioDialogs
         modal={modal}
         state={state}

@@ -196,6 +196,11 @@ export class JobStore {
       );
     });
   }
+  remove(id: string): void {
+    this.get(id);
+    this.db.query("DELETE FROM jobs WHERE id = ?").run(JobIdSchema.parse(id));
+    for (const listener of this.listeners) listener();
+  }
   private save(job: Job): void {
     this.db
       .query("INSERT OR REPLACE INTO jobs (id, body) VALUES (?, ?)")

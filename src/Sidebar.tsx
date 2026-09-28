@@ -10,6 +10,7 @@ import {
   Plus,
   Settings2,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import { Fragment, useState } from "react";
 import type { Job } from "../shared/schema";
@@ -22,6 +23,7 @@ type SidebarProps = {
   readonly onView: (view: View) => void;
   readonly onSelect: (id: string) => void;
   readonly onCreate: () => void;
+  readonly onDelete: (id: string) => void;
   readonly onSettings: () => void;
   readonly onSuccessAi: () => void;
   readonly live: boolean;
@@ -33,6 +35,7 @@ export function Sidebar({
   onView,
   onSelect,
   onCreate,
+  onDelete,
   onSettings,
   onSuccessAi,
   live,
@@ -171,16 +174,29 @@ export function Sidebar({
           </p>
         ) : (
           jobs.map((job) => (
-            <button
-              type="button"
-              className={`sidebar-job ${selectedId === job.id ? "selected" : ""}`}
+            <div
+              className={`sidebar-job-row ${selectedId === job.id ? "selected" : ""}`}
               key={job.id}
-              onClick={() => onSelect(job.id)}
-              aria-pressed={selectedId === job.id}
             >
-              <Circle size={8} className={`job-dot ${job.status}`} aria-hidden="true" />
-              <span>{job.name}</span>
-            </button>
+              <button
+                type="button"
+                className={`sidebar-job ${selectedId === job.id ? "selected" : ""}`}
+                onClick={() => onSelect(job.id)}
+                aria-pressed={selectedId === job.id}
+              >
+                <Circle size={8} className={`job-dot ${job.status}`} aria-hidden="true" />
+                <span>{job.name}</span>
+              </button>
+              <button
+                type="button"
+                className="sidebar-job-delete"
+                aria-label={`${job.name} 삭제`}
+                title="작업 삭제"
+                onClick={() => onDelete(job.id)}
+              >
+                <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            </div>
           ))
         )}
       </div>

@@ -1,3 +1,5 @@
+import { rm } from "node:fs/promises";
+import { join } from "node:path";
 import { Hono } from "hono";
 import { validator } from "hono-openapi";
 import {
@@ -83,6 +85,29 @@ export function jobRoutes(store: JobStore, pipeline: Pipeline, engine: Automatio
   routes.post("/:id/automation/reset", validator("json", AutomationResetSchema), (c) =>
     c.json(new AutomationEnrollment(store).reset(c.req.param("id"))),
   );
+  // "/:id/*" 미들웨어가 "/:id" 에도 걸려 동시 변경을 막는다.
+  routes.delete("/:id", async (c) => {
+    const job = store.get(c.req.param("id"));
+    if (pipeline.active.has(job.id) || job.status === "running")
+      throw new StudioError("delete_running", "실행 중인 작업은 먼저 중지한 뒤 삭제하세요.");
+    if (
+      job.automation &&
+      ["queued", "running", "waiting", "attention"].includes(job.automation.status)
+    )
+      throw new StudioError(
+        "delete_automation",
+        "자동 운영 중이거나 확인이 필요한 작업입니다. 자동 운영을 중지한 뒤 삭제하세요.",
+      );
+    if (job.staged)
+      throw new StudioError(
+        "delete_staged",
+        "Meta에 광고가 준비된 작업은 기록 보존을 위해 삭제할 수 없습니다.",
+      );
+    store.remove(job.id);
+    await rm(join(store.root, "artifacts", job.id), { recursive: true, force: true });
+    logger.info({ jobId: job.id }, "job.deleted");
+    return c.json({ deleted: job.id });
+  });
   routes.post("/:id/run", (c) => c.json(pipeline.run(c.req.param("id"))));
   routes.post("/:id/cancel", (c) => c.json(pipeline.cancel(c.req.param("id"))));
   routes.post("/:id/brief", validator("json", CreateJobSchema), (c) => {

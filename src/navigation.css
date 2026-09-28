@@ -252,6 +252,39 @@
   padding: var(--s2) 10px;
 }
 .sidebar-job {
+  padding-right: 36px;
+}
+.sidebar-job-delete {
+  position: absolute;
+  right: 4px;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--sidebar-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition:
+    var(--transition-colors),
+    opacity var(--motion-fast);
+}
+.sidebar-job-row:hover .sidebar-job-delete,
+.sidebar-job-row.selected .sidebar-job-delete,
+.sidebar-job-delete:focus-visible {
+  opacity: 1;
+}
+.sidebar-job-delete:hover {
+  color: var(--sidebar-text);
+  background: var(--sidebar-elevated);
+}
+@media (hover: none) {
+  .sidebar-job-delete {
+    opacity: 1;
+  }
+}
+.sidebar-job {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -279,7 +312,12 @@
   background: var(--sidebar-elevated);
   color: var(--sidebar-text);
 }
-.job-dot {
+.sidebar-job-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.sidebar-job-row .job-dot {
   color: var(--sidebar-faint);
   fill: currentColor;
 }

@@ -1,4 +1,4 @@
-import { ArrowUpRight, Pencil, Play, Plus, RotateCcw, Square, Target } from "lucide-react";
+import { ArrowUpRight, Pencil, Play, Plus, RotateCcw, Square, Target, Trash2 } from "lucide-react";
 import type { Job } from "../shared/schema";
 import { Button, Notice, StatusBadge } from "./primitives";
 
@@ -9,8 +9,17 @@ type OverviewProps = {
   readonly onRun: () => void;
   readonly onCancel: () => void;
   readonly onEdit: () => void;
+  readonly onDelete: () => void;
 };
-export function JobOverview({ job, pending, onCreate, onRun, onCancel, onEdit }: OverviewProps) {
+export function JobOverview({
+  job,
+  pending,
+  onCreate,
+  onRun,
+  onCancel,
+  onEdit,
+  onDelete,
+}: OverviewProps) {
   if (!job)
     return (
       <section className="welcome-panel">
@@ -53,12 +62,18 @@ export function JobOverview({ job, pending, onCreate, onRun, onCancel, onEdit }:
         </div>
         <div className="brief-title">
           <h2>{job.name}</h2>
-          {canEdit && (
-            <Button variant="ghost" onClick={onEdit}>
-              <Pencil size={14} />
-              수정
+          <div className="cluster">
+            {canEdit && (
+              <Button variant="ghost" onClick={onEdit}>
+                <Pencil size={14} />
+                수정
+              </Button>
+            )}
+            <Button variant="ghost" onClick={onDelete}>
+              <Trash2 size={14} />
+              삭제
             </Button>
-          )}
+          </div>
         </div>
         <p className="brief-description">
           {job.sourceSnapshot
