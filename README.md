@@ -14,7 +14,7 @@ PowerShell에서:
 iwr https://raw.githubusercontent.com/ghetostyle-ctrl/ad-factory/main/install-suite.ps1 -OutFile "$env:TEMP\install-suite.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\install-suite.ps1"
 ```
 
-또는 이 저장소를 받은 뒤 `install-suite.cmd`를 더블클릭합니다. 이미 받은 앱은 git으로 최신화하고, `.env` 등 기존 설정은 덮어쓰지 않습니다. API 키는 넣지 않으므로 설치 후 앱마다 본인 키를 연결하세요(키워드와처는 네이버 검색광고 API, AD FACTORY는 연결 설정 화면).
+또는 이 저장소를 받은 뒤 `install-suite.cmd`를 더블클릭합니다. **업데이트도 같은 방법**으로 합니다. 다시 실행하면 이미 받은 앱의 코드만 최신으로 바꾸고(git으로 받았으면 git pull, ZIP이면 새 ZIP으로 교체), API 키(`.env`)·작업 기록·DB·로그는 그대로 둡니다. 켜져 있던 앱은 창을 닫았다 다시 켜면 새 버전이 적용됩니다. 업데이트 없이 실행하려면 `-NoUpdate`를 붙이세요. API 키는 넣지 않으므로 설치 후 앱마다 본인 키를 연결하세요(키워드와처는 네이버 검색광고 API, AD FACTORY는 연결 설정 화면).
 
 ## 다운로드와 실행
 
