@@ -14,11 +14,15 @@
   API 키(.env*), 작업 기록·DB(data, dev.db, *.sqlite), 로그는 건드리지 않습니다.
   업데이트 없이 설치 확인만 하려면 -NoUpdate 를 붙이세요.
 
+  바탕화면에 'AD 스위트 실행'(세 앱을 한 번에 켜기)과 'AD 스위트 종료' 아이콘을 만듭니다.
+  -AutoStart 를 붙이면 Windows 로그인 때 세 앱이 자동으로 켜지게 등록합니다.
+
 .EXAMPLE
   # 이 저장소 폴더에서
   .\install-suite.ps1
   .\install-suite.ps1 -InstallDir "D:\ad-suite"
   .\install-suite.ps1 -NoUpdate      # 이미 받은 앱은 업데이트하지 않음
+  .\install-suite.ps1 -AutoStart     # 로그인 때 자동 실행까지 등록
 
   # 아무 데서나
   iwr https://raw.githubusercontent.com/ghetostyle-ctrl/ad-factory/main/install-suite.ps1 -OutFile "$env:TEMP\install-suite.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\install-suite.ps1"
@@ -26,7 +30,8 @@
 param(
   [string]$InstallDir = (Join-Path $env:USERPROFILE 'ad-suite'),
   [switch]$SkipSetup,
-  [switch]$NoUpdate
+  [switch]$NoUpdate,
+  [switch]$AutoStart
 )
 
 $ErrorActionPreference = 'Stop'
@@ -159,14 +164,41 @@ try {
   if ($LASTEXITCODE -ne 0) { Fail 'Success AI 설치 실패. 위 메시지를 확인하세요.' }
 } finally { Pop-Location }
 
-# 4. 안내 ----------------------------------------------------------------------
+# 4. 바탕화면 아이콘 · 자동 실행 -------------------------------------------------
+$suiteDir = Join-Path $adDir 'suite'
+Step '바탕화면 아이콘 만들기 (AD 스위트 실행 / 종료)'
+try {
+  $desktop = [Environment]::GetFolderPath('Desktop')
+  $shell = New-Object -ComObject WScript.Shell
+  $psExe = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+  foreach ($lnk in @(
+      @{ Name = 'AD 스위트 실행'; File = 'start-suite.ps1'; Desc = 'AD FACTORY · 키워드와처 · Success AI 를 한 번에 켜기' },
+      @{ Name = 'AD 스위트 종료'; File = 'stop-suite.ps1'; Desc = 'AD 스위트 세 앱 끄기' })) {
+    $sc = $shell.CreateShortcut((Join-Path $desktop ($lnk.Name + '.lnk')))
+    $sc.TargetPath = $psExe
+    $sc.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$(Join-Path $suiteDir $lnk.File)`""
+    $sc.WorkingDirectory = $InstallDir
+    $sc.IconLocation = (Join-Path $suiteDir 'ad-suite.ico')
+    $sc.Description = $lnk.Desc
+    $sc.Save()
+    Write-Host "  $($lnk.Name).lnk"
+  }
+} catch { Warn "바탕화면 아이콘 만들기 실패(무시 가능): $($_.Exception.Message)" }
+
+if ($AutoStart) {
+  Step '로그인 때 자동 실행 등록'
+  & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File (Join-Path $suiteDir 'register-autostart.ps1')
+}
+
+# 5. 안내 ----------------------------------------------------------------------
 Write-Host "`nAD 스위트 설치 완료: $InstallDir" -ForegroundColor Green
 Write-Host @"
 
-실행 (각각 더블클릭, 창을 닫으면 해당 앱이 꺼집니다)
-  AD FACTORY  : $adDir\start-local.cmd            → http://127.0.0.1:4317
-  키워드와처  : $kwDir\Start-KeywordWatcher.cmd   → http://127.0.0.1:3000
-  Success AI  : 바탕화면 'Success AI 실행' 아이콘  → http://localhost:3001
+실행
+  바탕화면 'AD 스위트 실행' 아이콘 → 세 앱이 창 없이 켜지고 AD FACTORY 가 브라우저로 열립니다
+  끌 때는 바탕화면 'AD 스위트 종료' 아이콘
+  주소: AD FACTORY http://127.0.0.1:4317 · 키워드와처 http://127.0.0.1:3000 · Success AI http://localhost:3001
+  로그인 때 자동으로 켜려면: 이 스크립트를 -AutoStart 로 다시 실행 (해제: $suiteDir\register-autostart.ps1 -Remove)
 
 API 키는 각자 발급해서 본인 PC에만 넣습니다 (이 설치는 키를 넣지 않습니다)
   AD FACTORY  : 앱 화면의 [연결 설정]에서 OpenAI·Gemini 등 키 저장

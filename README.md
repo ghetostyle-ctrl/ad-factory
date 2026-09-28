@@ -14,7 +14,9 @@ PowerShell에서:
 iwr https://raw.githubusercontent.com/ghetostyle-ctrl/ad-factory/main/install-suite.ps1 -OutFile "$env:TEMP\install-suite.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\install-suite.ps1"
 ```
 
-또는 이 저장소를 받은 뒤 `install-suite.cmd`를 더블클릭합니다. **업데이트도 같은 방법**으로 합니다. 다시 실행하면 이미 받은 앱의 코드만 최신으로 바꾸고(git으로 받았으면 git pull, ZIP이면 새 ZIP으로 교체), API 키(`.env`)·작업 기록·DB·로그는 그대로 둡니다. 켜져 있던 앱은 창을 닫았다 다시 켜면 새 버전이 적용됩니다. 업데이트 없이 실행하려면 `-NoUpdate`를 붙이세요. API 키는 넣지 않으므로 설치 후 앱마다 본인 키를 연결하세요(키워드와처는 네이버 검색광고 API, AD FACTORY는 연결 설정 화면).
+또는 이 저장소를 받은 뒤 `install-suite.cmd`를 더블클릭합니다. **업데이트도 같은 방법**으로 합니다. 다시 실행하면 이미 받은 앱의 코드만 최신으로 바꾸고(git으로 받았으면 git pull, ZIP이면 새 ZIP으로 교체), API 키(`.env`)·작업 기록·DB·로그는 그대로 둡니다. 켜져 있던 앱은 창을 닫았다 다시 켜면 새 버전이 적용됩니다. 업데이트 없이 실행하려면 `-NoUpdate`를 붙이세요.
+
+설치가 끝나면 바탕화면에 **AD 스위트 실행**(세 앱을 창 없이 한 번에 켜고 AD FACTORY를 브라우저로 열기)과 **AD 스위트 종료** 아이콘이 생깁니다. Windows 로그인 때 자동으로 켜려면 설치 명령 끝에 `-AutoStart`를 붙여 한 번 더 실행하세요(해제: `ad-suite\ad-factory\suite\register-autostart.ps1 -Remove`). API 키는 넣지 않으므로 설치 후 앱마다 본인 키를 연결하세요(키워드와처는 네이버 검색광고 API, AD FACTORY는 연결 설정 화면).
 
 ## 다운로드와 실행
 
