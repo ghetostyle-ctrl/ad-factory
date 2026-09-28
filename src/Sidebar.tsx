@@ -3,7 +3,6 @@ import {
   Check,
   ChevronsUpDown,
   Circle,
-  Command,
   FolderOpen,
   Layers3,
   Library,
@@ -61,13 +60,11 @@ export function Sidebar({
   ] as const;
   return (
     <aside className="sidebar">
-      <a className="brand" href="/">
-        <span className="brand-symbol">
-          <Command size={18} strokeWidth={1.75} aria-hidden="true" />
+      <a className="brand" href="/" aria-label="AD 스위트">
+        <span className="brand-symbol" aria-hidden="true">
+          AD
         </span>
-        <span>
-          AD FACTORY<small>광고가 만들어지는 곳</small>
-        </span>
+        <span>AD 스위트</span>
       </a>
       <span className={`mobile-status ${live ? "connected" : ""}`}>로컬</span>
       <button type="button" className="mobile-settings" aria-label="연결 설정" onClick={onSettings}>

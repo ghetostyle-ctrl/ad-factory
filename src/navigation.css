@@ -10,7 +10,9 @@
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  /* AD 스위트 공통 브랜드 줄: 세 앱 모두 같은 높이(46.8px)라 아래 앱 전환 카드 위치가 고정된다 */
+  min-height: 46.8px;
   margin: 0 var(--s2) var(--s5);
   color: var(--sidebar-text);
   text-decoration: none;
@@ -21,11 +23,15 @@
 .brand-symbol {
   display: grid;
   place-items: center;
-  width: var(--s8);
-  height: var(--s8);
-  background: var(--accent);
-  color: var(--on-accent);
+  flex: none;
+  width: 32px;
+  height: 32px;
+  background: var(--sidebar-text);
+  color: var(--sidebar);
   border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 .brand small {
   display: block;
@@ -263,7 +269,38 @@
   padding: var(--s2) 10px;
 }
 .sidebar-job {
-  padding-right: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  /* 오른쪽 36px: 휴지통 버튼 자리 */
+  padding: 6px 36px 6px 10px;
+  color: var(--sidebar-muted);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  transition: var(--transition-colors);
+}
+.sidebar-job span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-base);
+}
+.sidebar-job:hover {
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text);
+}
+.sidebar-job.selected {
+  background: var(--sidebar-elevated);
+  color: var(--sidebar-text);
+}
+.sidebar-job-row {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 .sidebar-job-delete {
   position: absolute;
@@ -295,40 +332,7 @@
     opacity: 1;
   }
 }
-.sidebar-job {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 36px;
-  padding: 6px 10px;
-  color: var(--sidebar-muted);
-  background: transparent;
-  border: 0;
-  text-align: left;
-  border-radius: var(--radius-sm);
-  transition: var(--transition-colors);
-}
-.sidebar-job span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-base);
-}
-.sidebar-job:hover {
-  background: var(--sidebar-hover);
-  color: var(--sidebar-text);
-}
-.sidebar-job.selected {
-  background: var(--sidebar-elevated);
-  color: var(--sidebar-text);
-}
-.sidebar-job-row {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-.sidebar-job-row .job-dot {
+.job-dot {
   color: var(--sidebar-faint);
   fill: currentColor;
 }
