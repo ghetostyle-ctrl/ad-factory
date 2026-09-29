@@ -362,3 +362,61 @@ test.each([
     );
   },
 );
+
+test("rejects concepts that answer the same customer question with different wording", async () => {
+  // Given
+  const fixture = setup();
+  fixture.replies.plan.hypotheses = fixture.replies.plan.hypotheses.map((item) => ({
+    ...item,
+    customerQuestionId: "question-0",
+  }));
+  // When
+  const planned = fixture.planner.plan(fixture.job(), sourceStrategy, signal());
+  // Then
+  await expect(planned).rejects.toMatchObject({ code: "diversity" });
+  expect(fixture.requests).toHaveLength(1);
+});
+
+test.each([
+  ["an unknown question", { customerQuestionId: "question-missing" }, null],
+  ["an inferred question with sources", null, { basis: "inferred" as const }],
+  ["a customer-voice question citing facts", null, { basis: "customer_voice" as const }],
+])("rejects %s", async (_name, hypothesisPatch, questionPatch) => {
+  // Given
+  const fixture = setup();
+  if (hypothesisPatch)
+    fixture.replies.plan.hypotheses = fixture.replies.plan.hypotheses.map((item, index) =>
+      index === 0 ? { ...item, ...hypothesisPatch } : item,
+    );
+  if (questionPatch)
+    fixture.replies.plan.customerQuestions = fixture.replies.plan.customerQuestions.map(
+      (item, index) => (index === 0 ? { ...item, ...questionPatch } : item),
+    );
+  // When
+  const planned = fixture.planner.plan(fixture.job(), sourceStrategy, signal());
+  // Then
+  await expect(planned).rejects.toMatchObject({ code: "customer_questions" });
+});
+
+test("records the weekly learning-signal arithmetic when a daily budget exists", async () => {
+  // Given
+  const fixture = setup();
+  const job = fixture.store.change(fixture.job().id, (draft) => {
+    draft.dailyBudget = 30000;
+    draft.currency = "KRW";
+    draft.objective = "sales";
+  });
+  // When
+  const result = await fixture.planner.plan(job, sourceStrategy, signal());
+  // Then
+  expect(result.value.learningSignal).toEqual({
+    optimizationResult: "purchase",
+    dailyBudget: 30000,
+    weeklyBudget: 210000,
+    currency: "KRW",
+    weeklyResultsReference: 50,
+    maxCostPerResultFor50: 4200,
+    conceptCount: 3,
+  });
+  expect(result.value.customerQuestions).toHaveLength(3);
+});

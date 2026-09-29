@@ -35,10 +35,27 @@ export function sourcePlanResponse(sourceId: string, referenceSourceIds: readonl
     "Compare measured capacity",
   ];
   const mechanisms = ["Desk schedule diagram", "Concept-art bag layout", "Volume scale graphic"];
+  const questions = [
+    ["buying_reason", "Will it last my whole workday?"],
+    ["decision_criterion", "Does it fit my day bag?"],
+    ["hesitation", "Is the capacity really as stated?"],
+  ] as const;
   return CreativePlanResponseSchema.parse({
+    customerQuestions: questions.map(([kind, question], index) => ({
+      id: `question-${index}`,
+      kind,
+      question,
+      basis: "product_fact",
+      sourceIds: [sourceId],
+      proofNeeded: sourceFact.content,
+      answeredByReferences: [],
+    })),
     hypotheses: ["problem_solution", "usage_context", "objection_answer"].map((angle, index) => ({
       id: `concept-${index}`,
       angle,
+      customerQuestionId: `question-${index}`,
+      decisionRole: (["need_awareness", "comparison", "final_decision"] as const)[index],
+      proofShown: sourceFact.content,
       targetAudience: audiences[index],
       targetReason: `Verified capacity and observed reference structure for ${audiences[index]}`,
       customerSituation: situations[index],

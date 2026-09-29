@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   type CreativePlan,
   CreativePlanResponseSchema,
+  type LearningSignal,
   PlanCritiqueSchema,
   type ReferenceAnalysis,
   ReferenceAnalysisResponseSchema,
@@ -52,6 +53,21 @@ type PlanningMediaAnalysis = {
   }[];
   readonly limitations: string[];
 };
+// Meta 도움말: 광고 세트가 크게 수정된 뒤 약 1주일에 50회 전후의 최적화 결과를 얻으면 학습이 안정되는 경우가 일반적이다.
+// 권장 예산이 아니라 "이 예산으로 주 50건이 가능하려면 결과당 비용이 얼마 이하여야 하는가"의 단순 계산이다.
+export function learningSignal(job: Job, conceptCount: number): LearningSignal | null {
+  if (!job.dailyBudget) return null;
+  const weeklyBudget = job.dailyBudget * 7;
+  return {
+    optimizationResult: job.objective === "sales" ? "purchase" : "link_click",
+    dailyBudget: job.dailyBudget,
+    weeklyBudget,
+    currency: job.currency,
+    weeklyResultsReference: 50,
+    maxCostPerResultFor50: weeklyBudget / 50,
+    conceptCount,
+  };
+}
 export class SourcePlanner {
   constructor(
     readonly store: JobStore,
@@ -147,7 +163,7 @@ export class SourcePlanner {
     for (let attempt = 0; attempt < 2; attempt++) {
       this.store.agent(job.id, "creative", {
         status: "running",
-        action: `서로 다른 고객 상황·문제·메시지 가설 ${imageCount}개 설계${attempt ? " · 다양성/근거 수정 1회" : ""}`,
+        action: `사는 이유·망설임·확인 기준 정리 후 서로 다른 구매 질문에 답하는 가설 ${imageCount}개 설계${attempt ? " · 다양성/근거 수정 1회" : ""}`,
       });
       const generated = await generateTextResult(
         {
@@ -157,12 +173,13 @@ export class SourcePlanner {
           signal,
           models,
           maxOutputTokens: 22000,
-          prompt: `${guard}\nDesign exactly ${imageCount} distinct square image ad concepts. Rotate the angles problem_solution, usage_context, objection_answer; use each angle at least once when producing three or more. Reverse-plan each concept from our verified product facts and the observed messages, hooks and edit structures of supplied reference ads. For EACH concept choose a distinct targetAudience and customerSituation; targetReason must explain which supplied product fact and, when available, observed reference structure motivated that message audience. If no reference is supplied, say so; always mark inferred needs as unverified. Distinguish creative-message audiences, not separate Meta ad-set targeting. Each concept also needs genuinely distinct problem, message, hook, visualMechanism and difference. Cosmetic copy/color changes are not diversity. Use mediaAnalysesByReference to borrow reference ad structure: first-screen hook, cut-by-cut screen composition, visible text, and message progression. Do not copy a reference ad's brand claims. Include executable Creative copy and image prompt; mark invented scenes as concept art, never imply an unseen product appearance. Cite every product assertion using factual sourceId and an exact supporting quote (at least one citation each). Use ONLY FACTS for claims, never reference observations/reviews/brief as product proof. referenceSourceIds may only identify an observed supplied reference. Explain internal diversity logic without pretending to measure Meta semantic similarity. State limitations and that inferred audiences must be tested against actual ad-level observations; one shared budget cannot assure equal allocation.\nDATA:\n${context}\nREVISION FEEDBACK:\n${JSON.stringify(feedback)}`,
+          prompt: `${guard}\nStart from the customer, not from ad count or campaign settings. STEP 1 customerQuestions: map why customers buy (buying_reason), why they hesitate (hesitation), and what they must confirm before deciding (decision_criterion). Phrase each question in the customer's own words where VOICES supply them. basis customer_voice requires VOICES sourceIds; product_fact requires FACTS sourceIds; otherwise basis inferred with empty sourceIds (an unverified hypothesis). proofNeeded names what the customer must see to be persuaded. answeredByReferences lists supplied reference sourceIds whose observed structure already answers that question, so repeatedly answered questions are visible. STEP 2 design exactly ${imageCount} distinct square image ad concepts; each concept answers one customerQuestionId. Different concepts must answer different customer questions with different persuasion reasons and proof; changing presenter, background, first line, caption design or format while repeating the same promise is NOT diversity. Prefer questions not already answered by references. Only after the reasons differ, vary hooks and formats. proofShown states which cited FACTS the ad shows as proof. decisionRole marks whether the ad creates need (need_awareness), helps compare options (comparison) or supports the final purchase decision (final_decision); roles are hypotheses to verify with actual business results. Rotate the angles problem_solution, usage_context, objection_answer; use each angle at least once when producing three or more. Reverse-plan each concept from our verified product facts and the observed messages, hooks and edit structures of supplied reference ads. For EACH concept choose a distinct targetAudience and customerSituation; targetReason must explain which supplied product fact and, when available, observed reference structure motivated that message audience. If no reference is supplied, say so; always mark inferred needs as unverified. Distinguish creative-message audiences, not separate Meta ad-set targeting. Each concept also needs genuinely distinct problem, message, hook, visualMechanism and difference. Cosmetic copy/color changes are not diversity. Use mediaAnalysesByReference to borrow reference ad structure: first-screen hook, cut-by-cut screen composition, visible text, and message progression. Do not copy a reference ad's brand claims. Include executable Creative copy and image prompt; mark invented scenes as concept art, never imply an unseen product appearance. Cite every product assertion using factual sourceId and an exact supporting quote (at least one citation each). Use ONLY FACTS for claims, never reference observations/reviews/brief as product proof. referenceSourceIds may only identify an observed supplied reference. Explain internal diversity logic in terms of distinct customer questions without pretending to measure Meta semantic similarity. State limitations: inferred audiences and questions must be tested against actual ad-level and business results; more concepts in one shared budget do not add learning data or assure equal allocation; Andromeda processes many ads but more ads do not by themselves guarantee advertiser results.\nDATA:\n${context}\nREVISION FEEDBACK:\n${JSON.stringify(feedback)}`,
         },
         this.connection,
       );
       const plan: CreativePlan = {
         ...generated.value,
+        learningSignal: learningSignal(job, imageCount),
         sourceDigest: snapshot.digest,
         referenceAnalyses,
         sourceCoverage: pack.coverage,
@@ -180,7 +197,7 @@ export class SourcePlanner {
           signal,
           models,
           maxOutputTokens: 14000,
-          prompt: `${guard}\nIndependently review the proposed ${imageCount} concepts against FACTS and observed reference structures. Pass only if every factual product claim in copy/image prompts has valid, sufficient cited evidence, and target audiences, situations, problems, messages, hooks and visual mechanisms differ substantively rather than synonym/cosmetic changes. targetReason must connect a real product fact and observed reference structure to the selected creative-message audience without pretending the audience response or performance was observed. Reject unsupported claims or one broad promise repeated three ways. Inferred audience needs must be labeled unverified. status pass requires issues empty; revise requires concrete issues.\nDATA:\n${JSON.stringify({ facts, plan })}`,
+          prompt: `${guard}\nIndependently review the proposed ${imageCount} concepts against FACTS and observed reference structures. Pass only if every factual product claim in copy/image prompts has valid, sufficient cited evidence, and target audiences, situations, problems, messages, hooks and visual mechanisms differ substantively rather than synonym/cosmetic changes. targetReason must connect a real product fact and observed reference structure to the selected creative-message audience without pretending the audience response or performance was observed. Reject unsupported claims or one broad promise repeated three ways. Reject when two concepts answer the same customer question or the same purchase reason and differ only in hook, presenter, background, caption or format. Each concept's customerQuestionId must exist in customerQuestions and its proofShown must be backed by its cited FACTS. customerQuestions with basis inferred must stay framed as unverified. Reject any claim that ad count, CBO/ABO or Andromeda settings themselves guarantee performance. Inferred audience needs must be labeled unverified. status pass requires issues empty; revise requires concrete issues.\nDATA:\n${JSON.stringify({ facts, plan })}`,
         },
         this.connection,
       );

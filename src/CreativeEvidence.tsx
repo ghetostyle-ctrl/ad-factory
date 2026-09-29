@@ -1,4 +1,5 @@
 import { Lightbulb } from "lucide-react";
+import type { LearningSignal } from "../shared/creative-plan";
 import type { Job } from "../shared/schema";
 import { Notice } from "./primitives";
 import { VariantStatus } from "./VariantStatus";
@@ -8,6 +9,21 @@ const angles = {
   problem_solution: "문제 해결",
   usage_context: "사용 상황",
   objection_answer: "구매 망설임 해소",
+} as const;
+const questionKinds = {
+  buying_reason: "사는 이유",
+  hesitation: "망설이는 이유",
+  decision_criterion: "확인하고 싶은 기준",
+} as const;
+const questionBases = {
+  customer_voice: "고객 후기 표현",
+  product_fact: "제품 자료",
+  inferred: "추정 · 검증 필요",
+} as const;
+const decisionRoles = {
+  need_awareness: "필요성 인식",
+  comparison: "비교·검토",
+  final_decision: "마지막 구매 결정",
 } as const;
 
 export function CreativeEvidence({ job }: { readonly job: Job }) {
@@ -29,6 +45,58 @@ export function CreativeEvidence({ job }: { readonly job: Job }) {
           <h3>세 광고안이 다른 이유</h3>
           <p>{plan.diversityRationale}</p>
         </div>
+        {plan.customerQuestions.length > 0 && (
+          <details className="evidence-details" open>
+            <summary>
+              고객 질문 {plan.customerQuestions.length}개 · 왜 사고, 왜 망설이고, 무엇을 확인하면
+              사는가
+            </summary>
+            <div className="stack">
+              {plan.customerQuestions.map((question) => {
+                const answeredBy = plan.hypotheses
+                  .map((item, index) => (item.customerQuestionId === question.id ? index + 1 : 0))
+                  .filter(Boolean);
+                return (
+                  <section className="stack hypothesis-card" key={question.id}>
+                    <span className="eyebrow">
+                      {questionKinds[question.kind]} · {questionBases[question.basis]}
+                    </span>
+                    <h3>“{question.question}”</h3>
+                    <dl className="definition-list operation-definition">
+                      <div>
+                        <dt>설득에 필요한 증거</dt>
+                        <dd>{question.proofNeeded}</dd>
+                      </div>
+                      <div>
+                        <dt>근거 자료</dt>
+                        <dd>
+                          {question.sourceIds.length
+                            ? question.sourceIds.map(sourceName).join(" · ")
+                            : "없음 · 추정"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>이미 답한 레퍼런스</dt>
+                        <dd>
+                          {question.answeredByReferences.length
+                            ? question.answeredByReferences.map(sourceName).join(" · ")
+                            : "없음"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>이 질문에 답하는 광고안</dt>
+                        <dd>
+                          {answeredBy.length ? answeredBy.map((n) => `${n}번`).join(", ") : "없음"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+                );
+              })}
+            </div>
+          </details>
+        )}
+        {plan.learningSignal && <LearningSignalNote signal={plan.learningSignal} />}
         <details className="evidence-details">
           <summary>
             실제로 사용한 자료 · 제품 근거 {plan.sourceCoverage.factsUsed.length}개 · 레퍼런스{" "}
@@ -106,6 +174,28 @@ export function CreativeEvidence({ job }: { readonly job: Job }) {
                 </div>
               </div>
               <dl className="definition-list operation-definition">
+                {hypothesis.customerQuestionId && (
+                  <div>
+                    <dt>답하는 고객 질문</dt>
+                    <dd>
+                      {plan.customerQuestions.find(
+                        (item) => item.id === hypothesis.customerQuestionId,
+                      )?.question ?? hypothesis.customerQuestionId}
+                    </dd>
+                  </div>
+                )}
+                {hypothesis.decisionRole && (
+                  <div>
+                    <dt>구매 여정의 역할 · 가설</dt>
+                    <dd>{decisionRoles[hypothesis.decisionRole]}</dd>
+                  </div>
+                )}
+                {hypothesis.proofShown && (
+                  <div>
+                    <dt>보여 줄 증거</dt>
+                    <dd>{hypothesis.proofShown}</dd>
+                  </div>
+                )}
                 <div>
                   <dt>소재 타깃 오디언스</dt>
                   <dd>{hypothesis.targetAudience}</dd>
@@ -198,6 +288,26 @@ export function CreativeEvidence({ job }: { readonly job: Job }) {
         </Notice>
       </div>
     </section>
+  );
+}
+
+function LearningSignalNote({ signal }: { readonly signal: LearningSignal }) {
+  const money = (value: number) => `${Math.round(value).toLocaleString()} ${signal.currency}`;
+  const result = signal.optimizationResult === "purchase" ? "구매" : "링크 클릭";
+  return (
+    <div className="evidence-summary stack">
+      <h3>학습에 쓸 신호가 충분한가</h3>
+      <p>
+        일 예산 {money(signal.dailyBudget)} × 7일 = 주 {money(signal.weeklyBudget)}. 광고 세트가 주{" "}
+        {signal.weeklyResultsReference}건 전후의 {result}를 얻으려면 {result} 1건당 비용이{" "}
+        <strong>{money(signal.maxCostPerResultFor50)} 이하</strong>여야 합니다.
+      </p>
+      <p className="muted small-copy">
+        권장 예산이 아닌 단순 계산입니다. 주 50건은 Meta 도움말의 일반적인 학습 안정 기준이며 보장이
+        아닙니다. 광고안 {signal.conceptCount}개는 같은 예산을 나눠 쓰므로 광고안을 늘려도 학습
+        데이터가 늘지 않습니다.
+      </p>
+    </div>
   );
 }
 

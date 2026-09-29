@@ -13,10 +13,26 @@ export const ReferenceAnalysisSchema = ReferenceAnalysisResponseSchema.extend({
   sourceId: z.string(),
 });
 export type ReferenceAnalysis = z.infer<typeof ReferenceAnalysisSchema>;
-export const HypothesisSchema = z
+export const CustomerQuestionSchema = z
+  .object({
+    id: z.string().regex(/^[a-z][a-z0-9-]{0,30}$/),
+    kind: z.enum(["buying_reason", "hesitation", "decision_criterion"]),
+    question: concise,
+    basis: z.enum(["customer_voice", "product_fact", "inferred"]),
+    sourceIds: z.array(z.string()).max(8),
+    proofNeeded: concise,
+    answeredByReferences: z.array(z.string()).max(8),
+  })
+  .strict();
+export type CustomerQuestion = z.infer<typeof CustomerQuestionSchema>;
+const DecisionRoleSchema = z.enum(["need_awareness", "comparison", "final_decision"]);
+export const HypothesisResponseSchema = z
   .object({
     id: z.string().regex(/^[a-z][a-z0-9-]{0,30}$/),
     angle: z.enum(["problem_solution", "usage_context", "objection_answer"]),
+    customerQuestionId: z.string(),
+    decisionRole: DecisionRoleSchema,
+    proofShown: concise,
     targetAudience: concise,
     targetReason: concise,
     customerSituation: concise,
@@ -33,14 +49,34 @@ export const HypothesisSchema = z
     creative: CreativeSchema,
   })
   .strict();
+// 고객 질문 설계 이전에 저장된 기획도 읽을 수 있도록 저장본에서는 새 필드를 선택 항목으로 둔다.
+export const HypothesisSchema = HypothesisResponseSchema.extend({
+  customerQuestionId: z.string().optional(),
+  decisionRole: DecisionRoleSchema.optional(),
+  proofShown: concise.optional(),
+});
 export const CreativePlanResponseSchema = z
   .object({
-    hypotheses: z.array(HypothesisSchema).min(1).max(10),
+    customerQuestions: z.array(CustomerQuestionSchema).min(1).max(12),
+    hypotheses: z.array(HypothesisResponseSchema).min(1).max(10),
     diversityRationale: concise,
     limitations: z.array(concise).min(1).max(15),
   })
   .strict();
+export const LearningSignalSchema = z.object({
+  optimizationResult: z.enum(["purchase", "link_click"]),
+  dailyBudget: z.number().positive(),
+  weeklyBudget: z.number().positive(),
+  currency: z.string(),
+  weeklyResultsReference: z.literal(50),
+  maxCostPerResultFor50: z.number().positive(),
+  conceptCount: z.number().int().min(1).max(10),
+});
+export type LearningSignal = z.infer<typeof LearningSignalSchema>;
 export const CreativePlanSchema = CreativePlanResponseSchema.extend({
+  customerQuestions: z.array(CustomerQuestionSchema).max(12).default([]),
+  hypotheses: z.array(HypothesisSchema).min(1).max(10),
+  learningSignal: LearningSignalSchema.nullable().default(null),
   sourceDigest: z.string(),
   referenceAnalyses: z.array(ReferenceAnalysisSchema).max(8),
   sourceCoverage: z.object({
