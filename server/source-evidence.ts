@@ -110,6 +110,12 @@ function validateFunnelSignals(
         "funnel",
         "TOFU 광고안은 고객의 문제와 우리만의 해결 방식(메커니즘·원인 재해석)을 보여 줘야 합니다.",
       );
+    const slides = hypothesis.cardSlides ?? [];
+    if (signals.format === "mechanism_explainer" ? slides.length < 2 : slides.length > 0)
+      throw new StudioError(
+        "funnel",
+        "메커니즘 설명형 카드뉴스는 표지 다음 카드 2~4장이 필요하고, 다른 소재 유형은 카드를 만들지 않습니다.",
+      );
     if (
       signals.format === "benefit_offer" &&
       ["none", "risk_reversal"].includes(signals.offer.type)

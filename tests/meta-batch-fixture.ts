@@ -223,6 +223,7 @@ export async function batchFixture() {
         creative,
         imageAttempts: 1,
         approvedImageId: asset.id,
+        cardImageIds: [],
         approvedImageDigest: contentDigest(bytes),
         approvedCreativeDigest: contentDigest(JSON.stringify(creative)),
         reviewStatus: "pass",

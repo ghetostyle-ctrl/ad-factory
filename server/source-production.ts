@@ -11,6 +11,11 @@ import { SourcePlanner } from "./source-planning";
 import type { JobStore } from "./store";
 import { generateVideoScript, verifyVideoScript } from "./video-scripts";
 
+// 영상은 TOFU 문제 제기형 광고안부터 만든다(한 세트 편성의 '문제 제기형 영상'). 신호가 없는 예전 기획은 원래 순서.
+export function videoHypotheses(plan: CreativePlan): CreativePlan["hypotheses"] {
+  const first = plan.hypotheses.filter((item) => item.signals?.format === "problem_empathy");
+  return [...first, ...plan.hypotheses.filter((item) => !first.includes(item))];
+}
 export type PlanProvider = (
   job: Job,
   strategy: Strategy,
@@ -59,6 +64,7 @@ export class SourceProduction {
               approvedImageDigest: null,
               approvedCreativeDigest: null,
               reviewStatus: "pending",
+              cardImageIds: [],
             }));
           });
           this.store.agent(id, "creative", {
@@ -72,8 +78,9 @@ export class SourceProduction {
       throw new BlockedError("자료 기반 기획이 없습니다.");
     validatePlanEvidence(job.creativePlan, job.sourceSnapshot, imageCount);
     const videoCount = policy?.mode === "creative" ? (policy.videoCount ?? 0) : 0;
+    const videoOrder = videoHypotheses(job.creativePlan);
     for (let index = this.store.get(id).videoScripts.length; index < videoCount; index++) {
-      const hypothesis = job.creativePlan.hypotheses[index % job.creativePlan.hypotheses.length];
+      const hypothesis = videoOrder[index % videoOrder.length];
       if (!hypothesis) throw new BlockedError("영상 대본에 연결할 광고안이 없습니다.");
       await this.guard.operation(id, {
         phase: "script",
@@ -108,15 +115,88 @@ export class SourceProduction {
       });
     }
     for (const [index, script] of this.store.get(id).videoScripts.entries()) {
-      const hypothesis = job.creativePlan.hypotheses[index % job.creativePlan.hypotheses.length];
+      const hypothesis = videoOrder[index % videoOrder.length];
       if (!hypothesis) throw new BlockedError("영상 대본에 연결할 광고안이 없습니다.");
       verifyVideoScript(script, index + 1, hypothesis.id);
     }
-    for (const variant of job.creativeVariants)
+    for (const variant of job.creativeVariants) {
       await this.produce({ id, variantId: variant.id, signal });
+      await this.produceCards({ id, variantId: variant.id, signal });
+    }
     const first = this.store.get(id).creativeVariants[0];
     if (!first) throw new BlockedError("제작할 가설이 없습니다.");
     return first.creative;
+  }
+  // 메커니즘 설명형 카드뉴스: 표지(대표 이미지)가 확정된 뒤 2~5번째 장을 장마다 생성·검토한다.
+  // 장마다 검토는 1회, 수정 요청이 오면 한 번만 다시 만들고 그 결과로 확정해 비용을 제한한다.
+  private async produceCards(task: {
+    readonly id: string;
+    readonly variantId: string;
+    readonly signal: AbortSignal;
+  }): Promise<void> {
+    const { id, variantId, signal } = task;
+    const slides =
+      this.store.get(id).creativePlan?.hypotheses.find((item) => item.id === variantId)
+        ?.cardSlides ?? [];
+    for (const [index, slide] of slides.entries()) {
+      if (this.variant(this.store.get(id), variantId).cardImageIds[index]) continue;
+      const cardNumber = index + 2;
+      await this.guard.operation(id, {
+        phase: "image",
+        signal,
+        run: async () => {
+          const base = this.variant(this.store.get(id), variantId).creative;
+          const creative = {
+            ...base,
+            headline: slide.headline,
+            primaryText: slide.body || slide.headline,
+            imagePrompt: slide.imagePrompt,
+          };
+          let prompt = slide.imagePrompt;
+          let saved: { id: string } | null = null;
+          for (let attempt = 1; attempt <= 2; attempt++) {
+            this.store.agent(id, "production", {
+              status: "running",
+              action: `${variantId} · 카드뉴스 ${cardNumber}/${slides.length + 1}장 ${attempt === 1 ? "생성" : "수정"} 중`,
+            });
+            const result = await this.providers.image(this.store.get(id), prompt, signal);
+            saved = await this.assets.save(id, {
+              name: `card-${variantId}-${cardNumber}-${attempt}.png`,
+              kind: "image",
+              agentId: "production",
+              content: result.value,
+              model: result.model,
+            });
+            if (attempt === 2) break;
+            const review = await this.providers.review({
+              job: this.store.get(id),
+              creative,
+              image: result.value,
+              signal,
+            });
+            await this.assets.save(id, {
+              name: `card-review-${variantId}-${cardNumber}.json`,
+              kind: "json",
+              agentId: "production",
+              content: JSON.stringify(review.value),
+              model: review.model,
+            });
+            if (review.value.status === "pass" || !review.value.revisionPrompt) break;
+            prompt = review.value.revisionPrompt;
+          }
+          if (!saved) throw new BlockedError("카드뉴스 이미지를 만들지 못했습니다.");
+          const savedId = saved.id;
+          this.store.change(id, (draft) => {
+            this.variant(draft, variantId).cardImageIds[index] = savedId;
+          });
+        },
+      });
+    }
+    if (slides.length)
+      this.store.agent(id, "production", {
+        status: "completed",
+        action: `${variantId} · 카드뉴스 ${slides.length + 1}장 완성`,
+      });
   }
   private variant(job: Job, variantId: string): CreativeVariant {
     const variant = job.creativeVariants.find((item) => item.id === variantId);

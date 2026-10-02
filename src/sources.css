@@ -216,3 +216,31 @@
 .media-analysis-table tbody tr:last-child td {
   border-bottom: 0;
 }
+.card-slides {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.card-slides li {
+  display: grid;
+  gap: var(--s1);
+  font-size: var(--text-sm);
+}
+.card-slides img,
+.card-slide-pending {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+.card-slide-pending {
+  display: grid;
+  place-items: center;
+  background: var(--surface-soft);
+  color: var(--muted);
+}

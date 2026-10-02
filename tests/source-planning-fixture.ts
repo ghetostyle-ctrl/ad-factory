@@ -67,6 +67,14 @@ export function sourcePlanResponse(sourceId: string, referenceSourceIds: readonl
         },
         offer: { type: "none" as const, statement: "" },
       },
+      cardSlides:
+        index === 0
+          ? []
+          : [1, 2].map((step) => ({
+              headline: `${messages[index]} ${step}`,
+              body: sourceFact.content,
+              imagePrompt: `Card ${step}: ${mechanisms[index]} with the text "${sourceFact.content}"`,
+            })),
       targetAudience: audiences[index],
       targetReason: `Verified capacity and observed reference structure for ${audiences[index]}`,
       customerSituation: situations[index],

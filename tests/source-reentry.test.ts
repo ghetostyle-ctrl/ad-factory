@@ -64,6 +64,9 @@ test.each([{ ids: ["a-b", "a", "c"] }, { ids: ["a", "a-b", "c"] }])(
       const approvedIds = fixture.store
         .get(job.id)
         .creativeVariants.map((variant) => variant.approvedImageId);
+      const cardIds = fixture.store
+        .get(job.id)
+        .creativeVariants.map((variant) => variant.cardImageIds);
       reopened = new JobStore(fixture.store.root);
       // When
       await new SourceProduction(reopened, providers).run(
@@ -72,10 +75,15 @@ test.each([{ ids: ["a-b", "a", "c"] }, { ids: ["a", "a-b", "c"] }])(
         new AbortController().signal,
       );
       // Then
-      expect(images).toBe(3);
+      // 대표 이미지 3장 + 메커니즘 설명형 카드뉴스 2개 × 추가 카드 2장 = 7장, 다시 열어도 새로 만들지 않는다.
+      expect(images).toBe(7);
       expect(
         reopened.get(job.id).creativeVariants.map((variant) => variant.approvedImageId),
       ).toEqual(approvedIds);
+      expect(reopened.get(job.id).creativeVariants.map((variant) => variant.cardImageIds)).toEqual(
+        cardIds,
+      );
+      expect(cardIds.map((items) => items.length)).toEqual([0, 2, 2]);
     } finally {
       reopened?.close();
       fixture.close();

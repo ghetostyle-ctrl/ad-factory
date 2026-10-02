@@ -64,6 +64,15 @@ export const FunnelSignalsSchema = z
   })
   .strict();
 export type FunnelSignals = z.infer<typeof FunnelSignalsSchema>;
+// 메커니즘 설명형 카드뉴스의 2~5번째 장. 1번째 장(표지)은 creative.imagePrompt 로 만든다.
+export const CardSlideSchema = z
+  .object({
+    headline: z.string().trim().min(1).max(80),
+    body: z.string().trim().max(300),
+    imagePrompt: concise,
+  })
+  .strict();
+export type CardSlide = z.infer<typeof CardSlideSchema>;
 export const HypothesisResponseSchema = z
   .object({
     id: z.string().regex(/^[a-z][a-z0-9-]{0,30}$/),
@@ -72,6 +81,7 @@ export const HypothesisResponseSchema = z
     decisionRole: DecisionRoleSchema,
     proofShown: concise,
     signals: FunnelSignalsSchema,
+    cardSlides: z.array(CardSlideSchema).max(4),
     targetAudience: concise,
     targetReason: concise,
     customerSituation: concise,
@@ -94,6 +104,7 @@ export const HypothesisSchema = HypothesisResponseSchema.extend({
   decisionRole: DecisionRoleSchema.optional(),
   proofShown: concise.optional(),
   signals: FunnelSignalsSchema.optional(),
+  cardSlides: z.array(CardSlideSchema).max(4).default([]),
 });
 export const CreativePlanResponseSchema = z
   .object({
@@ -149,6 +160,8 @@ export const CreativeVariantSchema = z.object({
   approvedImageDigest: z.string().nullable(),
   approvedCreativeDigest: z.string().nullable(),
   reviewStatus: z.enum(["pending", "pass", "revise"]),
+  // 카드뉴스 2~5번째 장 이미지 (cardSlides 순서). 승인 후 확정된 이미지 산출물 ID.
+  cardImageIds: z.array(z.string()).max(4).default([]),
 });
 export type CreativeVariant = z.infer<typeof CreativeVariantSchema>;
 export const StagedVariantSchema = z.object({

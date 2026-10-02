@@ -331,6 +331,42 @@ export function CreativeEvidence({ job }: { readonly job: Job }) {
                   />
                 </a>
               )}
+              {hypothesis.cardSlides.length > 0 && (
+                <div className="stack">
+                  <span className="eyebrow">
+                    카드뉴스 {hypothesis.cardSlides.length + 1}장 · 1장은 위 대표 이미지
+                  </span>
+                  <ol className="card-slides">
+                    {hypothesis.cardSlides.map((slide, slideIndex) => {
+                      const cardId = variant?.cardImageIds[slideIndex];
+                      const card = cardId
+                        ? job.artifacts.find((artifact) => artifact.id === cardId)
+                        : null;
+                      return (
+                        <li key={`${hypothesis.id}-card-${slide.headline}`}>
+                          {card ? (
+                            <a href={card.url} target="_blank" rel="noreferrer">
+                              <img
+                                src={card.url}
+                                alt={`카드뉴스 ${slideIndex + 2}장: ${slide.headline}`}
+                                loading="lazy"
+                                width={1024}
+                                height={1024}
+                              />
+                            </a>
+                          ) : (
+                            <div className="card-slide-pending">제작 대기</div>
+                          )}
+                          <strong>
+                            {slideIndex + 2}. {slide.headline}
+                          </strong>
+                          {slide.body && <span className="muted">{slide.body}</span>}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+              )}
               {staged && (
                 <p className="muted small-copy">
                   Meta 광고 ID {staged.adId ?? "준비 중"} · 전달 상태{" "}
