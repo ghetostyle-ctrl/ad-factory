@@ -398,6 +398,59 @@ test.each([
   await expect(planned).rejects.toMatchObject({ code: "customer_questions" });
 });
 
+test.each([
+  [
+    "a discount offer on a TOFU concept",
+    0,
+    { offer: { type: "discount" as const, statement: "50% off" } },
+    null,
+  ],
+  ["a problem-empathy format on a MOFU concept", 1, { format: "problem_empathy" as const }, null],
+  [
+    "a review-proof concept without customer reviews",
+    1,
+    {
+      format: "review_proof" as const,
+      mechanism: { mode: "social_proof" as const, statement: "Reviews" },
+    },
+    null,
+  ],
+  [
+    "a benefit offer without an offer source",
+    2,
+    {
+      format: "benefit_offer" as const,
+      offer: { type: "value_bundle" as const, statement: "1+1" },
+    },
+    "final_decision" as const,
+  ],
+  [
+    "a set without a MOFU concept",
+    1,
+    { format: "problem_empathy" as const },
+    "need_awareness" as const,
+  ],
+])("rejects %s", async (_name, index, signalsPatch, role) => {
+  // Given
+  const fixture = setup();
+  fixture.replies.plan.hypotheses = fixture.replies.plan.hypotheses.map((item, at) =>
+    at === index || (role === "need_awareness" && at === 2)
+      ? {
+          ...item,
+          decisionRole: role ?? item.decisionRole,
+          signals: { ...item.signals, ...signalsPatch },
+        }
+      : item,
+  );
+  // When
+  const planned = fixture.planner.plan(fixture.job(), sourceStrategy, signal());
+  // Then
+  await expect(planned).rejects.toMatchObject({ code: "funnel" });
+  expect(
+    fixture.requests.filter((item) => item.text.format.name === "creative_plan_critique"),
+  ).toHaveLength(0);
+});
+
 test("records the weekly learning-signal arithmetic when a daily budget exists", async () => {
   // Given
   const fixture = setup();

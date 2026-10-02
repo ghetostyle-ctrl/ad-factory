@@ -25,7 +25,45 @@ export const CustomerQuestionSchema = z
   })
   .strict();
 export type CustomerQuestion = z.infer<typeof CustomerQuestionSchema>;
+// decisionRole 은 고객 인식 단계(퍼널)와 같다: need_awareness=TOFU, comparison=MOFU, final_decision=BOFU.
 const DecisionRoleSchema = z.enum(["need_awareness", "comparison", "final_decision"]);
+// 안드로메다 소재 신호 4가지(대상 호출·페인포인트·고유 메커니즘·오퍼)와 한 세트 5종 소재 유형.
+export const CreativeFormatSchema = z.enum([
+  "problem_empathy",
+  "mechanism_explainer",
+  "review_proof",
+  "benefit_offer",
+  "risk_reversal",
+]);
+export type CreativeFormat = z.infer<typeof CreativeFormatSchema>;
+export const OfferTypeSchema = z.enum([
+  "none",
+  "value_bundle",
+  "free_trial",
+  "discount",
+  "urgency",
+  "risk_reversal",
+]);
+export const FunnelSignalsSchema = z
+  .object({
+    format: CreativeFormatSchema,
+    avatarCallout: concise,
+    painPoint: concise,
+    mechanism: z
+      .object({
+        mode: z.enum(["unique_mechanism", "cause_reframe", "social_proof"]),
+        statement: concise,
+      })
+      .strict(),
+    offer: z
+      .object({
+        type: OfferTypeSchema,
+        statement: z.string().trim().max(1500),
+      })
+      .strict(),
+  })
+  .strict();
+export type FunnelSignals = z.infer<typeof FunnelSignalsSchema>;
 export const HypothesisResponseSchema = z
   .object({
     id: z.string().regex(/^[a-z][a-z0-9-]{0,30}$/),
@@ -33,6 +71,7 @@ export const HypothesisResponseSchema = z
     customerQuestionId: z.string(),
     decisionRole: DecisionRoleSchema,
     proofShown: concise,
+    signals: FunnelSignalsSchema,
     targetAudience: concise,
     targetReason: concise,
     customerSituation: concise,
@@ -54,6 +93,7 @@ export const HypothesisSchema = HypothesisResponseSchema.extend({
   customerQuestionId: z.string().optional(),
   decisionRole: DecisionRoleSchema.optional(),
   proofShown: concise.optional(),
+  signals: FunnelSignalsSchema.optional(),
 });
 export const CreativePlanResponseSchema = z
   .object({

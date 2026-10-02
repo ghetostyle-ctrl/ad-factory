@@ -21,9 +21,29 @@ const questionBases = {
   inferred: "추정 · 검증 필요",
 } as const;
 const decisionRoles = {
-  need_awareness: "필요성 인식",
-  comparison: "비교·검토",
-  final_decision: "마지막 구매 결정",
+  need_awareness: "TOFU · 필요성 인식",
+  comparison: "MOFU · 비교·검토",
+  final_decision: "BOFU · 마지막 구매 결정",
+} as const;
+const formats = {
+  problem_empathy: "문제 제기형",
+  mechanism_explainer: "메커니즘 설명형 카드뉴스",
+  review_proof: "사용자 리뷰·비포애프터",
+  benefit_offer: "혜택 강조형",
+  risk_reversal: "리스크 제거 강조",
+} as const;
+const mechanismModes = {
+  unique_mechanism: "고유 메커니즘",
+  cause_reframe: "원인 재해석",
+  social_proof: "고객 후기 증거",
+} as const;
+const offerTypes = {
+  none: "오퍼 없음",
+  value_bundle: "가치 더하기(번들·보너스)",
+  free_trial: "무료 체험",
+  discount: "할인",
+  urgency: "기한·수량 한정",
+  risk_reversal: "환불·보증",
 } as const;
 
 export function CreativeEvidence({ job }: { readonly job: Job }) {
@@ -42,8 +62,22 @@ export function CreativeEvidence({ job }: { readonly job: Job }) {
       </header>
       <div className="panel-body stack">
         <div className="evidence-summary stack">
-          <h3>세 광고안이 다른 이유</h3>
+          <h3>광고안이 서로 다른 이유</h3>
           <p>{plan.diversityRationale}</p>
+          {plan.hypotheses.some((item) => item.decisionRole) && (
+            <p className="muted small-copy">
+              한 세트 편성 ·{" "}
+              {(["need_awareness", "comparison", "final_decision"] as const)
+                .map(
+                  (stage) =>
+                    `${decisionRoles[stage].split(" · ")[0]} ${
+                      plan.hypotheses.filter((item) => item.decisionRole === stage).length
+                    }개`,
+                )
+                .join(" · ")}
+              . 같은 오디언스 안에도 인식 단계가 다른 사람이 섞여 있어, 단계별 소재를 함께 둡니다.
+            </p>
+          )}
         </div>
         {plan.customerQuestions.length > 0 && (
           <details className="evidence-details" open>
@@ -195,6 +229,32 @@ export function CreativeEvidence({ job }: { readonly job: Job }) {
                     <dt>보여 줄 증거</dt>
                     <dd>{hypothesis.proofShown}</dd>
                   </div>
+                )}
+                {hypothesis.signals && (
+                  <>
+                    <div>
+                      <dt>소재 유형</dt>
+                      <dd>{formats[hypothesis.signals.format]}</dd>
+                    </div>
+                    <div>
+                      <dt>신호 1 · 부르는 대상</dt>
+                      <dd>{hypothesis.signals.avatarCallout}</dd>
+                    </div>
+                    <div>
+                      <dt>신호 2 · 페인포인트</dt>
+                      <dd>{hypothesis.signals.painPoint}</dd>
+                    </div>
+                    <div>
+                      <dt>신호 3 · {mechanismModes[hypothesis.signals.mechanism.mode]}</dt>
+                      <dd>{hypothesis.signals.mechanism.statement}</dd>
+                    </div>
+                    <div>
+                      <dt>신호 4 · {offerTypes[hypothesis.signals.offer.type]}</dt>
+                      <dd>
+                        {hypothesis.signals.offer.statement || "이 단계에서는 오퍼를 쓰지 않음"}
+                      </dd>
+                    </div>
+                  </>
                 )}
                 <div>
                   <dt>소재 타깃 오디언스</dt>

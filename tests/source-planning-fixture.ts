@@ -54,8 +54,19 @@ export function sourcePlanResponse(sourceId: string, referenceSourceIds: readonl
       id: `concept-${index}`,
       angle,
       customerQuestionId: `question-${index}`,
-      decisionRole: (["need_awareness", "comparison", "final_decision"] as const)[index],
+      // 오퍼·후기 자료가 없는 프로젝트라 BOFU 소재는 만들 수 없다: TOFU 1 + MOFU 2.
+      decisionRole: (["need_awareness", "comparison", "comparison"] as const)[index],
       proofShown: sourceFact.content,
+      signals: {
+        format: (["problem_empathy", "mechanism_explainer", "mechanism_explainer"] as const)[index],
+        avatarCallout: `${audiences[index]} who keep running out mid-task`,
+        painPoint: `${problems[index]} even after trying a bigger cup`,
+        mechanism: {
+          mode: (["unique_mechanism", "cause_reframe", "unique_mechanism"] as const)[index],
+          statement: sourceFact.content,
+        },
+        offer: { type: "none" as const, statement: "" },
+      },
       targetAudience: audiences[index],
       targetReason: `Verified capacity and observed reference structure for ${audiences[index]}`,
       customerSituation: situations[index],
