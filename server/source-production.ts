@@ -2,6 +2,7 @@ import type { CreativePlan, CreativeVariant } from "../shared/creative-plan";
 import type { ModelResult } from "../shared/models";
 import { type Creative, ImageReviewSchema, type Strategy } from "../shared/planning";
 import type { Job } from "../shared/schema";
+import { videoTargetSeconds } from "../shared/video-script";
 import { Artifacts } from "./artifacts";
 import { AutomationGuard, contentDigest } from "./automation-guard";
 import type { ProductionProviders } from "./automation-production";
@@ -9,7 +10,7 @@ import { BlockedError, MissingConnectionError, StudioError } from "./errors";
 import { validatePlanEvidence } from "./source-evidence";
 import { SourcePlanner } from "./source-planning";
 import type { JobStore } from "./store";
-import { generateVideoScript, verifyVideoScript } from "./video-scripts";
+import { generateVideoScript, verifyLongVideoScript, verifyVideoScript } from "./video-scripts";
 
 // 영상은 TOFU 문제 제기형 광고안부터 만든다(한 세트 편성의 '문제 제기형 영상'). 신호가 없는 예전 기획은 원래 순서.
 export function videoHypotheses(plan: CreativePlan): CreativePlan["hypotheses"] {
@@ -86,17 +87,29 @@ export class SourceProduction {
         phase: "script",
         signal,
         run: async () => {
-          this.store.agent(id, "creative", {
-            status: "running",
-            action: `영상 ${index + 1}/${videoCount} 대본·컷 구성 작성 중`,
-          });
-          const result = await (this.providers.videoScript ?? generateVideoScript)(
-            this.store.get(id),
-            hypothesis,
-            index + 1,
-            signal,
-          );
-          verifyVideoScript(result.value, index + 1, hypothesis.id);
+          const durationSec = videoTargetSeconds(id, index + 1);
+          // 규칙(길이·컷·자막·내레이션 분량)에 어긋나면 한 번만 다시 쓰게 한다.
+          let result: Awaited<ReturnType<NonNullable<ProductionProviders["videoScript"]>>> | null =
+            null;
+          for (let attempt = 1; attempt <= 2 && !result; attempt++) {
+            this.store.agent(id, "creative", {
+              status: "running",
+              action: `영상 ${index + 1}/${videoCount} · ${durationSec}초 대본·컷 구성 작성 중${attempt > 1 ? " · 규칙 수정 1회" : ""}`,
+            });
+            const written = await (this.providers.videoScript ?? generateVideoScript)(
+              this.store.get(id),
+              hypothesis,
+              index + 1,
+              signal,
+            );
+            try {
+              verifyLongVideoScript(written.value, { number: index + 1, durationSec, hypothesis });
+              result = written;
+            } catch (error) {
+              if (attempt === 2) throw error;
+            }
+          }
+          if (!result) throw new BlockedError("영상 대본을 작성하지 못했습니다.");
           await this.assets.save(id, {
             name: `video-script-${index + 1}.json`,
             kind: "json",

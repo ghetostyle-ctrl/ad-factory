@@ -5,14 +5,19 @@ import { Button, Notice } from "./primitives";
 
 const purposes = {
   hook: "후킹",
+  pain: "페인포인트",
+  story: "스토리·원인",
+  mechanism: "메커니즘",
+  proof: "근거·신뢰",
+  offer: "혜택",
+  cta: "행동 유도",
   problem: "문제",
   solution: "해결 장면",
-  proof: "근거",
-  cta: "행동 유도",
 } as const;
 const sources = {
-  approved_image: "승인 이미지",
-  veo_clip: "Flow 클립",
+  approved_image: "대표 이미지",
+  card_slide: "카드뉴스 장면",
+  veo_clip: "Veo 클립",
   project_clip: "프로젝트 영상",
 } as const;
 
@@ -54,7 +59,8 @@ export function VideoScripts({ job }: { readonly job: Job }) {
                 <span className="hypothesis-number">{script.number}</span>
                 <div>
                   <span className="eyebrow">
-                    8초 세로 영상 · {clip ? "원본 클립 저장됨" : "대본 완료"}
+                    {script.durationSec}초 세로 영상 · 컷 {script.cuts.length}개 ·{" "}
+                    {clip ? "원본 클립 저장됨" : "대본 완료"}
                   </span>
                   <h3>{script.title}</h3>
                   <p>{concept?.targetAudience ?? script.hypothesisId}</p>
@@ -70,6 +76,9 @@ export function VideoScripts({ job }: { readonly job: Job }) {
                     <p>자막: {cut.onScreenText || "없음"}</p>
                     <p>내레이션: {cut.narration || "없음"}</p>
                     <p className="muted small-copy">필요 소스: {sources[cut.source]}</p>
+                    {cut.veoPrompt && (
+                      <p className="muted small-copy">Veo 프롬프트: {cut.veoPrompt}</p>
+                    )}
                   </section>
                 ))}
               </div>

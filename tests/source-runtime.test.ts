@@ -17,8 +17,10 @@ import { VideoProduction } from "../server/video-production";
 import { CreativePlanSchema } from "../shared/creative-plan";
 import type { Job } from "../shared/schema";
 import { CreateProjectSchema, CreateSourceSchema } from "../shared/sources";
+import { videoTargetSeconds } from "../shared/video-script";
 import { automationBrief, automationPolicy, automationRequest } from "./automation-fixture";
 import { fixtureCreative, fixturePng, fixtureStrategy } from "./automation-http-fixture";
+import { longVideoScript } from "./video-script-fixture";
 
 const model = {
   provider: "openai",
@@ -97,47 +99,11 @@ async function fixture() {
     strategy: async () => ({ value: fixtureStrategy, model }),
     creative: async () => ({ value: fixtureCreative, model }),
     plan: async (job) => ({ value: plan(job), model }),
-    videoScript: async (_job, hypothesis, number) => {
+    videoScript: async (job, hypothesis, number) => {
       expect(images).toBe(0);
       scripts++;
       return {
-        value: {
-          number,
-          hypothesisId: hypothesis.id,
-          title: `영상 ${number} 대본`,
-          durationSec: 8,
-          cuts: [
-            {
-              startSec: 0,
-              endSec: 2,
-              purpose: "hook",
-              screenComposition: "첫 장면",
-              onScreenText: "후킹",
-              narration: "첫 문장",
-              source: "approved_image",
-            },
-            {
-              startSec: 2,
-              endSec: 5,
-              purpose: "solution",
-              screenComposition: "사용 장면",
-              onScreenText: "해결",
-              narration: "둘째 문장",
-              source: "veo_clip",
-            },
-            {
-              startSec: 5,
-              endSec: 8,
-              purpose: "cta",
-              screenComposition: "마무리",
-              onScreenText: "확인하기",
-              narration: "마지막 문장",
-              source: "veo_clip",
-            },
-          ],
-          flowPrompt: `Flow shot ${number}`,
-          editInstructions: "컷별 자막과 내레이션을 맞춘다.",
-        },
+        value: longVideoScript(number, hypothesis.id, videoTargetSeconds(job.id, number)),
         model,
       };
     },

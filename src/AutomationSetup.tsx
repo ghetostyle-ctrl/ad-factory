@@ -93,7 +93,7 @@ export function AutomationSetup({
           <div className="form-grid">
             <Field
               label="영상 대본·Veo 원본 클립 수"
-              help="0~10개 · 각 영상의 8초 대본과 컷 설계를 이미지 제작 전에 저장합니다."
+              help="0~10개 · 영상마다 30초~1분(무작위) 대본과 컷 설계를 이미지 제작 전에 저장합니다."
             >
               <input
                 type="number"
@@ -130,7 +130,7 @@ export function AutomationSetup({
             ? `소재별 타깃·상황·메시지가 다른 광고안 ${imageCount}개를 설계합니다. 이미지 API 호출은 최대 ${imageCount * 2}회입니다.`
             : "광고안 1개를 설계하고 이미지를 최초 1회, 필요하면 수정 1회 생성합니다. 이미지 API 호출은 최대 2회입니다."}{" "}
           {videoCount > 0
-            ? ` 영상 ${videoCount}개의 대본·컷·소스·Flow·편집 지시를 먼저 작성하고 Veo 8초 원본 클립을 생성합니다. Gemini API 키와 모델별 영상 사용료가 필요합니다.`
+            ? ` 영상 ${videoCount}개의 30초~1분 대본·컷·소스·Flow·편집 지시를 먼저 작성하고 Veo 8초 원본 클립을 생성합니다. Gemini API 키와 모델별 영상 사용료가 필요합니다.`
             : ""}{" "}
           실제 API 사용료가 발생할 수 있습니다. Meta 광고 등록·게시·광고비 집행은 진행하지 않습니다.
         </Notice>
