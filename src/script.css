@@ -1,0 +1,133 @@
+/* 대본 확인·수정·승인 영역: 문장별 textarea, 컷별 자막 입력, AI 검토 (토큰만 사용, 새 색 없음) */
+.script-panel {
+  border-top: 1px solid var(--line);
+  padding-top: var(--s4);
+}
+.script-review {
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--success);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  font-size: var(--text-base);
+}
+.script-review-revise {
+  border-left-color: var(--warning);
+}
+.script-review-title {
+  font-weight: var(--weight-strong);
+  font-size: var(--text-sm);
+}
+.script-review-issues {
+  margin: var(--s2) 0 0;
+  padding-left: var(--s4);
+  font-size: var(--text-base);
+}
+.script-lines {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.script-lines > li {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: var(--s3);
+  align-items: start;
+}
+.script-time {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  padding-top: var(--s2);
+}
+.script-line-input,
+.script-feedback {
+  width: 100%;
+  min-height: 44px;
+  resize: vertical;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  padding: var(--s2) var(--s3);
+  color: var(--ink);
+  background: var(--surface);
+  font-size: var(--text-base);
+  line-height: 1.6;
+}
+.script-line-text {
+  padding-top: var(--s2);
+  font-size: var(--text-base);
+}
+/* 문장 아래 그 문장이 흐르는 컷 목록(말과 그림 짝): 보조 텍스트 13px, 컷 머리글은 강조 */
+.stack-tight {
+  display: grid;
+  gap: var(--s2);
+}
+.script-cuts {
+  display: grid;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0 0 0 var(--s3);
+  border-left: 2px solid var(--line);
+  list-style: none;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.script-cuts > li {
+  display: grid;
+  gap: 2px;
+}
+.script-cut-head {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  font-weight: var(--weight-strong);
+  font-variant-numeric: tabular-nums;
+}
+.script-caption {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: var(--s2);
+  align-items: center;
+  margin: var(--s1) 0;
+  font-size: var(--text-base);
+}
+.script-caption textarea {
+  width: 100%;
+  min-height: var(--touch);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  padding: var(--s2) var(--s3);
+  color: var(--ink);
+  background: var(--surface);
+  font-size: var(--text-base);
+}
+/* 규칙 미통과(hard)·경고(soft)·자동 수리 목록: 보조 텍스트 13px, 줄 간격 넉넉히 */
+.script-rules {
+  margin: var(--s2) 0 0;
+  padding-left: var(--s4);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.script-warnings summary,
+.script-repairs summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+}
+@media (max-width: 760px) {
+  .script-lines > li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s1);
+  }
+  .script-time {
+    padding-top: 0;
+  }
+}
+
+.script-caption-preview {
+  grid-column: 2;
+  white-space: pre-line;
+}

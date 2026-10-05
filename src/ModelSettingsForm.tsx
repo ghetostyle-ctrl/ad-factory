@@ -162,8 +162,8 @@ export function ModelSettingsForm({
       <div>
         <h3>영상 TTS 설정</h3>
         <p className="muted small-copy">
-          Typecast는 향후 최종 영상 조립용 설정입니다. 현재 Veo 8초 클립에는 이 음성이 합성되지
-          않습니다.
+          보이스·속도는 작업 시작 시 고정되며 완성 영상 내레이션(문장별 Typecast 합성)에 쓰입니다.
+          진행 중인 작업에는 적용되지 않습니다.
         </p>
       </div>
       <Field label="TTS 선택 방식">

@@ -21,18 +21,68 @@ const OperationSchema = z.object({
 });
 const baseUrl = "https://generativelanguage.googleapis.com/v1beta/";
 const maxVideoBytes = 100 * 1024 * 1024;
-export type VideoTask = {
+// 폴링 데드라인은 await 를 시작한 시점 기준(생성 요청 시각 기준이 아님): 서버 재시작 후 재개해도 20분을 다시 준다.
+export const VEO_POLL_DEADLINE_MS = 20 * 60000;
+export const VEO_POLL_INTERVAL_MS = 10000;
+export type VideoModel =
+  | "veo-3.1-lite-generate-preview"
+  | "veo-3.1-fast-generate-preview"
+  | "veo-3.1-generate-preview";
+export type VideoResolution = "720p" | "1080p";
+export type VeoConnection = { readonly apiKey: string; readonly baseUrl: string };
+// 생성 요청(POST)만 하는 작업
+export type VideoCreateTask = {
   readonly image: Uint8Array;
   readonly prompt: string;
-  readonly model:
-    | "veo-3.1-lite-generate-preview"
-    | "veo-3.1-fast-generate-preview"
-    | "veo-3.1-generate-preview";
+  readonly model: VideoModel;
   readonly signal: AbortSignal;
+  readonly resolution?: VideoResolution;
+};
+// 저장된 핸들로 폴링·다운로드·검증만 하는 작업
+export type VideoAwaitTask = {
+  readonly operationName: string;
+  readonly startedAt: string;
+  readonly signal: AbortSignal;
+  readonly pollDeadlineMs?: number;
+  readonly pollIntervalMs?: number;
+  readonly model?: VideoModel;
+};
+// 예전 단일 함수 호환: create → await 를 한 번에
+export type VideoTask = VideoCreateTask & {
   readonly operationName?: string;
   readonly startedAt?: string;
   readonly onOperationName?: (name: string) => void;
 };
+
+export function veoConnection(): VeoConnection {
+  return { apiKey: credentials.gemini, baseUrl };
+}
+function requireKey(connection: VeoConnection): void {
+  if (!connection.apiKey)
+    throw new MissingConnectionError(
+      "Veo 영상 제작에는 Gemini API 키가 필요합니다. 연결 설정에서 입력해 주세요.",
+    );
+}
+function headersFor(connection: VeoConnection) {
+  return { "x-goog-api-key": connection.apiKey, "Content-Type": "application/json" };
+}
+const requestSignal = (signal: AbortSignal) =>
+  AbortSignal.any([signal, AbortSignal.timeout(60000)]);
+
+// 시작 이미지를 inlineData 로 보낸다. 매직 바이트만 보고 PNG/JPEG 를 구분한다(검토용 imageInput 보다 느슨:
+// 테스트 픽스처는 4바이트 서명만 쓴다).
+export function inlineImage(bytes: Uint8Array): { mimeType: string; data: string } {
+  if (bytes.length > 15 * 1024 * 1024)
+    throw new StudioError("image_size", "Veo 시작 이미지는 15MB 이하여야 합니다.");
+  const png = bytes[0] === 137 && bytes[1] === 80 && bytes[2] === 78 && bytes[3] === 71;
+  const jpeg = bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+  if (!png && !jpeg)
+    throw new StudioError("image_format", "Veo 시작 이미지는 PNG 또는 JPEG 여야 합니다.");
+  return {
+    mimeType: png ? "image/png" : "image/jpeg",
+    data: Buffer.from(bytes).toString("base64"),
+  };
+}
 
 async function responseJson(response: Response): Promise<unknown> {
   if (!response.ok) {
@@ -98,51 +148,54 @@ async function verifyVideo(bytes: Uint8Array): Promise<void> {
   }
 }
 
-export async function generateVideoResult(
-  task: VideoTask,
-  connection: { readonly apiKey: string; readonly baseUrl: string } = {
-    apiKey: credentials.gemini,
-    baseUrl,
-  },
-): Promise<ModelResult<Uint8Array>> {
-  if (!connection.apiKey)
-    throw new MissingConnectionError(
-      "Veo 영상 제작에는 Gemini API 키가 필요합니다. 연결 설정에서 입력해 주세요.",
-    );
+// image-to-video 생성 요청. 모델 ID 는 그대로 보낸다(Lite 선택 시 Lite 요금). 반환 핸들은 호출자가 저장한다.
+export async function createVideoOperation(
+  task: VideoCreateTask,
+  connection: VeoConnection = veoConnection(),
+): Promise<{ name: string; startedAt: string }> {
+  requireKey(connection);
   task.signal.throwIfAborted();
-  const headers = { "x-goog-api-key": connection.apiKey, "Content-Type": "application/json" };
-  const requestSignal = () => AbortSignal.any([task.signal, AbortSignal.timeout(60000)]);
-  const deadline = Date.parse(task.startedAt ?? new Date().toISOString()) + 20 * 60000;
-  let operation = task.operationName
-    ? OperationSchema.parse({ name: task.operationName, done: false })
-    : OperationSchema.parse(
-        await responseJson(
-          await fetch(
-            new URL(
-              `models/${task.model}:predictLongRunning`,
-              connection.baseUrl,
-            ),
-            {
-              method: "POST",
-              headers,
-              signal: requestSignal(),
-              body: JSON.stringify({
-                instances: [{ prompt: task.prompt }],
-                parameters: { aspectRatio: "9:16", durationSeconds: 8, resolution: "720p" },
-              }),
-            },
-          ),
-        ),
-      );
-  if (!task.operationName) task.onOperationName?.(operation.name);
-  for (let attempt = 0; attempt < 120 && !operation.done; attempt++) {
-    if (!task.operationName || attempt > 0) await Bun.sleep(10000);
+  const image = inlineImage(task.image);
+  const operation = OperationSchema.parse(
+    await responseJson(
+      await fetch(new URL(`models/${task.model}:predictLongRunning`, connection.baseUrl), {
+        method: "POST",
+        headers: headersFor(connection),
+        signal: requestSignal(task.signal),
+        body: JSON.stringify({
+          instances: [{ prompt: task.prompt, image: { inlineData: image } }],
+          parameters: {
+            aspectRatio: "9:16",
+            durationSeconds: "8",
+            resolution: task.resolution ?? "720p",
+            personGeneration: "allow_adult",
+          },
+        }),
+      }),
+    ),
+  );
+  return { name: operation.name, startedAt: new Date().toISOString() };
+}
+
+// 저장된 핸들 폴링(첫 폴링 즉시, 이후 10초 간격) → 다운로드 → 검증. 데드라인은 이 함수 시작 기준.
+export async function awaitVideoOperation(
+  task: VideoAwaitTask,
+  connection: VeoConnection = veoConnection(),
+): Promise<ModelResult<Uint8Array>> {
+  requireKey(connection);
+  task.signal.throwIfAborted();
+  const headers = headersFor(connection);
+  const deadline = Date.now() + (task.pollDeadlineMs ?? VEO_POLL_DEADLINE_MS);
+  const interval = task.pollIntervalMs ?? VEO_POLL_INTERVAL_MS;
+  let operation = OperationSchema.parse({ name: task.operationName, done: false });
+  for (let attempt = 0; !operation.done; attempt++) {
+    if (attempt > 0) await Bun.sleep(interval);
     task.signal.throwIfAborted();
     operation = OperationSchema.parse(
       await responseJson(
         await fetch(new URL(operation.name, connection.baseUrl), {
           headers,
-          signal: requestSignal(),
+          signal: requestSignal(task.signal),
         }),
       ),
     );
@@ -165,7 +218,7 @@ export async function generateVideoResult(
     throw new StudioError("veo_url", "Veo 다운로드 주소를 확인할 수 없습니다.");
   const downloaded = await fetch(downloadUrl, {
     headers: { "x-goog-api-key": connection.apiKey },
-    signal: requestSignal(),
+    signal: requestSignal(task.signal),
   });
   const value = await boundedVideo(downloaded);
   await verifyVideo(value);
@@ -173,9 +226,28 @@ export async function generateVideoResult(
     value,
     model: {
       provider: "gemini",
-      requestedModel: task.model,
-      effectiveModel: task.model,
+      requestedModel: task.model ?? null,
+      effectiveModel: task.model ?? null,
       quality: null,
     },
   };
+}
+
+// 예전 호출부 호환 래퍼: 핸들이 없으면 생성 후 폴링, 있으면 폴링만.
+export async function generateVideoResult(
+  task: VideoTask,
+  connection: VeoConnection = veoConnection(),
+): Promise<ModelResult<Uint8Array>> {
+  let operationName = task.operationName;
+  let startedAt = task.startedAt ?? new Date().toISOString();
+  if (!operationName) {
+    const created = await createVideoOperation(task, connection);
+    operationName = created.name;
+    startedAt = created.startedAt;
+    task.onOperationName?.(operationName);
+  }
+  return awaitVideoOperation(
+    { operationName, startedAt, signal: task.signal, model: task.model },
+    connection,
+  );
 }

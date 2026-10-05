@@ -10,27 +10,35 @@ import {
 import type { Job } from "../shared/schema";
 import { Artifacts } from "./artifacts";
 import { AutomationGuard, contentDigest } from "./automation-guard";
+import type { VideoProvider } from "./clip-production";
 import { BlockedError, MissingConnectionError, StudioError } from "./errors";
-import { generateImageResult } from "./image-provider";
-import { Intelligence } from "./intelligence";
+import { generateImageResult, type ImageSize } from "./image-provider";
+import { type ClipFrameReviewTask, Intelligence, type StartImageReviewTask } from "./intelligence";
 import { Planner } from "./planning";
 import { type PlanProvider, SourceProduction } from "./source-production";
 import type { JobStore } from "./store";
-import type { VideoScriptProvider } from "./video-scripts";
+import type { VoiceProvider } from "./tts-provider";
+import type { VideoPlanningProvider } from "./video-planning";
+import type { VideoScriptProvider, VideoScriptReviewer } from "./video-scripts";
 
 export type ProductionProviders = {
   readonly plan?: PlanProvider;
+  readonly videoPlanning?: VideoPlanningProvider;
   readonly videoScript?: VideoScriptProvider;
+  // 대본 AI 품질 검토(없으면 실제 텍스트 공급자. 테스트 환경에서는 주입이 필수).
+  readonly reviewVideoScript?: VideoScriptReviewer;
   readonly strategy: (job: Job, signal: AbortSignal) => Promise<ModelResult<Strategy>>;
   readonly creative: (
     job: Job,
     strategy: Strategy,
     signal: AbortSignal,
   ) => Promise<ModelResult<Creative>>;
+  // size: Veo 시작 이미지는 세로(1024x1536)로 요청한다. 기존 호출부는 생략(정사각).
   readonly image: (
     job: Job,
     prompt: string,
     signal: AbortSignal,
+    options?: { readonly size?: ImageSize },
   ) => Promise<ModelResult<Uint8Array>>;
   readonly review: (input: {
     readonly job: Job;
@@ -38,6 +46,11 @@ export type ProductionProviders = {
     readonly image: Uint8Array;
     readonly signal: AbortSignal;
   }) => Promise<ModelResult<ImageReview>>;
+  // 렌더 파이프라인 주입용(테스트). 없으면 실제 Typecast·OpenAI 비전·Veo 공급자를 쓴다.
+  readonly voice?: VoiceProvider;
+  readonly veo?: VideoProvider;
+  readonly reviewStartImage?: (task: StartImageReviewTask) => Promise<ModelResult<ImageReview>>;
+  readonly reviewClipFrames?: (task: ClipFrameReviewTask) => Promise<ModelResult<ImageReview>>;
 };
 export class AutomaticProduction {
   readonly assets: Artifacts;
@@ -54,9 +67,14 @@ export class AutomaticProduction {
     this.providers = providers ?? {
       strategy: planner.strategyResult.bind(planner),
       creative: planner.creativeResult.bind(planner),
-      image: (job, prompt, signal) => {
+      image: (job, prompt, signal, options) => {
         if (!job.executionModels) throw new BlockedError("실행 모델 스냅샷이 없습니다.");
-        return generateImageResult({ prompt, signal, models: job.executionModels });
+        return generateImageResult({
+          prompt,
+          signal,
+          models: job.executionModels,
+          ...(options?.size ? { size: options.size } : {}),
+        });
       },
       review: intelligence.review.bind(intelligence),
     };

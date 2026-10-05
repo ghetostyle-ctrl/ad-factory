@@ -1,6 +1,7 @@
 import { CirclePause, LoaderCircle, Play, Settings2, Square } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import type { AutomationState } from "../shared/automation";
+import { clipModeOf } from "../shared/flow-mode";
 import type { ConfigStatus, Job, StudioState } from "../shared/schema";
 import { AutomationStatus, operationDate } from "./AutomationStatus";
 import { errorMessage, postJob } from "./api";
@@ -21,6 +22,14 @@ const statuses = {
   completed: ["운영 완료", "success"],
 } as const satisfies Record<AutomationState["status"], readonly [string, string]>;
 
+// 소재 제작의 waiting 은 분석 예약이 아니라 사용자 작업 대기다(실패가 아님): 대본 승인 또는 Google Flow 클립 업로드.
+function statusOf(automation: AutomationState): readonly [string, string] {
+  if (automation.status !== "waiting" || automation.policy.mode !== "creative")
+    return statuses[automation.status];
+  return automation.phase === "script"
+    ? ["영상 대본 승인 대기", "warning"]
+    : ["Flow 클립 업로드 대기", "warning"];
+}
 export function AutomationPanel({
   job,
   config,
@@ -40,12 +49,28 @@ export function AutomationPanel({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const automation = job.automation;
+  const flowMode = clipModeOf(job) === "flow";
   const legacy = Boolean(job.staged) || job.artifacts.length > 0;
   const needsCodexModel = config.textProvider === "codex" && !config.modelSettings.codexModel;
   const missingTools = [
     !config.openai && "OpenAI API 키",
     config.textProvider === "none" && "텍스트 공급자",
   ].filter(Boolean);
+  // 영상(완성본)을 만들려면 추가로 필요한 연결·도구. 영상 0개면 없어도 된다.
+  const missingVideoTools = [
+    !config.gemini && !flowMode && "Gemini API 키(Veo)",
+    !config.typecast && "Typecast API 키(내레이션)",
+    !config.ffmpeg && "ffmpeg 8.x(libass·libx264)",
+    !config.captionFont && "자막 폰트(assets/fonts 또는 FONT_DIR)",
+  ].filter(Boolean);
+  // 응답 수신과 핸들 저장 사이에 끊긴 Veo 클립: 재개하면 다시 생성하므로 중복 과금 가능성이 있다
+  const uncertainClips = job.renders.flatMap((render) =>
+    Object.entries(render.clips).flatMap(([clipId, clip]) =>
+      clip?.pendingSince && !clip.operation && !clip.name
+        ? [`영상 ${render.number} 클립 ${clipId}`]
+        : [],
+    ),
+  );
   const mutate = async (action: "stop" | "resume" | "reset") => {
     setPending(true);
     setError(null);
@@ -74,22 +99,28 @@ export function AutomationPanel({
           <p>
             {automation && automation.policy.mode !== "creative"
               ? "기존 광고 운영의 진행 상황입니다."
-              : "상품 자료 분석과 영상 대본·컷 설계 후 이미지 제작·검토와 Veo 원본 클립 제작을 진행합니다."}
+              : "상품 자료 분석과 영상 대본·컷 설계 후 이미지 제작·검토, 내레이션·Veo 클립·모션그래픽을 조립한 완성 영상 제작을 진행합니다."}
           </p>
         </div>
-        <span className={`badge badge-${automation ? statuses[automation.status][1] : "neutral"}`}>
+        <span className={`badge badge-${automation ? statusOf(automation)[1] : "neutral"}`}>
           {automation?.status === "running" ? (
             <LoaderCircle size={12} className="spin" />
           ) : (
             <CirclePause size={12} />
           )}
-          {automation ? statuses[automation.status][0] : "시작 전"}
+          {automation ? statusOf(automation)[0] : "시작 전"}
         </span>
       </header>
       <div className="panel-body stack">
         {automation ? (
           <>
             <AutomationStatus job={job} automation={automation} />
+            {automation.status === "attention" && uncertainClips.length > 0 && (
+              <Notice tone="warning">
+                {uncertainClips.join(", ")}의 Veo 요청 결과가 불확실합니다(중복 과금 가능성). 공급자
+                사용량을 확인한 뒤 재개하면 해당 클립만 다시 생성합니다.
+              </Notice>
+            )}
             <div className="cluster operation-actions">
               {canStop && (
                 <Button
@@ -105,6 +136,7 @@ export function AutomationPanel({
               )}
               {(automation.status === "blocked" ||
                 automation.status === "stopped" ||
+                (automation.status === "waiting" && automation.policy.mode === "creative") ||
                 (automation.status === "attention" &&
                   (automation.videoOperation !== null ||
                     automation.policy.mode === "creative"))) && (
@@ -115,11 +147,15 @@ export function AutomationPanel({
                   }}
                 >
                   <Play size={14} />
-                  {automation.status === "attention" && automation.policy.mode === "creative"
-                    ? "검토 결과 확인 후 계속 진행"
-                    : automation.status === "attention"
-                      ? "기존 Veo 작업 재확인"
-                      : "중지된 작업 재개"}
+                  {automation.status === "waiting"
+                    ? automation.phase === "script"
+                      ? "승인 상태 다시 확인"
+                      : "업로드 상태 다시 확인"
+                    : automation.status === "attention" && automation.policy.mode === "creative"
+                      ? "검토 결과 확인 후 계속 진행"
+                      : automation.status === "attention"
+                        ? "기존 Veo 작업 재확인"
+                        : "중지된 작업 재개"}
                 </Button>
               )}
               {(automation.status === "stopped" || automation.status === "blocked") && (
@@ -156,12 +192,20 @@ export function AutomationPanel({
             {job.sourceSnapshot && (
               <Notice>
                 프로젝트 자료를 분석해 영상별 대본·컷·Flow 지시를 먼저 저장하고 이미지를 제작합니다.
-                Veo 결과는 8초 세로 원본 클립이며 최종 편집본은 아닙니다.
+                영상을 요청하면 내레이션 → AI 정지 이미지(최대 14장) → 시작 이미지 → Veo 클립(실사
+                컷만, 최대 4개) → 모션그래픽 → 조립 순서로 30~60초 완성 영상(자막·BGM 포함)을
+                저장합니다.
               </Notice>
             )}
             {missingTools.length > 0 && (
               <Notice tone="warning">
                 제작 연결 대기: {missingTools.join(" · ")}. 연결 설정에서 입력할 수 있습니다.
+              </Notice>
+            )}
+            {missingVideoTools.length > 0 && (
+              <Notice>
+                완성 영상 제작에 필요(영상 0개면 무관): {missingVideoTools.join(" · ")}. 키는 연결
+                설정에서, ffmpeg·폰트는 서버 환경에서 준비합니다.
               </Notice>
             )}
             {legacy && (
@@ -207,6 +251,8 @@ export function AutomationPanel({
           <AutomationSetup
             job={job}
             geminiConnected={config.gemini}
+            typecastConnected={config.typecast}
+            ffmpegReady={config.ffmpeg && config.captionFont}
             onClose={() => setSetup(false)}
             onSaved={onRefresh}
           />

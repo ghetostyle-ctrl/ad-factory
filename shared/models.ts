@@ -75,7 +75,8 @@ export const ExecutionModelsSchema = z
 export type ExecutionModels = z.infer<typeof ExecutionModelsSchema>;
 export const ArtifactModelSchema = z
   .object({
-    provider: z.enum(["openai", "codex", "gemini"]),
+    // typecast: 내레이션 합성, ffmpeg: 로컬 렌더(모션그래픽·최종 조립), flow: 사용자가 Google Flow 웹에서 만든 클립
+    provider: z.enum(["openai", "codex", "gemini", "typecast", "ffmpeg", "flow"]),
     requestedModel: ModelIdSchema.nullable(),
     effectiveModel: ModelIdSchema.nullable(),
     quality: ImageQualitySchema.nullable(),

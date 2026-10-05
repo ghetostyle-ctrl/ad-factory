@@ -140,4 +140,5 @@ test("a downloaded three-second video produces cut observations from sampled fra
     store.close();
     if (resolve(root).startsWith(resolve(prefix))) await rm(root, { recursive: true, force: true });
   }
-});
+  // 실제 ffmpeg 프레임 추출이라 CPU 경합 시 기본 5초를 넘길 수 있어 넉넉히 둔다.
+}, 60_000);

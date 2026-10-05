@@ -1,6 +1,8 @@
 import type { ConfigStatus } from "../shared/schema";
 import { getModelSettings, resolveTextProvider } from "./model-settings";
 import { codexBin, credentials, dataDir, env } from "./provider-environment";
+import { ffmpegReady } from "./render/ffmpeg";
+import { resolveFont } from "./render/fonts";
 
 export {
   codexBin,
@@ -18,6 +20,9 @@ export function configStatus(root: string = dataDir): ConfigStatus {
     codex: Boolean(codexBin),
     meta: credentials.meta.length > 0,
     typecast: credentials.typecast.length > 0,
+    // ffmpeg 는 비동기 검사(ffmpegCapabilities) 가 한 번 성공한 뒤에만 true 가 된다(server/index.ts 가 기동 시 1회 실행).
+    ffmpeg: ffmpegReady(),
+    captionFont: resolveFont() !== null,
     textProvider: resolveTextProvider(modelSettings.textProvider),
     imageModel: modelSettings.imageModel,
     textModel: modelSettings.textModel,

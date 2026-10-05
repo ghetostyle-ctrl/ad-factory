@@ -1,5 +1,6 @@
 import { HTTPError, TimeoutError } from "ky";
 import { ZodError } from "zod";
+import type { Job } from "../shared/schema";
 
 export class StudioError extends Error {
   constructor(
@@ -15,6 +16,17 @@ export class BlockedError extends StudioError {
   constructor(message: string) {
     super("blocked", message);
     this.name = "BlockedError";
+  }
+}
+// 사용자 작업(예: Google Flow 에서 클립을 만들어 업로드)을 기다리는 정상 대기. 실패가 아니라서
+// 엔진이 'waiting' 으로 두고, ready(job) 가 참이 되는 순간(업로드 경합 포함) 곧바로 이어서 실행한다.
+export class WaitingError extends StudioError {
+  constructor(
+    message: string,
+    readonly ready: (job: Job) => boolean,
+  ) {
+    super("waiting", message);
+    this.name = "WaitingError";
   }
 }
 export class MissingConnectionError extends BlockedError {

@@ -7,23 +7,28 @@ import {
   AutomationResumeSchema,
   AutomationStartSchema,
 } from "../shared/automation";
+import { FLOW_CLIP_MAX_BYTES } from "../shared/flow-mode";
 import { buildProductionManifest } from "../shared/production-manifest";
+import { ClipIdSchema } from "../shared/render-state";
 import { AccountSelectionSchema, CreateJobSchema, PublishSchema } from "../shared/schema";
 import type { AutomationEngine } from "./automation";
 import { AutomationEnrollment } from "./automation-enrollment";
 import { publicError, StudioError } from "./errors";
 import { evidencePack } from "./evidence-pack";
+import { FlowImport } from "./flow-import";
 import { logger } from "./logger";
 import { analyzeJob } from "./meta-insights";
 import { publishJob } from "./meta-publish";
 import type { Pipeline } from "./pipeline";
 import { captureProductionSources } from "./production-snapshot";
 import { ProjectStore } from "./project-store";
+import { ScriptEditSchema, ScriptRewriteSchema } from "./script-service";
 import type { JobStore } from "./store";
 
 export function jobRoutes(store: JobStore, pipeline: Pipeline, engine: AutomationEngine): Hono {
   const routes = new Hono();
   const mutations = new Set<string>();
+  const flowImport = new FlowImport(store);
   routes.use("/:id/*", async (c, next) => {
     const id = c.req.param("id");
     if (!id) throw new StudioError("id", "작업 ID가 필요합니다.", 400);
@@ -105,9 +110,89 @@ export function jobRoutes(store: JobStore, pipeline: Pipeline, engine: Automatio
       );
     store.remove(job.id);
     await rm(join(store.root, "artifacts", job.id), { recursive: true, force: true });
+    // 렌더 스크래치(세그먼트 캐시)도 같이 지운다
+    await rm(join(store.root, "render", job.id), { recursive: true, force: true });
+    // Flow 모드 CLI 번들(시작 이미지·prompts.md)도 같이 지운다
+    await rm(join(store.root, "flow", job.id), { recursive: true, force: true });
     logger.info({ jobId: job.id }, "job.deleted");
     return c.json({ deleted: job.id });
   });
+  // Google Flow 에서 만든 Veo 클립 업로드: 원본 바이트(video/mp4) 또는 multipart 'file'. 선택 ?model= 은 Flow 에서 쓴 모델 이름.
+  routes.post("/:id/videos/:number/clips/:clipId", async (c) => {
+    const id = c.req.param("id");
+    const number = Number(c.req.param("number"));
+    const clipId = ClipIdSchema.safeParse(c.req.param("clipId"));
+    if (!Number.isInteger(number) || number < 1 || number > 10 || !clipId.success)
+      throw new StudioError("flow_clip", "영상 번호(1~10)와 클립 ID(A~H)를 확인하세요.", 400);
+    const declared = Number(c.req.header("Content-Length"));
+    if (Number.isFinite(declared) && declared > FLOW_CLIP_MAX_BYTES + 1024 * 1024)
+      throw new StudioError("flow_size", "클립 파일은 200MB 이하여야 합니다.", 413);
+    let bytes: Uint8Array;
+    let model = c.req.query("model") ?? null;
+    if ((c.req.header("Content-Type") ?? "").toLowerCase().startsWith("multipart/form-data")) {
+      const form = await c.req.formData();
+      const file = form.get("file");
+      if (!(file instanceof File))
+        throw new StudioError("flow_format", "file 필드에 MP4 파일을 첨부하세요.", 400);
+      if (file.size > FLOW_CLIP_MAX_BYTES)
+        throw new StudioError("flow_size", "클립 파일은 200MB 이하여야 합니다.", 413);
+      bytes = new Uint8Array(await file.arrayBuffer());
+      const field = form.get("model");
+      if (model === null && typeof field === "string") model = field;
+    } else bytes = new Uint8Array(await c.req.arrayBuffer());
+    const result = await flowImport.import({
+      jobId: id,
+      number,
+      clipId: clipId.data,
+      bytes,
+      model,
+    });
+    // 기다리던 영상의 클립이 모두 들어왔으면 대기를 풀고 이어서 실행한다(그래픽 → 조립).
+    engine.wakeFlow(id);
+    return c.json(result.job);
+  });
+  // 영상 대본 확인·수정·승인·다시 쓰기(사용자 결정 2026-10-04). 승인 전에는 유료 제작(내레이션)을 시작하지 않는다.
+  const videoNumber = (raw: string | undefined) => {
+    const number = Number(raw);
+    if (!Number.isInteger(number) || number < 1 || number > 10)
+      throw new StudioError("script_number", "영상 번호는 1~10 입니다.", 400);
+    return number;
+  };
+  routes.get("/:id/videos/:number/script", (c) =>
+    c.json(engine.services.scripts.view(c.req.param("id"), videoNumber(c.req.param("number")))),
+  );
+  routes.put("/:id/videos/:number/script", validator("json", ScriptEditSchema), async (c) => {
+    const id = c.req.param("id");
+    const number = videoNumber(c.req.param("number"));
+    await engine.services.scripts.edit(id, number, c.req.valid("json"));
+    await engine.services.scripts.saveEdited(id, number);
+    return c.json(engine.services.scripts.view(id, number));
+  });
+  routes.post("/:id/videos/:number/script/approve", (c) => {
+    const id = c.req.param("id");
+    const number = videoNumber(c.req.param("number"));
+    engine.services.scripts.approve(id, number);
+    // 모든 영상이 승인됐으면 대기를 풀고 이어서 실행한다(내레이션 합성부터).
+    engine.wakeScripts(id);
+    return c.json(engine.services.scripts.view(id, number));
+  });
+  routes.post(
+    "/:id/videos/:number/script/rewrite",
+    validator("json", ScriptRewriteSchema),
+    async (c) => {
+      const id = c.req.param("id");
+      const number = videoNumber(c.req.param("number"));
+      await engine.services.scripts.rewrite(
+        id,
+        number,
+        c.req.valid("json").feedback,
+        new AbortController().signal,
+      );
+      // 자동 진행 정책에서 다시 쓴 대본이 AI 검토를 통과하면 승인이 필요 없으므로 곧바로 이어간다(기본 정책은 승인 전이라 깨어나지 않는다).
+      engine.wakeScripts(id);
+      return c.json(engine.services.scripts.view(id, number));
+    },
+  );
   routes.post("/:id/run", (c) => c.json(pipeline.run(c.req.param("id"))));
   routes.post("/:id/cancel", (c) => c.json(pipeline.cancel(c.req.param("id"))));
   routes.post("/:id/brief", validator("json", CreateJobSchema), (c) => {

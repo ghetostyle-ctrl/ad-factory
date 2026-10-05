@@ -62,20 +62,26 @@ export function createApp(
     const sourceUpload =
       c.req.method === "POST" &&
       /^\/api\/projects\/[^/]+\/sources\/[^/]+\/files\/?$/.test(c.req.path);
+    const flowClip =
+      c.req.method === "POST" &&
+      /^\/api\/jobs\/[^/]+\/videos\/\d+\/clips\/[A-H]\/?$/.test(c.req.path);
     return bodyLimit({
-      maxSize: upload
-        ? PRODUCTION_UPLOAD_MAX_BYTES
-        : sourceUpload
-          ? 26 * 1024 * 1024
-          : 16 * 1024 * 1024,
+      maxSize:
+        upload || flowClip
+          ? PRODUCTION_UPLOAD_MAX_BYTES
+          : sourceUpload
+            ? 26 * 1024 * 1024
+            : 16 * 1024 * 1024,
       onError: (context) =>
         context.json(
           {
-            error: upload
-              ? "영상 업로드 요청은 201MiB 이하여야 합니다."
-              : sourceUpload
-                ? "이미지 파일은 한 장당 25MB 이하여야 합니다."
-                : "요청은 16MB 이하여야 합니다.",
+            error: flowClip
+              ? "Flow 클립 업로드 요청은 200MB 이하여야 합니다."
+              : upload
+                ? "영상 업로드 요청은 201MiB 이하여야 합니다."
+                : sourceUpload
+                  ? "이미지 파일은 한 장당 25MB 이하여야 합니다."
+                  : "요청은 16MB 이하여야 합니다.",
           },
           413,
         ),
@@ -136,15 +142,41 @@ export function createApp(
       });
     }),
   );
+  // 완성 영상(30~60초 MP4)·내레이션 wav 미리보기 탐색용 Range(206) 지원
   app.get("/api/artifacts/:jobId/:name", async (c) => {
     const file = await pipeline.assets.read(c.req.param("jobId"), c.req.param("name"));
-    return new Response(file, {
-      headers: {
-        "Content-Type": file.type || "application/octet-stream",
-        "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "no-store",
-      },
+    const headers = new Headers({
+      "Content-Type": file.type || "application/octet-stream",
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "no-store",
+      "Accept-Ranges": "bytes",
     });
+    const range = c.req.header("Range");
+    if (!range) {
+      headers.set("Content-Length", String(file.size));
+      return new Response(file, { headers });
+    }
+    const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+    const first = match?.[1] ?? "";
+    const last = match?.[2] ?? "";
+    const suffix = first === "";
+    const start = suffix ? Math.max(0, file.size - Number(last)) : Number(first);
+    const end = suffix || last === "" ? file.size - 1 : Math.min(Number(last), file.size - 1);
+    const valid =
+      match &&
+      (first !== "" || last !== "") &&
+      Number.isSafeInteger(Number(first)) &&
+      Number.isSafeInteger(Number(last)) &&
+      start < file.size &&
+      start <= end &&
+      (!suffix || Number(last) > 0);
+    if (!valid) {
+      headers.set("Content-Range", `bytes */${file.size}`);
+      return new Response(null, { status: 416, headers });
+    }
+    headers.set("Content-Range", `bytes ${start}-${end}/${file.size}`);
+    headers.set("Content-Length", String(end - start + 1));
+    return new Response(file.slice(start, end + 1), { status: 206, headers });
   });
   app.get(
     "/api/openapi.json",

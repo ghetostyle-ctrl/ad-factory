@@ -1,12 +1,37 @@
 import type { AutomationPolicy } from "../shared/automation";
+import { flowReady } from "../shared/flow-mode";
 import type { Job } from "../shared/schema";
+import { scriptApprovalReady } from "../shared/script-approval";
 import { AutomationEnrollment } from "./automation-enrollment";
 import { AutomationGuard } from "./automation-guard";
 import { type AutomationServices, automationServices } from "./automation-services";
-import { BlockedError, publicError, StudioError } from "./errors";
+import { BlockedError, publicError, StudioError, WaitingError } from "./errors";
 import { logger } from "./logger";
 import type { JobStore } from "./store";
 
+// 완료 문구: 완성 영상 수와 그 안의 Veo 클립·정지 이미지·내레이션 문장·BGM 여부를 renders 와 산출물에서 센다.
+export function completionMessage(job: Job, imageCount: number): string {
+  const finals = job.renders.filter((render) => render.final);
+  const clips = finals.reduce(
+    (sum, render) => sum + Object.values(render.clips).filter((clip) => clip?.name).length,
+    0,
+  );
+  const stills = finals.reduce(
+    (sum, render) => sum + Object.values(render.stills).filter((still) => still?.name).length,
+    0,
+  );
+  const voiceNames = new Set(
+    job.artifacts
+      .filter((asset) => asset.kind === "audio")
+      .map((asset) => asset.name.replace(/-\d\.wav$/, "")),
+  );
+  const bgm = finals.some((render) => render.final?.bgmTrackId);
+  const videos =
+    finals.length > 0
+      ? ` · 완성 영상 ${finals.length}개(Veo 클립 ${clips}개·정지 이미지 ${stills}장·내레이션 ${voiceNames.size}문장·BGM ${bgm ? "포함" : "없음"})`
+      : "";
+  return `광고소재 제작 완료 · 이미지 ${imageCount}개${videos}`;
+}
 export class AutomationEngine {
   readonly active = new Map<
     string,
@@ -61,6 +86,36 @@ export class AutomationEngine {
   wakeBlocked(): void {
     new AutomationEnrollment(this.store).wakeBlocked();
     this.wake();
+  }
+  // Flow 모드에서 클립이 업로드될 때 부른다: 기다리던 영상의 클립이 모두 들어왔으면 곧바로 이어서 실행한다.
+  // 대기(waiting)가 아니면(아직 실행 중이거나 중지 등) 아무것도 바꾸지 않는다. 실행 중이던 작업이 곧 대기에 들어가는
+  // 경합은 execute 의 park 가 같은 조건(flowReady)을 다시 검사해 메운다.
+  wakeFlow(id: string): boolean {
+    return this.wakeWaiting(id, flowReady, "Flow 클립이 모두 업로드되어 제작을 이어갑니다.");
+  }
+  // 대본 승인이 올 때 부른다: 모든 영상 대본이 승인됐으면 곧바로 이어서 실행한다(내레이션 합성부터).
+  wakeScripts(id: string): boolean {
+    return this.wakeWaiting(
+      id,
+      (job) => job.automation?.phase === "script" && scriptApprovalReady(job),
+      "영상 대본이 모두 승인되어 제작을 이어갑니다.",
+    );
+  }
+  private wakeWaiting(id: string, ready: (job: Job) => boolean, message: string): boolean {
+    const job = this.store.get(id);
+    const state = job.automation;
+    if (state?.status !== "waiting" || state.policy.mode !== "creative" || state.nextRunAt !== null)
+      return false;
+    if (!ready(job)) return false;
+    this.store.change(id, (draft) => {
+      if (!draft.automation) return;
+      draft.automation.status = "queued";
+      draft.automation.nextRunAt = new Date().toISOString();
+      draft.status = "queued";
+      this.store.event(draft, "production", "info", message);
+    });
+    this.wake();
+    return true;
   }
   async stop(id: string): Promise<Job> {
     const job = this.store.get(id);
@@ -132,7 +187,7 @@ export class AutomationEngine {
           const policy = draft.automation?.policy;
           draft.result =
             policy?.mode === "creative"
-              ? `광고소재 제작 완료 · 이미지 ${policy.imageCount ?? (draft.sourceSnapshot ? 3 : 1)}개 · Veo 원본 클립 ${policy.videoCount ?? 0}개 · 최종 영상 편집 별도`
+              ? completionMessage(draft, policy.imageCount ?? (draft.sourceSnapshot ? 3 : 1))
               : "광고소재 제작 완료";
           this.store.event(draft, null, "success", draft.result);
         });
@@ -184,6 +239,10 @@ export class AutomationEngine {
       });
     } catch (error) {
       if (signal.aborted || this.store.get(id).automation?.status === "stopped") return;
+      if (error instanceof WaitingError) {
+        this.park(id, error);
+        return;
+      }
       if (error instanceof StudioError && error.code === "expired") {
         this.markStopped(id, error.message);
         await this.pause(id);
@@ -214,6 +273,35 @@ export class AutomationEngine {
       const pending = this.store.get(id).staged?.pendingOperation;
       if (pending === "publish" || pending?.startsWith("publish:")) await this.pause(id);
     }
+  }
+  // 사용자 작업을 기다리는 정상 대기: 실패가 아니라서 lastError 를 비우고 nextRunAt 없이 'waiting' 으로 둔다
+  // (tick 은 nextRunAt 이 있는 waiting 만 실행하므로 업로드가 올 때까지 다시 돌지 않는다).
+  // 대기에 들어가는 순간 이미 입력이 도착해 있으면(업로드 경합) 기다리지 않고 바로 다시 큐에 넣는다.
+  private park(id: string, waiting: WaitingError): void {
+    this.store.change(id, (draft) => {
+      const state = draft.automation;
+      if (!state) return;
+      state.lastError = null;
+      state.operation = null;
+      if (waiting.ready(draft)) {
+        state.status = "queued";
+        state.nextRunAt = new Date().toISOString();
+        draft.status = "queued";
+        return;
+      }
+      state.status = "waiting";
+      state.nextRunAt = null;
+      draft.status = "review";
+      draft.result = waiting.message;
+      for (const agent of draft.agents)
+        if (agent.status === "running") {
+          agent.status = "review";
+          agent.action = waiting.message;
+          agent.finishedAt = null;
+        }
+      if (!draft.events.slice(-3).some((event) => event.message === waiting.message))
+        this.store.event(draft, "production", "info", waiting.message);
+    });
   }
   private markStopped(id: string, message: string): void {
     this.store.change(id, (draft) => {

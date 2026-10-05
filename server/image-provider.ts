@@ -11,7 +11,13 @@ const ImagesSchema = z.object({
   model: ModelIdSchema.optional(),
   data: z.array(z.object({ b64_json: z.string().min(1) })).min(1),
 });
-export type ImageTask = {
+// 1024x1536 은 Veo 시작 이미지용 세로 프레임(공급자 지원 여부 미검증 — 400이면 호출자가 정사각으로 폴백).
+export type ImageSize = "1024x1024" | "1024x1536";
+export type ImageOptions = {
+  readonly size?: ImageSize;
+  readonly referenceImages?: readonly Uint8Array[];
+};
+export type ImageTask = ImageOptions & {
   readonly prompt: string;
   readonly signal: AbortSignal;
   readonly models: ExecutionModels;
@@ -28,9 +34,13 @@ export async function generateImageResult(
     throw new MissingConnectionError(
       "자동 이미지 생성에 OpenAI API 키가 필요합니다. 연결 설정에서 키를 입력하면 재개할 수 있습니다.",
     );
+  const references = (task.referenceImages ?? []).map((bytes) => ({
+    image_url: imageInput(bytes).dataUrl,
+  }));
+  const endpoint = references.length > 0 ? "images/edits" : "images/generations";
   const result = ImagesSchema.parse(
     await ky
-      .post(new URL("images/generations", connection.baseUrl), {
+      .post(new URL(endpoint, connection.baseUrl), {
         headers: { Authorization: `Bearer ${connection.apiKey}` },
         timeout: 300000,
         retry: 0,
@@ -39,9 +49,10 @@ export async function generateImageResult(
           model: task.models.imageModel,
           prompt: task.prompt,
           n: 1,
-          size: "1024x1024",
+          size: task.size ?? "1024x1024",
           quality: task.models.imageQuality,
           output_format: "png",
+          ...(references.length > 0 ? { images: references } : {}),
         },
       })
       .json(),

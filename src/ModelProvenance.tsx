@@ -41,6 +41,14 @@ export function ModelProvenance({ job }: { readonly job: Job }) {
   );
 }
 
+const providerLabels = {
+  openai: "OpenAI",
+  codex: "Codex CLI",
+  gemini: "Gemini(Veo)",
+  typecast: "Typecast",
+  ffmpeg: "로컬 렌더(ffmpeg)",
+  flow: "Google Flow(웹 수동 제작)",
+} as const satisfies Record<NonNullable<Artifact["model"]>["provider"], string>;
 export function ArtifactProvenance({ artifact }: { readonly artifact: Artifact }) {
   const model = artifact.model;
   if (!model) return null;
@@ -48,7 +56,7 @@ export function ArtifactProvenance({ artifact }: { readonly artifact: Artifact }
     <dl className="definition-list">
       <div>
         <dt>생성 공급자</dt>
-        <dd>{model.provider}</dd>
+        <dd>{providerLabels[model.provider]}</dd>
       </div>
       <div>
         <dt>요청 모델</dt>

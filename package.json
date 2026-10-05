@@ -9,8 +9,10 @@
     "start": "bun run server/index.ts",
     "build": "vite build",
     "check": "tsc --noEmit",
-    "lint": "biome check src shared server tests package.json tsconfig.json vite.config.ts",
-    "test": "bun test"
+    "lint": "biome check src shared server tests scripts package.json tsconfig.json vite.config.ts",
+    "test": "bun test",
+    "flow": "bun run scripts/flow.ts",
+    "script": "bun run scripts/script.ts"
   },
   "dependencies": {
     "@hono/swagger-ui": "^0.6.1",

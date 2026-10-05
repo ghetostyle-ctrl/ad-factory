@@ -30,9 +30,14 @@ export type TextTask<T> = {
   readonly directory: string;
   readonly signal: AbortSignal;
   readonly models?: ExecutionModels;
+  // image 는 기존 호출부 호환(한 장). 여러 장(참조 이미지 + 후보)은 images 로 넘긴다. 둘 다 있으면 image 가 먼저.
   readonly image?: Uint8Array;
+  readonly images?: readonly Uint8Array[];
   readonly maxOutputTokens?: number;
 };
+function attachedImages<T>(task: TextTask<T>): Uint8Array[] {
+  return [...(task.image ? [task.image] : []), ...(task.images ?? [])];
+}
 export async function generateText<T>(task: TextTask<T>): Promise<T> {
   return (await generateTextResult(task)).value;
 }
@@ -60,17 +65,23 @@ async function openaiText<T>(
   connection: OpenAIConnection,
 ): Promise<ModelResult<T>> {
   if (!connection.apiKey) throw new MissingConnectionError("OpenAI API 키가 설정되지 않았습니다.");
-  const input = task.image
-    ? [
-        {
-          role: "user",
-          content: [
-            { type: "input_text", text: task.prompt },
-            { type: "input_image", image_url: imageInput(task.image).dataUrl, detail: "auto" },
-          ],
-        },
-      ]
-    : task.prompt;
+  const images = attachedImages(task);
+  const input =
+    images.length > 0
+      ? [
+          {
+            role: "user",
+            content: [
+              { type: "input_text", text: task.prompt },
+              ...images.map((image) => ({
+                type: "input_image",
+                image_url: imageInput(image).dataUrl,
+                detail: "auto",
+              })),
+            ],
+          },
+        ]
+      : task.prompt;
   const result = ResponseSchema.parse(
     await ky
       .post(new URL("responses", connection.baseUrl), {
@@ -153,10 +164,12 @@ async function codexText<T>(
   const invocation = crypto.randomUUID();
   const schemaPath = join(task.directory, `${invocation}.schema.json`);
   const resultPath = join(task.directory, `${invocation}.result.json`);
-  const imagePath = task.image
-    ? join(task.directory, `${invocation}.${imageInput(task.image).extension}`)
+  // 제한: Codex CLI 경로는 --image 한 장만 넘긴다(첫 장). 참조 이미지 비교 검토는 OpenAI 경로에서만 완전하다.
+  const [firstImage] = attachedImages(task);
+  const imagePath = firstImage
+    ? join(task.directory, `${invocation}.${imageInput(firstImage).extension}`)
     : null;
-  if (task.image && imagePath) await Bun.write(imagePath, task.image);
+  if (firstImage && imagePath) await Bun.write(imagePath, firstImage);
   await Bun.write(schemaPath, JSON.stringify(z.toJSONSchema(task.schema)));
   const args = codexArguments({ schemaPath, resultPath, model: task.models.codexModel, imagePath });
   await new Promise<void>((resolve, reject) => {

@@ -4,6 +4,7 @@ import {
   File as FileIcon,
   FileText,
   FolderOpen,
+  Music,
   Upload,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -90,7 +91,7 @@ export function Artifacts({
             {filter ? `${agentMeta[filter].title} 결과물` : "작업 결과물"}{" "}
             <span className="count-label">{files.length}</span>
           </h2>
-          <p>전략 문서, 광고 이미지와 선택한 Veo 영상 클립까지.</p>
+          <p>전략 문서, 광고 이미지, 내레이션 음성, Veo 클립과 완성 영상까지.</p>
         </div>
         {job && !job.sourceSnapshot && (
           <label className={`button button-secondary upload-button ${pending ? "pending" : ""}`}>
@@ -126,7 +127,7 @@ export function Artifacts({
           <h3>아직 생성된 결과물이 없어요</h3>
           <p>
             {job
-              ? "소재 자동 제작을 시작하면 이미지·영상 클립과 문서가 여기에 저장됩니다."
+              ? "소재 자동 제작을 시작하면 이미지·내레이션·영상 클립·완성 영상과 문서가 여기에 저장됩니다."
               : "새 작업을 만들면 결과물이 이곳에 모입니다."}
           </p>
         </div>
@@ -149,6 +150,8 @@ export function Artifacts({
                   <img src={artifact.url} alt={artifact.name} loading="lazy" />
                 ) : artifact.kind === "text" ? (
                   <FileText size={20} strokeWidth={1.75} aria-hidden="true" />
+                ) : artifact.kind === "audio" ? (
+                  <Music size={20} strokeWidth={1.75} aria-hidden="true" />
                 ) : (
                   <FileIcon size={20} strokeWidth={1.75} aria-hidden="true" />
                 )}
@@ -177,6 +180,10 @@ export function Artifacts({
               <video className="full-preview" src={preview.url} controls>
                 <track kind="captions" />
               </video>
+            ) : preview.kind === "audio" ? (
+              <audio className="full-preview" src={preview.url} controls>
+                <track kind="captions" />
+              </audio>
             ) : previewError ? (
               <Notice tone="error">{previewError}</Notice>
             ) : (

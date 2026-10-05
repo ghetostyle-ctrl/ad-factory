@@ -2,20 +2,26 @@ import type { CreativePlan, CreativeVariant } from "../shared/creative-plan";
 import type { ModelResult } from "../shared/models";
 import { type Creative, ImageReviewSchema, type Strategy } from "../shared/planning";
 import type { Job } from "../shared/schema";
+import {
+  pendingScriptApprovals,
+  scriptApprovalMessage,
+  scriptApprovalReady,
+  scriptArtifactName,
+} from "../shared/script-approval";
 import { videoTargetSeconds } from "../shared/video-script";
 import { Artifacts } from "./artifacts";
 import { AutomationGuard, contentDigest } from "./automation-guard";
 import type { ProductionProviders } from "./automation-production";
-import { BlockedError, MissingConnectionError, StudioError } from "./errors";
+import { BlockedError, MissingConnectionError, StudioError, WaitingError } from "./errors";
+import { renderStateOf } from "./render-state-helpers";
+import { SCRIPT_MAX_GENERATIONS, writeVideoScript } from "./script-writer";
 import { validatePlanEvidence } from "./source-evidence";
 import { SourcePlanner } from "./source-planning";
 import type { JobStore } from "./store";
-import { generateVideoScript, verifyLongVideoScript, verifyVideoScript } from "./video-scripts";
+import { verifyVideoScript } from "./video-scripts";
 
-// 영상은 TOFU 문제 제기형 광고안부터 만든다(한 세트 편성의 '문제 제기형 영상'). 신호가 없는 예전 기획은 원래 순서.
 export function videoHypotheses(plan: CreativePlan): CreativePlan["hypotheses"] {
-  const first = plan.hypotheses.filter((item) => item.signals?.format === "problem_empathy");
-  return [...first, ...plan.hypotheses.filter((item) => !first.includes(item))];
+  return plan.hypotheses;
 }
 export type PlanProvider = (
   job: Job,
@@ -81,54 +87,81 @@ export class SourceProduction {
     const videoCount = policy?.mode === "creative" ? (policy.videoCount ?? 0) : 0;
     const videoOrder = videoHypotheses(job.creativePlan);
     for (let index = this.store.get(id).videoScripts.length; index < videoCount; index++) {
-      const hypothesis = videoOrder[index % videoOrder.length];
+      const uses = new Map<string, number>();
+      for (const script of this.store.get(id).videoScripts)
+        uses.set(script.hypothesisId, (uses.get(script.hypothesisId) ?? 0) + 1);
+      const hypothesis = videoOrder.toSorted(
+        (left, right) => (uses.get(left.id) ?? 0) - (uses.get(right.id) ?? 0),
+      )[0];
       if (!hypothesis) throw new BlockedError("영상 대본에 연결할 광고안이 없습니다.");
       await this.guard.operation(id, {
         phase: "script",
         signal,
         run: async () => {
-          const durationSec = videoTargetSeconds(id, index + 1);
-          // 규칙(길이·컷·자막·내레이션 분량)에 어긋나면 한 번만 다시 쓰게 한다.
-          let result: Awaited<ReturnType<NonNullable<ProductionProviders["videoScript"]>>> | null =
-            null;
-          for (let attempt = 1; attempt <= 2 && !result; attempt++) {
-            this.store.agent(id, "creative", {
-              status: "running",
-              action: `영상 ${index + 1}/${videoCount} · ${durationSec}초 대본·컷 구성 작성 중${attempt > 1 ? " · 규칙 수정 1회" : ""}`,
-            });
-            const written = await (this.providers.videoScript ?? generateVideoScript)(
-              this.store.get(id),
-              hypothesis,
-              index + 1,
-              signal,
-            );
-            try {
-              verifyLongVideoScript(written.value, { number: index + 1, durationSec, hypothesis });
-              result = written;
-            } catch (error) {
-              if (attempt === 2) throw error;
-            }
-          }
-          if (!result) throw new BlockedError("영상 대본을 작성하지 못했습니다.");
+          const number = index + 1;
+          const durationSec = videoTargetSeconds(id, number);
+          // 규칙(길이·컷·자막·내레이션)과 AI 품질 검토에 걸리면 이유를 모아 다시 쓴다(생성 최대 3회).
+          const result = await writeVideoScript({
+            store: this.store,
+            providers: this.providers,
+            id,
+            number,
+            hypothesis,
+            durationSec,
+            signal,
+            progress: (attempt, reason) => {
+              this.store.agent(id, "creative", {
+                status: "running",
+                action: {
+                  planning: `영상 ${number}/${videoCount} · 고객 상황 분석·영상 콘셉트 기획 중`,
+                  copy: `영상 ${number}/${videoCount} · 내레이션·화면 카피 교정 중`,
+                  write: `영상 ${number}/${videoCount} · ${durationSec}초 대본·컷 구성 작성 중${attempt > 1 ? ` · 수정 ${attempt - 1}회` : ""}`,
+                  review: `영상 ${number}/${videoCount} · 대본 AI 품질 검토 중(말맛·설득력·사실 일치)`,
+                }[reason],
+              });
+            },
+          });
           await this.assets.save(id, {
-            name: `video-script-${index + 1}.json`,
+            name: scriptArtifactName(number),
             kind: "json",
             agentId: "creative",
-            content: JSON.stringify(result.value),
+            content: JSON.stringify(result.script),
             model: result.model,
           });
           this.store.change(id, (draft) => {
-            draft.videoScripts.push(result.value);
+            draft.videoScripts.push(result.script);
+            renderStateOf(draft, number).scriptReview = result.review;
+            if (result.review.repairs.length > 0)
+              this.store.event(
+                draft,
+                "creative",
+                "info",
+                `영상 ${number} 대본 자동 수리 ${result.review.repairs.length}건`,
+              );
           });
           this.store.agent(id, "creative", {
             status: "completed",
-            action: `영상 ${index + 1}/${videoCount} 대본·컷·소스·Flow·편집 지시 저장 완료`,
+            action:
+              result.review.accepted === "pass"
+                ? `영상 ${number}/${videoCount} 대본·컷·소스·Flow·편집 지시 저장 완료 · AI 검토 통과${result.review.warnings.length > 0 ? ` · 경고 ${result.review.warnings.length}건` : ""}`
+                : result.review.accepted === "forced"
+                  ? `영상 ${number}/${videoCount} 대본 저장 · AI 검토가 ${SCRIPT_MAX_GENERATIONS}회 생성 뒤에도 수정을 권해 사용자 확인이 필요합니다(승인 전에는 유료 제작을 시작하지 않습니다)`
+                  : `영상 ${number}/${videoCount} 대본 초안 저장 · 규칙을 통과하지 못해 대본 카드에서 고치거나 다시 써야 합니다(승인 전 유료 제작 없음, 생성 ${SCRIPT_MAX_GENERATIONS}회)`,
           });
         },
       });
     }
+    const awaitingApproval = pendingScriptApprovals(this.store.get(id));
+    if (awaitingApproval.length > 0) {
+      this.store.change(id, (draft) => {
+        if (draft.automation) draft.automation.phase = "script";
+      });
+      throw new WaitingError(scriptApprovalMessage(awaitingApproval.length), scriptApprovalReady);
+    }
     for (const [index, script] of this.store.get(id).videoScripts.entries()) {
-      const hypothesis = videoOrder[index % videoOrder.length];
+      const hypothesis = job.creativePlan.hypotheses.find(
+        (item) => item.id === script.hypothesisId,
+      );
       if (!hypothesis) throw new BlockedError("영상 대본에 연결할 광고안이 없습니다.");
       verifyVideoScript(script, index + 1, hypothesis.id);
     }

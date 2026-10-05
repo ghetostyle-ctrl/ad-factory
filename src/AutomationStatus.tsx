@@ -9,6 +9,12 @@ const phases = {
   script: "영상 대본·컷 설계",
   image: "이미지 생성",
   video: "Veo 영상 생성",
+  voice: "내레이션 합성",
+  stills: "정지 이미지 생성",
+  startImages: "시작 이미지 생성",
+  clips: "Veo 클립 생성",
+  graphics: "모션그래픽 렌더",
+  assemble: "최종 조립",
   review: "이미지·카피 검토",
   stage: "Meta 광고 준비",
   activate: "광고 활성화",
@@ -34,12 +40,16 @@ function nextAction(automation: AutomationState): string {
         : "자동 실행이 중지되었습니다. 광고 상태는 아래에서 확인하세요.";
     case "completed":
       return automation.policy.mode === "creative"
-        ? "영상 대본·컷 설계, 이미지 검토와 Veo 원본 클립 제작을 마쳤습니다. 최종 영상 편집은 별도입니다."
+        ? "영상 대본·컷 설계, 이미지 검토, 내레이션·Veo 클립·모션그래픽 조립까지 마쳤습니다. 완성 영상은 대본 카드에서 확인하세요."
         : automation.policy.mode === "prepare"
           ? "광고 준비를 마쳤습니다."
           : "운영이 종료되었습니다.";
     case "waiting":
-      return "예약 시각에 실제 성과를 조회하고 AI가 분석합니다.";
+      return automation.policy.mode !== "creative"
+        ? "예약 시각에 실제 성과를 조회하고 AI가 분석합니다."
+        : automation.phase === "script"
+          ? "영상 대본을 대본 카드에서 확인·수정하고 승인하면 이미지 제작·검토부터 자동으로 이어서 제작합니다. 실패가 아니라 사용자 확인을 기다리는 중입니다."
+          : "Google Flow에서 만든 클립을 대본 카드에서 업로드하면 자동으로 이어서 제작합니다. 실패가 아니라 사용자 작업을 기다리는 중입니다.";
     case "queued":
       return `다음 단계: ${phases[automation.phase]}`;
     case "running":
@@ -66,7 +76,7 @@ export function AutomationStatus({
           <dt>실행 범위</dt>
           <dd>
             {automation.policy.mode === "creative"
-              ? `소재 기획·이미지 ${automation.policy.imageCount ?? (job.sourceSnapshot ? 3 : 1)}개·영상 대본/원본 클립 ${automation.policy.videoCount ?? 0}개`
+              ? `소재 기획·이미지 ${automation.policy.imageCount ?? (job.sourceSnapshot ? 3 : 1)}개·완성 영상 ${automation.policy.videoCount ?? 0}개(30~60초·Veo 클립 최대 4개·정지 이미지 최대 14장·내레이션·자막·BGM)`
               : automation.policy.mode === "activate"
                 ? "자동 게시와 정기 분석"
                 : "광고 준비까지만"}

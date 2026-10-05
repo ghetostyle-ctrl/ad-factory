@@ -14,7 +14,7 @@ const EnvSchema = z.object({
   OPENAI_IMAGE_MODEL: ModelIdSchema.default("gpt-image-2"),
   OPENAI_IMAGE_QUALITY: ImageQualitySchema.default("medium"),
   TYPECAST_VOICE_ID: z.union([z.literal(""), ModelIdSchema]).default(""),
-  TYPECAST_TEMPO: z.coerce.number().finite().min(0.7).max(1.3).default(1),
+  TYPECAST_TEMPO: z.coerce.number().finite().min(0.7).max(1.3).default(1.2),
   TEXT_PROVIDER: z.enum(["auto", "openai", "codex", "none"]).default("auto"),
   CODEX_MODEL: z.union([z.literal(""), ModelIdSchema]).default(""),
   CODEX_BIN: z.string().default(""),
@@ -25,8 +25,18 @@ const EnvSchema = z.object({
     .default("v26.0"),
   DATA_DIR: z.string().default("data"),
   NODE_ENV: z.string().default("development"),
+  // 로컬 렌더 도구. 비어 있으면 PATH 의 ffmpeg/ffprobe, 저장소 assets/fonts, assets/bgm 을 쓴다.
+  // 실행기는 테스트가 실행 중 바꿀 수 있도록 process.env 를 호출 시점에 읽는다(여기서는 검증만).
+  FFMPEG_PATH: z.string().default(""),
+  FFPROBE_PATH: z.string().default(""),
+  FONT_DIR: z.string().default(""),
+  BGM_DIR: z.string().default(""),
+  // 최종 인코더. 기본 libx264(결정성), NVIDIA GPU 가 있으면 h264_nvenc 로 단축. 빈 값은 기본값.
+  RENDER_ENCODER: z.union([z.literal(""), z.enum(["libx264", "h264_nvenc"])]).default(""),
 });
 export const env = EnvSchema.parse(process.env);
+export type RenderEncoder = "libx264" | "h264_nvenc";
+export const renderEncoder: RenderEncoder = env.RENDER_ENCODER || "libx264";
 const windowsCodex = join(
   homedir(),
   ".npm-global/node_modules/@openai/codex/node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe",

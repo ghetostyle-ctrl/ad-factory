@@ -13,13 +13,13 @@ import { saveModelSettings } from "../server/model-settings";
 import { Pipeline } from "../server/pipeline";
 import { ProjectStore } from "../server/project-store";
 import { JobStore } from "../server/store";
-import { VideoProduction } from "../server/video-production";
 import { CreativePlanSchema } from "../shared/creative-plan";
 import type { Job } from "../shared/schema";
 import { CreateProjectSchema, CreateSourceSchema } from "../shared/sources";
 import { videoTargetSeconds } from "../shared/video-script";
 import { automationBrief, automationPolicy, automationRequest } from "./automation-fixture";
 import { fixtureCreative, fixturePng, fixtureStrategy } from "./automation-http-fixture";
+import { renderRuntimeFixture, settle } from "./render-runtime-fixture";
 import { longVideoScript } from "./video-script-fixture";
 
 const model = {
@@ -107,6 +107,10 @@ async function fixture() {
         model,
       };
     },
+    reviewVideoScript: async () => ({
+      value: { status: "pass", summary: "픽스처 대본 검토 통과", issues: [] },
+      model,
+    }),
     image: async () => {
       images++;
       return { value: new Uint8Array(Buffer.from(fixturePng, "base64")), model };
@@ -242,109 +246,119 @@ describe("source runtime boundaries", () => {
     }
   });
   test("project creative automation honors selected ten-image and ten-video limits", async () => {
-    const f = await fixture();
-    const production = new AutomaticProduction(f.store, f.providers);
-    let videos = 0;
-    const videoProduction = new VideoProduction(f.store, async (task) => {
-      videos++;
-      expect(task.model).toBe("veo-3.1-lite-generate-preview");
-      expect(task.prompt).toContain(`Flow shot ${videos}`);
-      return {
-        value: new Uint8Array([0, 0, 0, 12, 102, 116, 121, 112]),
-        model: { ...model, provider: "gemini" },
-      };
+    // 영상은 클립 단위: 영상마다 veoClips 수(longVideoScript 는 A 하나)만큼 Veo 생성 요청, 프롬프트에 clip.prompt 포함.
+    // 그래픽·조립은 스텁(ffmpeg 호출 없음)이라 완성본 없이 클립까지만 센다.
+    const r = await renderRuntimeFixture({
+      stubRender: true,
+      clipReview: false,
+      script: (job, hypothesisId, number) =>
+        longVideoScript(number, hypothesisId, videoTargetSeconds(job.id, number)),
     });
     const engine = new AutomationEngine(
-      f.store,
-      automationServices(f.store, { production, videoProduction }),
+      r.store,
+      automationServices(r.store, { production: r.production, renderPipeline: r.renderPipeline }),
     );
     try {
-      const job = f.fresh();
-      engine.start(job.id, { mode: "creative", imageCount: 10, videoCount: 10 });
-      await engine.tick();
-      await Promise.all([...engine.active.values()].map((task) => task.promise));
-      const result = f.store.get(job.id);
+      const job = r.fresh();
+      engine.start(job.id, {
+        mode: "creative",
+        imageCount: 10,
+        videoCount: 10,
+        scriptApproval: "auto",
+      });
+      await settle(engine);
+      const result = r.store.get(job.id);
+      expect(result.automation?.lastError).toBeNull();
       expect(result.automation?.status).toBe("completed");
       expect(result.creativeVariants).toHaveLength(10);
-      expect(f.images()).toBe(10);
-      expect(f.scripts()).toBe(10);
       expect(result.videoScripts).toHaveLength(10);
       expect(
-        result.artifacts.filter((asset) => asset.name.startsWith("video-script-")),
+        result.artifacts.filter((asset) => /^video-script-\d+\.json$/.test(asset.name)),
       ).toHaveLength(10);
-      expect(videos).toBe(10);
+      // AI 대본 검토 기록도 영상마다 하나씩
+      expect(
+        result.artifacts.filter((asset) => /^video-script-review-\d+-1\.json$/.test(asset.name)),
+      ).toHaveLength(10);
+      expect(r.counts.veoCreate).toBe(10);
+      expect(r.counts.veoAwait).toBe(10);
+      expect(r.counts.startImage).toBe(10);
+      expect(r.counts.voice).toBe(
+        result.videoScripts.reduce((sum, script) => sum + script.voiceover.length, 0),
+      );
+      for (const prompt of r.veoPrompts) expect(prompt).toContain("Portrait product scene");
       expect(result.artifacts.filter((asset) => asset.kind === "video")).toHaveLength(10);
+      expect(result.renders).toHaveLength(10);
+      expect(result.renders.every((render) => render.clips.A?.name)).toBe(true);
       expect(result.staged).toBeNull();
     } finally {
       engine.close();
-      await f.close();
+      await r.close();
     }
-  });
+  }, 120_000);
   test("Veo does not receive an approved image whose file bytes changed", async () => {
-    const f = await fixture();
-    let calls = 0;
+    const r = await renderRuntimeFixture({
+      stubRender: true,
+      clipReview: false,
+      script: (job, hypothesisId, number) =>
+        longVideoScript(number, hypothesisId, videoTargetSeconds(job.id, number)),
+    });
     try {
-      const job = new AutomationEnrollment(f.store).start(f.fresh().id, {
+      const job = new AutomationEnrollment(r.store).start(r.fresh().id, {
         mode: "creative",
         imageCount: 1,
         videoCount: 1,
+        scriptApproval: "auto",
       });
-      await new AutomaticProduction(f.store, f.providers).run(job.id, new AbortController().signal);
-      const image = f.store.get(job.id).artifacts.find((asset) => asset.kind === "image");
+      await r.production.run(job.id, new AbortController().signal);
+      const image = r.store.get(job.id).artifacts.find((asset) => asset.kind === "image");
       if (!image) throw new Error("Fixture image missing");
-      await Bun.write(join(f.store.root, "artifacts", job.id, image.name), "changed bytes");
-      const videos = new VideoProduction(f.store, async () => {
-        calls++;
-        throw new Error("Veo should not run");
-      });
-      await expect(videos.run(job.id, new AbortController().signal)).rejects.toThrow("변경");
-      expect(calls).toBe(0);
+      await Bun.write(join(r.store.root, "artifacts", job.id, image.name), "changed bytes");
+      await expect(r.renderPipeline.run(job.id, new AbortController().signal)).rejects.toThrow(
+        "변경",
+      );
+      expect(r.counts.startImage).toBe(0);
+      expect(r.counts.veoCreate).toBe(0);
     } finally {
-      await f.close();
+      await r.close();
     }
-  });
+  }, 60_000);
   test("a saved Veo operation resumes by polling without a second creation request", async () => {
-    const f = await fixture();
-    let starts = 0;
-    let polls = 0;
-    const videoProduction = new VideoProduction(f.store, async (task) => {
-      if (!task.operationName) {
-        starts++;
-        task.onOperationName?.("operations/saved-fixture");
-        throw new Error("Polling connection interrupted");
-      }
-      polls++;
-      expect(task.operationName).toBe("operations/saved-fixture");
-      return {
-        value: new Uint8Array([0, 0, 0, 12, 102, 116, 121, 112]),
-        model: { ...model, provider: "gemini" },
-      };
+    const r = await renderRuntimeFixture({
+      stubRender: true,
+      clipReview: false,
+      script: (job, hypothesisId, number) =>
+        longVideoScript(number, hypothesisId, videoTargetSeconds(job.id, number)),
     });
     const engine = new AutomationEngine(
-      f.store,
-      automationServices(f.store, {
-        production: new AutomaticProduction(f.store, f.providers),
-        videoProduction,
-      }),
+      r.store,
+      automationServices(r.store, { production: r.production, renderPipeline: r.renderPipeline }),
     );
     try {
-      const job = f.fresh();
-      engine.start(job.id, { mode: "creative", imageCount: 1, videoCount: 1 });
-      await engine.tick();
-      await Promise.all([...engine.active.values()].map((task) => task.promise));
-      expect(f.store.get(job.id).automation?.status).toBe("attention");
-      expect(f.store.get(job.id).automation?.videoOperation?.name).toBe("operations/saved-fixture");
+      r.control.awaitError = new Error("Polling connection interrupted");
+      const job = r.fresh();
+      engine.start(job.id, {
+        mode: "creative",
+        imageCount: 1,
+        videoCount: 1,
+        scriptApproval: "auto",
+      });
+      await settle(engine);
+      const stopped = r.store.get(job.id);
+      expect(stopped.automation?.status).toBe("attention");
+      expect(stopped.automation?.operation).toBe("clips");
+      expect(stopped.renders[0]?.clips.A?.operation?.name).toBe("operations/fixture-1");
+      r.control.awaitError = null;
       engine.resume(job.id);
-      await engine.tick();
-      await Promise.all([...engine.active.values()].map((task) => task.promise));
-      expect(f.store.get(job.id).automation?.status).toBe("completed");
-      expect(starts).toBe(1);
-      expect(polls).toBe(1);
+      await settle(engine);
+      expect(r.store.get(job.id).automation?.status).toBe("completed");
+      expect(r.counts.veoCreate).toBe(1);
+      expect(r.counts.veoAwait).toBe(2);
+      expect(r.store.get(job.id).renders[0]?.clips.A?.name).toBe("clip-1-A-1.mp4");
     } finally {
       engine.close();
-      await f.close();
+      await r.close();
     }
-  });
+  }, 60_000);
   test("stops after one correction of a rejected concept", async () => {
     const f = await fixture();
     try {

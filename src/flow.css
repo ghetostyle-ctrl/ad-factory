@@ -1,0 +1,95 @@
+/* Flow 모드 클립 패널: 클립 카드(시작 이미지·프롬프트·업로드). 토큰만 사용, 새 색 없음. */
+.flow-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+.flow-heading h4 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+.flow-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  font-size: var(--text-sm);
+}
+.flow-clips {
+  display: grid;
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.flow-clip {
+  display: grid;
+  grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.flow-thumb img,
+.flow-thumb video,
+.flow-thumb .card-slide-pending {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 9 / 16;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  object-fit: cover;
+}
+.flow-thumb .card-slide-pending {
+  padding: var(--s2);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+.flow-body {
+  min-width: 0;
+}
+.flow-clip-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  font-size: var(--text-base);
+}
+.flow-prompt {
+  margin: 0;
+  padding: var(--s3);
+  max-height: 160px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.flow-drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+.flow-drop-over {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+@media (max-width: 760px) {
+  .flow-clip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .flow-thumb {
+    max-width: 160px;
+  }
+}

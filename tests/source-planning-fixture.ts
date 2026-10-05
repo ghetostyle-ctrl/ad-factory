@@ -5,7 +5,7 @@ import { SourcePlanner } from "../server/source-planning";
 import { CreativePlanResponseSchema, PlanCritiqueSchema } from "../shared/creative-plan";
 import type { Strategy } from "../shared/planning";
 import { CreateSourceSchema } from "../shared/sources";
-import { creative, providerStore, response } from "./provider-fixtures";
+import { creative, passReview, providerStore, response } from "./provider-fixtures";
 
 export const sourceFact = CreateSourceSchema.parse({
   kind: "product_fact",
@@ -102,7 +102,16 @@ const RequestSchema = z.object({
   input: z.string(),
   text: z.object({
     format: z.object({
-      name: z.enum(["reference_structure", "source_creative_plan", "creative_plan_critique"]),
+      name: z.enum([
+        "reference_structure",
+        "source_creative_plan",
+        "creative_plan_critique",
+        // 렌더 파이프라인의 시작 이미지·클립 프레임 비전 검토(통과 응답 고정)
+        "start_image_review",
+        "clip_review",
+        // 영상 대본 AI 품질 검토(통과 응답 고정)
+        "video_script_review",
+      ]),
     }),
   }),
 });
@@ -115,6 +124,7 @@ export function planningFixture() {
   if (!initialJob?.executionModels) throw new TypeError("Fixture requires execution models");
   const jobId = initialJob.id;
   const requests: z.infer<typeof RequestSchema>[] = [];
+  const planReplies: z.infer<typeof CreativePlanResponseSchema>[] = [];
   const replies = {
     plan: sourcePlanResponse(fact.id),
     critique: PlanCritiqueSchema.parse({ status: "pass", issues: [] }),
@@ -135,9 +145,14 @@ export function planningFixture() {
         case "reference_structure":
           return response(replies.reference);
         case "source_creative_plan":
-          return response(replies.plan);
+          return response(planReplies.shift() ?? replies.plan);
         case "creative_plan_critique":
           return response(replies.critique);
+        case "start_image_review":
+        case "clip_review":
+          return response(passReview);
+        case "video_script_review":
+          return response({ status: "pass", summary: "픽스처 대본 검토 통과", issues: [] });
         default:
           return name satisfies never;
       }
@@ -153,6 +168,7 @@ export function planningFixture() {
     project,
     fact,
     requests,
+    planReplies,
     replies,
     connection,
     planner: new SourcePlanner(store, connection),

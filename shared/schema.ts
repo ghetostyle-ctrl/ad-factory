@@ -4,6 +4,7 @@ import { CreativePlanSchema, CreativeVariantSchema, StagedVariantSchema } from "
 import { ArtifactModelSchema, ExecutionModelsSchema, ModelSettingsSchema } from "./models";
 import { CreativeSchema } from "./planning";
 import { ProductionSourceSnapshotSchema } from "./production-manifest";
+import { RenderStateSchema } from "./render-state";
 import { ProjectIdSchema, ProjectSchema, ProjectSourceSnapshotSchema } from "./sources";
 import { VideoScriptSchema } from "./video-script";
 
@@ -76,7 +77,8 @@ export type ActivityEvent = z.infer<typeof ActivityEventSchema>;
 export const ArtifactSchema = z.object({
   id: z.string(),
   name: z.string(),
-  kind: z.enum(["text", "image", "video", "json"]),
+  // audio: Typecast 내레이션 wav(voice-<n>-<i>-<a>.wav)
+  kind: z.enum(["text", "image", "video", "json", "audio"]),
   url: z.string(),
   agentId: AgentIdSchema,
   model: ArtifactModelSchema.nullable().default(null),
@@ -160,6 +162,8 @@ export const JobSchema = CreateJobSchema.safeExtend({
   creativePlan: CreativePlanSchema.nullable().default(null),
   videoScripts: z.array(VideoScriptSchema).max(10).default([]),
   creativeVariants: z.array(CreativeVariantSchema).max(10).default([]),
+  // 영상별 제작 상태(내레이션·시작 이미지·Veo 클립 핸들·완성본). 기존 행은 빈 배열로 읽힌다.
+  renders: z.array(RenderStateSchema).max(10).default([]),
   variantMetrics: z
     .array(
       z.object({
@@ -178,6 +182,9 @@ export const ConfigStatusSchema = z.object({
   codex: z.boolean(),
   meta: z.boolean(),
   typecast: z.boolean(),
+  // 로컬 렌더 도구 상태: ffmpeg 실행 가능 여부, 자막용 한글 폰트 존재 여부
+  ffmpeg: z.boolean().default(false),
+  captionFont: z.boolean().default(false),
   textProvider: z.enum(["openai", "codex", "none"]),
   imageModel: z.string(),
   textModel: z.string(),

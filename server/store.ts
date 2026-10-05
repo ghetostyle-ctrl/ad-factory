@@ -124,6 +124,7 @@ export class JobStore {
       creativePlan: null,
       videoScripts: [],
       creativeVariants: [],
+      renders: [],
       variantMetrics: [],
     };
     this.event(

@@ -1,0 +1,56 @@
+/* 완성 영상 섹션: 9:16 플레이어·클립 썸네일·내레이션 목록 (토큰만 사용, 새 색 없음) */
+.final-section {
+  border-top: 1px solid var(--line);
+  padding-top: var(--s4);
+}
+.final-video-row {
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+.final-video {
+  width: 100%;
+  max-width: 360px;
+  aspect-ratio: 9 / 16;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.final-warnings {
+  margin: 0;
+  padding-left: var(--s4);
+}
+.clip-grid .clip-thumb {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 9 / 16;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  object-fit: cover;
+}
+.clip-grid img {
+  aspect-ratio: 9 / 16;
+}
+.voice-list {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+.voice-list li {
+  display: grid;
+  gap: var(--s1);
+}
+.voice-list audio {
+  width: 100%;
+  max-width: 420px;
+}
+@media (max-width: 760px) {
+  .final-video-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

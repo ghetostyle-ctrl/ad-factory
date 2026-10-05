@@ -3,14 +3,19 @@ import type { Job } from "../shared/schema";
 import { Artifacts } from "./artifacts";
 import { AutomationGuard, contentDigest } from "./automation-guard";
 import { AutomaticProduction } from "./automation-production";
+import { ClipProduction } from "./clip-production";
 import { Intelligence } from "./intelligence";
 import { MetaClient } from "./meta-client";
 import { InsightsSchema, metricsFromResponse } from "./meta-insights";
 import { pauseJob, publishJob } from "./meta-publish";
 import { MetaStager } from "./meta-stage";
 import { stageComplete } from "./meta-stage-variants";
+import { RenderPipeline } from "./render-pipeline";
+import { VideoScriptService } from "./script-service";
+import { StartImageProduction } from "./start-image-production";
+import { StillProduction } from "./still-production";
 import type { JobStore } from "./store";
-import { VideoProduction } from "./video-production";
+import { VoiceProduction } from "./voice-production";
 
 export type AutomationServices = {
   readonly produce: (id: string, signal: AbortSignal) => Promise<void>;
@@ -18,6 +23,8 @@ export type AutomationServices = {
   readonly activate: (job: Job, signal: AbortSignal) => Promise<void>;
   readonly analyze: (job: Job, signal: AbortSignal) => Promise<void>;
   readonly pause: (job: Job) => Promise<void>;
+  // 영상 대본 확인·수정·승인·다시 쓰기(같은 대본 작성·검토 공급자를 쓴다)
+  readonly scripts: VideoScriptService;
 };
 export function automationServices(
   store: JobStore,
@@ -25,13 +32,34 @@ export function automationServices(
     readonly production?: AutomaticProduction;
     readonly clientFactory?: () => MetaClient;
     readonly intelligence?: Intelligence;
-    readonly videoProduction?: VideoProduction;
+    readonly renderPipeline?: RenderPipeline;
   },
 ): AutomationServices {
   const assets = new Artifacts(store);
   const guard = new AutomationGuard(store);
   const production = dependencies?.production ?? new AutomaticProduction(store);
-  const videoProduction = dependencies?.videoProduction ?? new VideoProduction(store);
+  // 렌더 파이프라인: 테스트가 ProductionProviders 에 voice/veo/검토 스텁을 넣으면 그대로 쓴다.
+  const providers = production.providers;
+  const renderPipeline =
+    dependencies?.renderPipeline ??
+    new RenderPipeline(store, {
+      ...(providers.voice ? { voice: new VoiceProduction(store, providers.voice) } : {}),
+      ...(providers.reviewStartImage
+        ? {
+            startImages: new StartImageProduction(store, {
+              image: providers.image,
+              reviewStartImage: providers.reviewStartImage,
+            }),
+            stills: new StillProduction(store, {
+              image: providers.image,
+              reviewStartImage: providers.reviewStartImage,
+            }),
+          }
+        : {}),
+      ...(providers.veo
+        ? { clips: new ClipProduction(store, providers.veo, providers.reviewClipFrames ?? null) }
+        : {}),
+    });
   const client = dependencies?.clientFactory ?? (() => new MetaClient());
   const stager = new MetaStager(store, assets, client);
   const intelligence = dependencies?.intelligence ?? new Intelligence(store.root);
@@ -60,7 +88,7 @@ export function automationServices(
   return {
     produce: async (id, signal) => {
       await production.run(id, signal);
-      await videoProduction.run(id, signal);
+      await renderPipeline.run(id, signal);
     },
     prepare: async (id, signal) => {
       await stage(id, await production.run(id, signal), signal);
@@ -183,5 +211,6 @@ export function automationServices(
       });
     },
     pause: (job) => pauseJob(store, job, client()),
+    scripts: new VideoScriptService(store, providers),
   };
 }
