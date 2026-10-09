@@ -3,8 +3,9 @@ import { HTTPError } from "ky";
 import { AutomationEnrollment } from "../server/automation-enrollment";
 import { contentDigest } from "../server/automation-guard";
 import { BlockedError } from "../server/errors";
+import { flowTexts } from "../server/flow-instructions";
 import { renderNames, renderStateOf } from "../server/render-state-helpers";
-import { START_IMAGE_MAX_ATTEMPTS } from "../server/start-image-production";
+import { START_IMAGE_MAX_ATTEMPTS, startImagePrompt } from "../server/start-image-production";
 import { STILL_MAX_ATTEMPTS, StillProduction, stillPrompt } from "../server/still-production";
 import { renderScript } from "./render-fixture";
 import { renderRuntimeFixture } from "./render-runtime-fixture";
@@ -103,6 +104,30 @@ function providers(
   };
 }
 const newCalls = (): Calls => ({ images: [], reviews: [] });
+// R3 꼬리 문장은 instructions/flow.md(CLEAN_KEYFRAME_TAIL)에서 읽는다 — 프롬프트 함수의 기본 texts 와 같은 로더다.
+const CLEAN_KEYFRAME_TAIL = flowTexts().CLEAN_KEYFRAME_TAIL;
+
+test("start image and still prompts end with the clean-keyframe tail (R3) after the style anchor and intent", () => {
+  // Given: 장면 계획 픽스처 대본(클립 A~D·정지 이미지 포함)
+  const script = renderScript(1, "concept-0", 36);
+  const clip = script.veoClips[0];
+  const still = script.stills[0];
+  if (!clip || !still) throw new Error("fixture clip or still missing");
+  // When
+  const start = startImagePrompt(script, clip);
+  const stillText = stillPrompt(script, still);
+  // Then: 글자·화살표·수치·라벨·아이콘·강조 링 금지와 빈 공간 지시가 꼬리로 한 번만 붙는다
+  for (const prompt of [start, stillText]) {
+    expect(prompt.startsWith(script.styleAnchor)).toBe(true);
+    expect(
+      prompt.endsWith(`
+${CLEAN_KEYFRAME_TAIL}`),
+    ).toBe(true);
+    expect(prompt.split(CLEAN_KEYFRAME_TAIL)).toHaveLength(2);
+  }
+  expect(start).toContain(clip.startImagePrompt);
+  expect(stillText).toContain(still.prompt);
+});
 const names = (id: string) => f.store.get(id).artifacts.map((asset) => asset.name);
 const stateOf = (id: string) => f.store.get(id).renders[0]?.stills;
 

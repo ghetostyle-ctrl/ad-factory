@@ -6,7 +6,7 @@
 
 ## AD 스위트 한 번에 설치 (AD FACTORY · Success AI · 키워드와처)
 
-광고 레퍼런스 수집기 [Success AI](https://github.com/ghetostyle-ctrl/success_ai)와 검색량 트렌드 대시보드 [키워드와처](https://github.com/ghetostyle-ctrl/keyword-watcher)까지 한 폴더(`%USERPROFILE%\ad-suite`)에 받아 준비합니다. [Node.js](https://nodejs.org) 20 이상이 필요하고, Bun은 없으면 자동 설치합니다.
+광고 레퍼런스 수집기 [Success AI](https://github.com/ghetostyle-ctrl/success_ai)와 검색량 트렌드 대시보드 [키워드와처](https://github.com/ghetostyle-ctrl/keyword-watcher)까지 한 폴더(`%USERPROFILE%\ad-suite`)에 받아 준비합니다. [Node.js](https://nodejs.org) 22 이상이 필요하고, Bun은 없으면 자동 설치합니다.
 
 PowerShell에서:
 
@@ -80,3 +80,10 @@ API 사용료는 이용자 본인의 공급자 계정에 청구됩니다. 키가
 Fork 후 코드를 수정해 자신의 앱으로 발전시킬 수 있습니다. 개선사항은 Pull Request로 제안해 주세요. 사용·수정·재배포·상업적 이용 조건은 [MIT 라이선스](LICENSE)를 따릅니다. 외부 API, 모델, 의존성, 사용자 업로드 자료에는 각각의 이용 조건이 적용됩니다.
 
 Gemini/Veo 결제 준비: [Gemini API 결제 설명서](docs/GEMINI-BILLING.md)
+
+
+## 글자 없는 Veo와 HyperFrames 편집
+
+카피 먼저 흐름의 설명 장면은 Veo 3.1 Lite로 글자 없는 원본을 만들고, 앱이 03 올리브 배지·연결선·골드 앵커를 HyperFrames로 합성합니다. 자막은 위로 올린 위치에서 핵심 구절만 강조하고, 실제 발화 앞뒤 공백과 컷 시간을 함께 조정합니다. 원문·원본 WAV·이미 저장된 완성본은 보존합니다.
+
+Node.js 22 이상과 `bun install --frozen-lockfile`이 필요합니다. [설치·스타일·검수 범위](docs/HYPERFRAMES-EDITING.md)를 확인하세요. 자동 합성은 대상 자동 추적을 뜻하지 않으며, 실제 생성 원본의 앵커 정합과 모바일 가독성은 완성 영상에서 확인합니다. 유료 생성은 기존 승인 범위에서만 진행합니다.

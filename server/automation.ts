@@ -266,8 +266,17 @@ export class AutomationEngine {
           }
         this.store.event(draft, null, "error", message);
       });
+      // 운영 오류 확인: 일반 Error 는 사용자 메시지가 "작업 처리에 실패했습니다" 뿐이라 원인을 알 수 없었다 → 이름·메시지·스택 앞부분을 남긴다(키·본문은 없음).
       logger.warn(
-        { jobId: id, code: error instanceof StudioError ? error.code : "provider" },
+        {
+          jobId: id,
+          code: error instanceof StudioError ? error.code : "provider",
+          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+          stack:
+            error instanceof Error
+              ? (error.stack ?? "").split("\n").slice(0, 6).join(" | ")
+              : undefined,
+        },
         "automation.attention",
       );
       const pending = this.store.get(id).staged?.pendingOperation;

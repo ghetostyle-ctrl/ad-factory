@@ -187,7 +187,7 @@ test.skipIf(!hasFfmpeg || !font)(
     expect(text.indexOf("moov")).toBeGreaterThan(0);
     expect(text.indexOf("mdat") === -1 || text.indexOf("moov") < text.indexOf("mdat")).toBe(true);
     // 최종 패스 인자: 그래프 파일·자막·faststart·48kHz aac
-    const final = calls.find((args) => args.includes("-/filter_complex"));
+    const final = calls.find((args) => args.includes("+faststart"));
     expect(final).toBeDefined();
     expect(final).toContain("+faststart");
     expect(final?.slice(final.indexOf("-c:a"), final.indexOf("-c:a") + 6)).toEqual([
@@ -201,8 +201,13 @@ test.skipIf(!hasFfmpeg || !font)(
     const graph = await Bun.file(final?.[final.indexOf("-/filter_complex") + 1] ?? "").text();
     expect(graph).toContain("ass='");
     expect(graph).toContain("captions-1.ass");
-    expect(graph).toContain("sidechaincompress");
-    expect(graph).toContain("loudnorm=I=-14:TP=-1.5:LRA=11[aout]");
+    const audio = calls.find(
+      (args) => args.includes("pcm_s16le") && args.includes("-/filter_complex"),
+    );
+    const audioGraph = await Bun.file(audio?.[audio.indexOf("-/filter_complex") + 1] ?? "").text();
+    expect(audioGraph).toContain("sidechaincompress");
+    expect(audioGraph).toContain("loudnorm=I=-14:TP=-1.5:LRA=11[aout]");
+    expect(final).toContain("1:a:0");
     expect(calls.some((args) => args[0] === "-f" && args[1] === "concat")).toBe(true);
   },
   300_000,

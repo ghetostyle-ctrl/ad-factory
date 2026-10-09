@@ -4,7 +4,7 @@
   AD 스위트(AD FACTORY · Success AI · 키워드와처)를 한 번에 받고 설치합니다 (Windows).
 
 .DESCRIPTION
-  1) 필요한 도구 확인: Node.js 20+(Success AI), Bun(AD FACTORY·키워드와처, 없으면 사용자 폴더에 자동 설치)
+  1) 필요한 도구 확인: Node.js 22+(Success AI·HyperFrames), Bun(AD FACTORY·키워드와처, 없으면 사용자 폴더에 자동 설치)
   2) 세 저장소를 한 폴더에 받기: git 이 있으면 clone(이미 있으면 pull), 없으면 GitHub ZIP
   3) 앱별 준비: 패키지 설치, 화면 빌드, .env 양식 복사(이미 있으면 건드리지 않음)
   API 키는 넣지 않습니다. 설치가 끝나면 앱별로 본인 키를 연결하세요.
@@ -48,9 +48,9 @@ $apps = @(
 # 1. 도구 확인 -----------------------------------------------------------------
 Step '필요한 도구 확인'
 $node = Get-Command node -ErrorAction SilentlyContinue
-if (-not $node) { Fail 'Node.js 가 없습니다. https://nodejs.org 에서 20 이상 LTS 를 설치한 뒤 다시 실행하세요. (Success AI 에 필요)' }
+if (-not $node) { Fail 'Node.js 가 없습니다. https://nodejs.org 에서 22 이상 LTS 를 설치한 뒤 다시 실행하세요. (HyperFrames 영상 합성에 필요)' }
 $nodeMajor = [int]((node -v).TrimStart('v').Split('.')[0])
-if ($nodeMajor -lt 20) { Fail "Node.js $(node -v) 는 너무 낮습니다. 20 이상이 필요합니다." }
+if ($nodeMajor -lt 22) { Fail "Node.js $(node -v) 는 너무 낮습니다. 22 이상이 필요합니다." }
 Write-Host "  Node $(node -v) OK"
 
 $userBunDir = Join-Path $env:USERPROFILE '.bun\bin'

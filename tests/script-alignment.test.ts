@@ -66,12 +66,23 @@ function cut(
     stillId: "",
     graphicKind: graphicLines.length > 0 ? "callout" : "",
     graphicLines,
+    goal: "",
+    phase: "",
     narration: "",
     veoPrompt: "",
   };
 }
 function voice(fromCut: number, toCut: number, purpose: Voice["purpose"], text: string): Voice {
-  return { fromCut, toCut, purpose, text, startSec: fromCut * 2, endSec: toCut * 2 + 2 };
+  return {
+    fromCut,
+    toCut,
+    purpose,
+    chainStep: "",
+    callouts: [],
+    text,
+    startSec: fromCut * 2,
+    endSec: toCut * 2 + 2,
+  };
 }
 const oliveFacts = [
   "Chong Kun Dang Pure Olive Oil, Extra Virgin, 600mg x 30 Capsules",
@@ -479,9 +490,11 @@ test("a sentence that exactly fills its cut range keeps the stored seconds on th
     const last = covered.at(-1);
     if (!first || !last) throw new Error("범위가 비었습니다");
     const digits = [...new Set(covered.flatMap((cut) => [...shownDigitGroups(cut)]))];
+    // 글을 통째로 바꾸므로 픽스처 콜아웃(어절 기준)은 뺀다
     return {
       ...item,
       text: fullSentence(index, rangeCharLimit(last.endSec - first.startSec), digits),
+      callouts: [],
     };
   });
   const script = videoScriptFromFlat(FlatScriptSchema.parse(response));
@@ -524,7 +537,7 @@ test("a sentence that exactly fills its cut range keeps the stored seconds on th
   );
   expect(single).toBeGreaterThan(0);
   over.voiceover = over.voiceover.map((item, index) =>
-    index === single ? { ...item, text: `${item.text.slice(0, -1)}거예요` } : item,
+    index === single ? { ...item, text: `${item.text.slice(0, -1)}거예요`, callouts: [] } : item,
   );
   const overScript = videoScriptFromFlat(FlatScriptSchema.parse(over));
   const overProblems = alignmentProblems(overScript, oliveFacts, "soft");

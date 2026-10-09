@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const textModelPresets = ["gpt-5-mini", "gpt-6-astra"] as const;
+
 export const imageModelPresets = [
   "gpt-image-2",
   "gpt-image-2.5-sunburst",
@@ -21,10 +23,34 @@ export const ModelIdSchema = z
     message:
       "모델 ID는 영문·숫자로 시작하는 최대 160자이며, 공백 없이 영문·숫자와 . _ : / -만 사용할 수 있습니다.",
   });
+// 영상 콘셉트·대본·AI 검토는 공통 텍스트 설정을 따르거나 별도 OpenAI/Anthropic 모델을 쓴다.
+// 예전 작업 스냅샷에는 없고 scopeDigest 가 executionModels 를 해시하므로 기본값 없이 선택 항목으로 둔다.
+export const SCRIPT_PROVIDERS = ["same", "openai", "anthropic"] as const;
+export const ScriptProviderSchema = z.enum(SCRIPT_PROVIDERS);
+export type ScriptProvider = z.infer<typeof ScriptProviderSchema>;
+export const scriptProviderLabels = {
+  same: "공통 텍스트 설정 사용",
+  openai: "OpenAI API",
+  anthropic: "Claude (Anthropic API)",
+} as const satisfies Record<ScriptProvider, string>;
+export const DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5";
+export function defaultScriptModel(provider: ScriptProvider, openAIModel: string): string {
+  switch (provider) {
+    case "same":
+    case "openai":
+      return /^claude-/i.test(openAIModel) ? "gpt-5-mini" : openAIModel;
+    case "anthropic":
+      return DEFAULT_ANTHROPIC_MODEL;
+    default:
+      return provider satisfies never;
+  }
+}
 const settingsFields = {
   textProvider: z.enum(["auto", "openai", "codex", "none"]),
   textModel: ModelIdSchema,
   codexModel: ModelIdSchema.nullable(),
+  scriptProvider: ScriptProviderSchema.optional(),
+  scriptModel: ModelIdSchema.optional(),
   imageModel: ModelIdSchema,
   imageQuality: ImageQualitySchema,
   ttsProvider: z.literal("typecast"),
@@ -50,15 +76,38 @@ const qualityError = {
   path: ["imageQuality"],
   message: "xhigh/max 품질은 GPT Image 2.5 프리셋에서만 지원합니다.",
 };
+const compatibleScriptModel = (value: {
+  readonly scriptProvider?: ScriptProvider | undefined;
+  readonly scriptModel?: string | undefined;
+}): boolean => {
+  switch (value.scriptProvider) {
+    case "openai":
+      return !/^claude-/i.test(value.scriptModel ?? "");
+    case "anthropic":
+      return !/^(gpt-|o[134](?:-|$))/i.test(value.scriptModel ?? "");
+    case "same":
+    case undefined:
+      return true;
+    default:
+      return value.scriptProvider satisfies never;
+  }
+};
+const scriptModelError = {
+  path: ["scriptModel"],
+  message:
+    "대본 공급자에 맞는 모델 ID를 입력하세요. OpenAI에는 OpenAI 모델, Anthropic에는 Claude 모델을 사용합니다.",
+};
 export const ModelSettingsSchema = z
   .object(settingsFields)
   .strict()
   .refine(compatibleQuality, qualityError)
+  .refine(compatibleScriptModel, scriptModelError)
   .refine((value) => value.ttsSelection === "auto" || value.ttsVoiceId !== null, {
     path: ["ttsVoiceId"],
     message: "직접 선택 모드에서는 Typecast 보이스를 선택하거나 입력해야 합니다.",
   });
 export type ModelSettings = Readonly<z.infer<typeof ModelSettingsSchema>>;
+// 고정된 예전 작업의 ID는 그대로 읽는다. 공급자별 ID 검사는 새 설정 저장 경계에서만 한다.
 export const ExecutionModelsSchema = z
   .object({
     ...settingsFields,
@@ -76,7 +125,7 @@ export type ExecutionModels = z.infer<typeof ExecutionModelsSchema>;
 export const ArtifactModelSchema = z
   .object({
     // typecast: 내레이션 합성, ffmpeg: 로컬 렌더(모션그래픽·최종 조립), flow: 사용자가 Google Flow 웹에서 만든 클립
-    provider: z.enum(["openai", "codex", "gemini", "typecast", "ffmpeg", "flow"]),
+    provider: z.enum(["openai", "codex", "anthropic", "gemini", "typecast", "ffmpeg", "flow"]),
     requestedModel: ModelIdSchema.nullable(),
     effectiveModel: ModelIdSchema.nullable(),
     quality: ImageQualitySchema.nullable(),

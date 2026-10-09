@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { StillIdSchema, VEO_CLIP_IDS, VideoScriptReviewIssueSchema } from "./video-script";
+import {
+  INFO_CLIP_IDS,
+  StillIdSchema,
+  VEO_CLIP_IDS,
+  VideoScriptReviewIssueSchema,
+} from "./video-script";
 
 // 영상 1편의 제작 상태. 산출물 이름에서 도출할 수 있는 것은 저장하지 않고,
 // 도출할 수 없는 것(Veo 핸들·pendingSince·시작 이미지 digest·확정 보이스·타임라인 digest)만 둔다.
@@ -79,6 +84,10 @@ export const StoredVideoScriptReviewSchema = z.object({
   hardProblems: z.array(z.string().max(400)).max(80).default([]),
   // 이 대본에 쓴 생성 횟수(예전 기록은 0)
   generations: z.number().int().min(0).max(9).default(0),
+  // 이 대본을 만들 때 서버가 읽은 지시 파일(instructions/)의 sha256 과 읽은 시각(D5, 2026-10-07). 예전 기록·주입 공급자는 "".
+  // scriptDigestJson(대본 다이제스트)에는 들어가지 않으므로 예전 승인·음성 기록이 바뀌지 않는다.
+  instructionsDigest: z.string().default(""),
+  instructionsLoadedAt: z.string().default(""),
 });
 export type StoredVideoScriptReview = z.infer<typeof StoredVideoScriptReviewSchema>;
 
@@ -102,6 +111,18 @@ export const RenderStateSchema = z.object({
   // AI 정지 이미지(S1..S14) 기록. 정지 이미지가 없던 기존 SQLite 행에는 없어 기본값은 {}.
   stills: z.partialRecord(StillIdSchema, StillStateSchema).default({}),
   clips: z.partialRecord(ClipIdSchema, ClipStateSchema).default({}),
+  // 설명 컷(I1~I3)의 Flow CLEAN·INFO 이미지. INFO 는 지정 문구와 글자를 대조해 통과해야 클립을 받는다.
+  infoImages: z
+    .partialRecord(
+      z.enum(INFO_CLIP_IDS),
+      z.object({
+        clean: z.string().nullable().default(null),
+        info: z.string().nullable().default(null),
+        verified: z.boolean().default(false),
+        problems: z.array(z.string()).default([]),
+      }),
+    )
+    .default({}),
   final: z
     .object({
       name: z.string(),

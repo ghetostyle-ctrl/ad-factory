@@ -1,7 +1,10 @@
+import type { FlowTexts } from "../shared/flow-texts";
 import { type ClipId, ClipIdSchema } from "../shared/render-state";
+import { cleanKeyframePrompt } from "../shared/veo-prompt";
 import type { VeoClip, VideoScript } from "../shared/video-script";
 import type { Artifacts } from "./artifacts";
 import type { AutomationGuard } from "./automation-guard";
+import { flowTexts } from "./flow-instructions";
 import { renderNames, scriptOf } from "./render-state-helpers";
 import {
   defaultReviewedImageProviders,
@@ -16,8 +19,17 @@ import type { JobStore } from "./store";
 // 생성·검토·재개 규칙은 정지 이미지(still-production.ts)와 같은 엔진(reviewed-image-production.ts)을 쓴다.
 export type StartImageProviders = ReviewedImageProviders;
 export const START_IMAGE_MAX_ATTEMPTS = REVIEWED_IMAGE_MAX_ATTEMPTS;
-export function startImagePrompt(script: VideoScript, clip: VeoClip): string {
-  return `${script.styleAnchor}\n${clip.startImagePrompt}\nPortrait 9:16 frame. Same product, same person, same place and lighting as the reference image where they appear. No added promotional text, captions or logos. Preserve visible existing product labels and packaging.`;
+// R3 깨끗한 키프레임: 고정 문장(START_IMAGE_TAIL)과 글자·화살표·수치·라벨·아이콘·강조 링 금지 꼬리(CLEAN_KEYFRAME_TAIL)는
+// instructions/flow.md 의 절이다. texts 를 생략하면 지금 파일을 읽는다(재시작 없이 다음 생성부터 반영).
+export function startImagePrompt(
+  script: VideoScript,
+  clip: VeoClip,
+  texts: Pick<FlowTexts, "START_IMAGE_TAIL" | "CLEAN_KEYFRAME_TAIL"> = flowTexts(),
+): string {
+  return cleanKeyframePrompt(
+    `${script.styleAnchor}\n${clip.startImagePrompt}\n${texts.START_IMAGE_TAIL}`,
+    texts.CLEAN_KEYFRAME_TAIL,
+  );
 }
 
 const spec: ReviewedImageSpec = {

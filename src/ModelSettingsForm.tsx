@@ -2,9 +2,14 @@ import { Save } from "lucide-react";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import {
+  defaultScriptModel,
   imageModelPresets,
   type ModelSettings,
   ModelSettingsSchema,
+  SCRIPT_PROVIDERS,
+  ScriptProviderSchema,
+  scriptProviderLabels,
+  textModelPresets,
   ttsVoicePresets,
 } from "../shared/models";
 import { ConfigStatusSchema } from "../shared/schema";
@@ -18,6 +23,18 @@ export function ModelSettingsForm({
   readonly settings: ModelSettings;
   readonly onSaved: () => void;
 }) {
+  const [textModel, setTextModel] = useState(settings.textModel);
+  const [customTextModel, setCustomTextModel] = useState(
+    !textModelPresets.some((model) => model === settings.textModel),
+  );
+  const [scriptProvider, setScriptProvider] = useState(settings.scriptProvider ?? "same");
+  const initialScriptModel =
+    settings.scriptModel ??
+    defaultScriptModel(settings.scriptProvider ?? "same", settings.textModel);
+  const [scriptModel, setScriptModel] = useState(initialScriptModel);
+  const [customScriptModel, setCustomScriptModel] = useState(
+    !textModelPresets.some((model) => model === initialScriptModel),
+  );
   const [imageModel, setImageModel] = useState(settings.imageModel);
   const [quality, setQuality] = useState<string>(settings.imageQuality);
   const [ttsSelection, setTtsSelection] = useState(settings.ttsSelection);
@@ -41,8 +58,10 @@ export function ModelSettingsForm({
     const data = new FormData(event.currentTarget);
     const parsed = ModelSettingsSchema.safeParse({
       textProvider: data.get("textProvider"),
-      textModel: data.get("textModel"),
+      textModel,
       codexModel: String(data.get("codexModel") ?? "").trim() || null,
+      scriptProvider,
+      ...(scriptProvider === "same" ? {} : { scriptModel }),
       imageModel,
       imageQuality: quality,
       ttsProvider: "typecast",
@@ -77,10 +96,11 @@ export function ModelSettingsForm({
       <div>
         <h3>AI 모델 설정</h3>
         <p className="muted small-copy">
-          텍스트와 이미지 모델을 따로 선택합니다. 모델 설정은 재시작 후에도 유지됩니다.
+          공통 텍스트·영상 대본·이미지 모델을 따로 선택합니다. 저장한 설정은 새 작업부터 적용되며
+          재시작 후에도 유지됩니다.
         </p>
       </div>
-      <Field label="텍스트 공급자">
+      <Field label="공통 텍스트 공급자">
         <select name="textProvider" defaultValue={settings.textProvider}>
           <option value="auto">자동 선택 · OpenAI 우선</option>
           <option value="openai">OpenAI API</option>
@@ -88,18 +108,38 @@ export function ModelSettingsForm({
           <option value="none">사용 안 함</option>
         </select>
       </Field>
-      <Field label="OpenAI 텍스트 모델" help="사용 권한이 있는 정확한 API 모델 ID를 입력하세요.">
-        <input
-          name="textModel"
-          required
-          defaultValue={settings.textModel}
-          autoComplete="off"
-          spellCheck={false}
-        />
+      <Field label="공통 OpenAI 텍스트 모델">
+        <select
+          value={customTextModel ? "custom" : textModel}
+          onChange={(event) => {
+            const custom = event.target.value === "custom";
+            setCustomTextModel(custom);
+            if (!custom) setTextModel(event.target.value);
+          }}
+        >
+          {textModelPresets.map((model) => (
+            <option key={model} value={model}>
+              {model}
+            </option>
+          ))}
+          <option value="custom">직접 입력</option>
+        </select>
       </Field>
+      {customTextModel && (
+        <Field label="공통 OpenAI 모델 ID" help="사용 권한이 있는 정확한 API 모델 ID를 입력하세요.">
+          <input
+            name="textModel"
+            required
+            value={textModel}
+            onChange={(event) => setTextModel(event.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </Field>
+      )}
       <Field
         label="Codex 텍스트 모델 (선택)"
-        help="자동 운영에는 정확한 모델 ID가 필요합니다. 수동 실행에서만 비워두고 CLI 기본 모델을 사용할 수 있습니다."
+        help="자동 운영에는 모델 ID가 필요합니다. 비워두면 수동 실행에만 CLI 기본 모델을 씁니다."
       >
         <input
           name="codexModel"
@@ -109,6 +149,62 @@ export function ModelSettingsForm({
           spellCheck={false}
         />
       </Field>
+      <Field
+        label="영상 대본 단계 공급자"
+        help="영상 콘셉트·대본·대본 검토에만 적용합니다. 나머지 기획과 검토는 공통 텍스트 설정을 사용합니다. 별도 공급자를 쓰려면 해당 API 키가 필요합니다."
+      >
+        <select
+          name="scriptProvider"
+          value={scriptProvider}
+          onChange={(event) => {
+            const provider = ScriptProviderSchema.parse(event.target.value);
+            setScriptProvider(provider);
+            const model = defaultScriptModel(provider, textModel);
+            setScriptModel(model);
+            setCustomScriptModel(!textModelPresets.some((preset) => preset === model));
+          }}
+        >
+          {SCRIPT_PROVIDERS.map((provider) => (
+            <option key={provider} value={provider}>
+              {scriptProviderLabels[provider]}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {scriptProvider === "openai" && (
+        <Field label="대본 OpenAI 모델">
+          <select
+            value={customScriptModel ? "custom" : scriptModel}
+            onChange={(event) => {
+              const custom = event.target.value === "custom";
+              setCustomScriptModel(custom);
+              if (!custom) setScriptModel(event.target.value);
+            }}
+          >
+            {textModelPresets.map((model) => (
+              <option key={model} value={model}>
+                {model}
+              </option>
+            ))}
+            <option value="custom">직접 입력</option>
+          </select>
+        </Field>
+      )}
+      {(scriptProvider === "anthropic" || (scriptProvider === "openai" && customScriptModel)) && (
+        <Field
+          label={scriptProvider === "openai" ? "대본 OpenAI 모델 ID" : "대본 Claude 모델 ID"}
+          help="사용 권한이 있는 정확한 API 모델 ID를 입력하세요. 공급자를 바꾸면 해당 공급자에 맞는 기본 모델로 바뀝니다."
+        >
+          <input
+            name="scriptModel"
+            required
+            value={scriptModel}
+            onChange={(event) => setScriptModel(event.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </Field>
+      )}
       <Field label="이미지 모델 프리셋">
         <select
           value={imageModelPresets.some((model) => model === imageModel) ? imageModel : "custom"}

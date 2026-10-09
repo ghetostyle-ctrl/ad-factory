@@ -32,6 +32,29 @@ export function fixtureVideoPlanning(): VideoPlanning {
       proofScene: "확인된 제품 치수와 실제 뚜껑 구조를 보여주는 장면",
       ctaIntent: "제품 정보에서 치수와 사용 방법을 확인한다.",
       referenceNotes: "제공된 레퍼런스의 행동 중심 전개만 참고한 테스트 기획이다.",
+      viewerChange: "가방에 넣을지 손에 들지 고민하던 아침에 한 번에 결정할 수 있다.",
+      mutedMessage: "내 가방에 들어가는지 먼저 보세요",
+      stopReason: "가방과 텀블러를 양손에 들고 현관에서 멈칫하는 손이 바로 보인다.",
+      scenePlan: [
+        {
+          scene: "현관에서 멈칫하는 손",
+          source: "generated",
+          reason: "실제 촬영본이 없어 상황 장면을 생성한다.",
+          explanation: null,
+        },
+        {
+          scene: "뚜껑을 끝까지 닫는 동작",
+          source: "generated",
+          reason: "동작이 설득력이라 영상 클립으로 만든다.",
+          explanation: null,
+        },
+        {
+          scene: "용량 500mL 카드",
+          source: "graphic",
+          reason: "확인된 숫자를 글자로 보여 준다.",
+          explanation: null,
+        },
+      ],
     },
     copy: {
       voicePersona: "conversational",

@@ -50,8 +50,15 @@ export const CreateSourceSchema = z
       author: null,
     }),
     referenceData: ReferenceDataSchema.optional(),
+    // 고객 후기가 우리 제품 후기인지 경쟁 제품 후기인지. 경쟁 제품 후기는 고객의 불편·실패 경험·욕망의
+    // 근거로만 쓰고 우리 상품의 후기·평가로 쓰지 않는다(CREATIVE-PLANNING-DESIGN.md 8절). 예전 자료는 비어 있다.
+    reviewOf: z.enum(["own", "competitor"]).optional(),
   })
   .strict()
+  .refine((source) => source.kind === "review" || source.reviewOf === undefined, {
+    message: "우리/경쟁 제품 구분은 고객 후기에만 사용할 수 있습니다.",
+    path: ["reviewOf"],
+  })
   .refine((source) => source.content.length > 0 || source.url !== null, {
     message: "내용 또는 출처 URL을 입력하세요.",
     path: ["content"],

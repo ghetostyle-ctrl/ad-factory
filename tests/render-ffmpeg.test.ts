@@ -142,7 +142,7 @@ test.skipIf(!hasFfmpeg)(
 );
 
 test("theme tokens scale with the profile", () => {
-  expect(THEME_VERSION).toBe(2);
+  expect(THEME_VERSION).toBe(4);
   expect(DEFAULT_PROFILE).toEqual({ width: 1080, height: 1920, fps: 30 });
   expect(themePx(DEFAULT_PROFILE, 0.0375)).toBe(72);
   expect(themePx(renderProfile, 0.0375)).toBe(7);

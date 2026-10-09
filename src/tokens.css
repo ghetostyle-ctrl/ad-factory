@@ -1,4 +1,4 @@
-/* Color and size tokens live in suite-tokens.css (shared suite spec). This file keeps only element resets and utilities. */
+/* 색·크기 토큰은 suite-tokens.css(스위트 공유 스펙)에 있다. 여기에는 요소 리셋과 유틸리티만 둔다. */
 :root {
   font-family: var(--font-sans);
   color: var(--ink);

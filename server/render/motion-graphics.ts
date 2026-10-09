@@ -5,16 +5,21 @@ import { cutGraphicAss } from "./ass";
 import { type FfmpegRunner, ffPath, fontOnlyDir, runFfmpeg } from "./ffmpeg";
 import type { FontSet } from "./fonts";
 import { segmentEncodeArgs } from "./segments";
-import { type RenderProfile, THEME } from "./theme";
+import { type RenderProfile, renderColors, renderStylePolicy, type VisualPolicy } from "./theme";
 
 export const SEGMENT_TIMEOUT_MS = 120_000;
 const sec = (ms: number) => (ms / 1000).toFixed(3);
-export function graphicFilter(profile: RenderProfile, assPath: string, font: FontSet): string {
+export function graphicFilter(
+  profile: RenderProfile,
+  assPath: string,
+  font: FontSet,
+  policy?: VisualPolicy,
+): string {
   const { width, height, fps } = profile;
   return [
     `scale=${width}:${height}:force_original_aspect_ratio=increase`,
     `crop=${width}:${height}`,
-    "eq=brightness=-0.08",
+    ...(policy ? [] : ["eq=brightness=-0.08"]),
     `ass=${ffPath(assPath)}:fontsdir=${ffPath(font.dir)}`,
     `fps=${fps}`,
     "format=yuv420p",
@@ -36,21 +41,24 @@ export async function renderGraphicCut(input: {
   await Bun.write(assPath, cutGraphicAss(cut, profile, input.font));
   // fontsdir 는 폰트만 담은 폴더를 쓴다(라이선스 텍스트를 폰트로 읽다 나는 libass 경고 방지).
   const fonts = { ...input.font, dir: await fontOnlyDir(input.font, dirname(input.out)) };
-  const source = input.background
-    ? ["-loop", "1", "-framerate", String(profile.fps), "-t", sec(durMs), "-i", input.background]
+  // 혼합형은 패널 컷을 쓰지 않지만(대본 hard) 예전 스타일을 탄다: 단색 배경·테두리 없는 글자는 immersive 전용이다.
+  const policy = renderStylePolicy(cut.visualPolicy);
+  const background = policy ? null : input.background;
+  const source = background
+    ? ["-loop", "1", "-framerate", String(profile.fps), "-t", sec(durMs), "-i", background]
     : [
         "-f",
         "lavfi",
         "-t",
         sec(durMs),
         "-i",
-        `color=c=0x${THEME.colors.background}:s=${profile.width}x${profile.height}:r=${profile.fps}`,
+        `color=c=0x${renderColors(policy).background}:s=${profile.width}x${profile.height}:r=${profile.fps}`,
       ];
   await (input.run ?? runFfmpeg)(
     [
       ...source,
       "-vf",
-      graphicFilter(profile, assPath, fonts),
+      graphicFilter(profile, assPath, fonts, policy),
       ...segmentEncodeArgs(profile),
       "-t",
       sec(durMs),

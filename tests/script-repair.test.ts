@@ -17,6 +17,8 @@ import {
 import { renderScript } from "./render-fixture";
 import { sourcePlanResponse } from "./source-planning-fixture";
 import {
+  fixtureClipPlan,
+  fixtureSentence,
   fixtureVoiceover,
   flatOf,
   longVideoScript,
@@ -75,6 +77,7 @@ test("flattening derives indexes, seconds and purposes by construction and keeps
       fromCut: next,
       toCut: next + sentence.cuts.length - 1,
       purpose: sentence.purpose,
+      chainStep: sentence.chainStep,
       text: sentence.text,
     });
     for (const cut of sentence.cuts) {
@@ -111,6 +114,8 @@ test("flattening derives indexes, seconds and purposes by construction and keeps
     flatPath.voiceover.find((voice) => voice.fromCut <= index && index <= voice.toCut)?.purpose;
   expect(nestedPath.script).toEqual({
     ...flatPath,
+    // 중첩 응답은 사슬 칸을 반드시 적는다(사슬이 없으면 bridge).
+    voiceover: flatPath.voiceover.map((voice) => ({ ...voice, chainStep: "bridge" as const })),
     cuts: flatPath.cuts.map((cut, index) => ({
       ...cut,
       onScreenText: wrapCaption(cut.onScreenText).text,
@@ -187,23 +192,31 @@ test("R4 clears graphic fields on non-graphic cuts, fills a graphic cut from its
   ).toBe(false);
 });
 
-test("preserves sentence cut timing for fast and slow delivery and reports speed as advice", () => {
+test.each([
+  ["fast", 40, 3],
+  ["slow", 26, 7],
+])("preserves cut timing when %s delivery warrants pacing advice", (_pace, chars, seconds) => {
+  // Given
   const response = withSentence(base(), 0, (sentence) => ({
     ...sentence,
-    text: "출근 전 열 초, 영양 챙길 시간 있나요?",
+    text: fixtureSentence(0, chars),
+    cuts: sentence.cuts.map((cut, index) => ({
+      ...cut,
+      len: index === 0 ? Math.ceil(seconds / 2) : Math.floor(seconds / 2),
+    })),
   }));
   const before = response.sentences.map((sentence) => sentence.cuts.map((cut) => cut.len));
-  const repaired = repairSentences(response, ctx);
-  expect(repaired.value.sentences.map((sentence) => sentence.cuts.map((cut) => cut.len))).toEqual(
-    before,
-  );
-  const script = videoScriptFromResponse(response, ctx).script;
-  expect(script.durationSec).toBe(30);
-  expect(script.voiceover[0]?.endSec).toBe(3);
-  expect(classifyScriptProblems(script, expected).hard).toEqual([]);
-  expect(classifyScriptProblems(script, expected).soft.length).toBeGreaterThan(0);
+  // When
+  const { script, repairs } = videoScriptFromResponse(response, ctx);
+  const problems = classifyScriptProblems(script, { ...expected, durationSec: 27 + seconds });
+  // Then
+  expect(script.cuts.map((cut) => cut.endSec - cut.startSec)).toEqual(before.flat());
+  expect(repairs).toEqual([]);
+  expect(script.durationSec).toBe(27 + seconds);
+  expect(script.voiceover[0]?.endSec).toBe(seconds);
+  expect(problems.hard).toEqual([]);
+  expect(problems.soft).toContainEqual(expect.stringContaining("1번째 문장"));
 });
-
 test("preserves three-second shots and half-second bursts in any sentence", () => {
   const response = withSentence(base(), 1, (sentence) => {
     const cut = sentence.cuts[0];
@@ -227,7 +240,12 @@ test("R5 forces an approved-image cut and R6 drops unused declarations and re-po
     ...response,
     veoClips: [
       ...response.veoClips,
-      { id: "B", startImagePrompt: "Unused start.", prompt: "Unused clip B motion." },
+      {
+        id: "B",
+        startImagePrompt: "Unused start.",
+        prompt: "Unused clip B motion.",
+        plan: fixtureClipPlan("B"),
+      },
     ],
     stills: [
       { id: "S1", prompt: "Kitchen still." },
@@ -359,6 +377,7 @@ test("fractional source durations honor millisecond limits without floating-poin
     source: [0, 2, 4].includes(index) ? "still_image" : "approved_image",
     stillId: [0, 2, 4].includes(index) ? "S1" : "",
     veoClip: "",
+    phase: "",
     onScreenText: "",
   }));
   flat.veoClips = [];

@@ -8,10 +8,12 @@ import {
   flowExportName,
 } from "../shared/flow-mode";
 import { ClipIdSchema } from "../shared/render-state";
+import { INFO_CLIP_IDS } from "../shared/video-script";
 
 // Flow 모드 명령줄 도구(`bun run flow ...`). 앱 서버의 로컬 API 만 부르며 API 키는 읽지도 출력하지도 않는다.
 //   export <jobId> <number> [--out <폴더>] [--url <주소>]
 //   import <jobId> <number> <clipId> <파일> [--model "Veo 3.1 - Fast"] [--url <주소>]
+//   import-image <jobId> <number> <I1~I3> <clean|info> <이미지> [--url <주소>]  (설명 컷 CLEAN·INFO 이미지)
 export type FlowCliContext = {
   readonly fetch: typeof fetch;
   readonly baseUrl: string;
@@ -23,7 +25,8 @@ export type FlowCliContext = {
 const USAGE = [
   "사용법:",
   "  bun run flow export <jobId> <영상번호> [--out <폴더>] [--url <서버 주소>]",
-  "  bun run flow import <jobId> <영상번호> <클립ID(A~H)> <mp4 파일> [--model <Flow 모델 이름>] [--url <서버 주소>]",
+  "  bun run flow import <jobId> <영상번호> <클립ID(A~H, 설명 컷 I1~I3)> <mp4 파일> [--model <Flow 모델 이름>] [--url <서버 주소>]",
+  "  bun run flow import-image <jobId> <영상번호> <설명 컷 ID(I1~I3)> <clean|info> <png/jpg 파일> [--url <서버 주소>]",
 ].join("\n");
 
 // 업로드 응답(Job)에서 필요한 값만 읽는다.
@@ -37,7 +40,13 @@ const ImportedJobSchema = z.object({
     )
     .default([]),
   videoScripts: z
-    .array(z.object({ number: z.number(), veoClips: z.array(z.object({ id: z.string() })) }))
+    .array(
+      z.object({
+        number: z.number(),
+        veoClips: z.array(z.object({ id: z.string() })),
+        infoClips: z.array(z.object({ id: z.string() })).default([]),
+      }),
+    )
     .default([]),
 });
 
@@ -81,6 +90,36 @@ export async function runFlowCli(argv: readonly string[], ctx: FlowCliContext): 
         return 2;
       }
       return await importClip({ ctx, base, jobId, number, clipId: clipId.data, file, flags });
+    }
+    if (command === "import-image") {
+      const clipId = z.enum(INFO_CLIP_IDS).safeParse(positional[3]);
+      const which = z.enum(["clean", "info"]).safeParse(positional[4]);
+      const file = positional[5];
+      if (!clipId.success || !which.success || !file) {
+        ctx.err(USAGE);
+        return 2;
+      }
+      const source = Bun.file(resolve(file));
+      if (!(await source.exists())) {
+        ctx.err(`파일을 찾을 수 없습니다: ${file}`);
+        return 1;
+      }
+      const response = await ctx.fetch(
+        `${base}/api/jobs/${jobId}/videos/${number}/info/${clipId.data}/${which.data}`,
+        {
+          method: "POST",
+          headers: { Origin: new URL(base).origin, "Content-Type": source.type || "image/png" },
+          body: new Uint8Array(await source.arrayBuffer()),
+        },
+      );
+      if (!response.ok) {
+        ctx.err(await failure(response));
+        return 1;
+      }
+      ctx.out(
+        `영상 ${number} 설명 컷 ${clipId.data} ${which.data === "clean" ? "CLEAN" : "INFO"} 이미지 업로드 완료${which.data === "info" ? " · 글자 확인 통과" : ""}`,
+      );
+      return 0;
     }
   } catch (error) {
     ctx.err(
@@ -183,7 +222,8 @@ async function importClip(input: {
   ctx.out(
     `영상 ${number} 클립 ${clipId} 업로드 완료: ${clips[clipId]?.name ?? "(이름 확인 불가)"}`,
   );
-  const waiting = (scripts.find((item) => item.number === number)?.veoClips ?? [])
+  const script = scripts.find((item) => item.number === number);
+  const waiting = [...(script?.veoClips ?? []), ...(script?.infoClips ?? [])]
     .map((clip) => clip.id)
     .filter((id) => !clips[id]?.name);
   if (waiting.length > 0) ctx.out(`아직 올리지 않은 클립: ${waiting.join(", ")}`);

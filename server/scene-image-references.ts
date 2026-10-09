@@ -1,7 +1,9 @@
+import type { FlowTexts } from "../shared/flow-texts";
 import type { Job } from "../shared/schema";
 import type { Artifacts } from "./artifacts";
 import { contentDigest } from "./automation-guard";
 import { BlockedError } from "./errors";
+import { flowTexts } from "./flow-instructions";
 
 export async function sceneImageReferences(
   assets: Artifacts,
@@ -24,7 +26,17 @@ export async function sceneImageReferences(
   return [input.approved, bytes];
 }
 
-export function sceneImagePrompt(prompt: string, referenceCount: number): string {
+// 참조 이미지 설명 문장(instructions/flow.md SCENE_IMAGE_REFERENCE_1/2/NONE). 참조 2 문장과 '없음' 문장 앞의 공백 한 칸은 코드가 붙인다.
+export function sceneImagePrompt(
+  prompt: string,
+  referenceCount: number,
+  texts: Pick<
+    FlowTexts,
+    "SCENE_IMAGE_REFERENCE_1" | "SCENE_IMAGE_REFERENCE_2" | "SCENE_IMAGE_REFERENCE_NONE"
+  > = flowTexts(),
+): string {
   if (referenceCount === 0) return prompt;
-  return `${prompt}\nUse reference image 1 for visible product identity, shape, materials and packaging details. Preserve existing product markings; do not invent branding. Do not copy its promotional text, captions, infographic blocks or card layout. Produce the requested photographic scene, not another advertisement card.${referenceCount > 1 ? " Reference image 2 is the established photographic scene: preserve its person, clothing, setting, lighting and product appearance while changing only the action and framing requested for this shot." : " Establish a consistent photographic person, setting and lighting from the supplied style direction."}`;
+  const second =
+    referenceCount > 1 ? texts.SCENE_IMAGE_REFERENCE_2 : texts.SCENE_IMAGE_REFERENCE_NONE;
+  return `${prompt}\n${texts.SCENE_IMAGE_REFERENCE_1} ${second}`;
 }

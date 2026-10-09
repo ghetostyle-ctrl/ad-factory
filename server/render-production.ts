@@ -14,6 +14,11 @@ import type { Job } from "../shared/schema";
 import { sha256Hex } from "../shared/sha256";
 import { Artifacts } from "./artifacts";
 import { AutomationGuard, contentDigest } from "./automation-guard";
+import {
+  applyCalloutOverrides,
+  type CalloutContext,
+  calloutSourceFingerprint,
+} from "./callout-overrides";
 import { BlockedError, StudioError } from "./errors";
 import type { MusicLibrary } from "./music-library";
 import { ProductionAssets } from "./production-assets";
@@ -32,6 +37,8 @@ import {
 } from "./render/ffmpeg";
 import { fontDigest, resolveFont } from "./render/fonts";
 import { graphicBackgrounds, type RenderCutInput } from "./render/graphic-background";
+import { graphicLinesWithoutCaptions } from "./render/graphic-captions";
+import { assertHfReadTime, renderHfClip } from "./render/hf-render";
 import { renderGraphicCut, SEGMENT_TIMEOUT_MS } from "./render/motion-graphics";
 import {
   aiStillSegmentArgs,
@@ -55,9 +62,11 @@ import {
   renderNames,
   renderStateOf,
   saveArtifactOnce,
+  scriptDigest,
   scriptOf,
 } from "./render-state-helpers";
 import type { JobStore } from "./store";
+import { verifyVideoScript } from "./video-scripts";
 import { VoiceManifestSchema } from "./voice-production";
 
 // phase 'graphics'(모션그래픽 세그먼트, 0원) → 'assemble'(세그먼트·자막·오디오 믹스 → video-final-<n>.mp4).
@@ -91,11 +100,39 @@ export class RenderProduction {
   scratchDir(id: string, number: number): string {
     return join(this.root, "render", id, `video-${number}`);
   }
-  async run(id: string, number: number, signal: AbortSignal): Promise<void> {
+  async validateSavedInputs(id: string, number: number): Promise<void> {
+    await this.calloutContext(id, number);
+  }
+  async calloutContext(id: string, number: number): Promise<CalloutContext> {
+    const job = this.store.get(id);
+    const digest = scriptDigest(scriptOf(job, number));
+    const timeline = await this.loadTimeline(job, number);
+    if (
+      job.renders.find((item) => item.number === number)?.scriptDigest !== digest ||
+      timeline.scriptDigest !== digest
+    )
+      throw new BlockedError(`영상 ${number}의 대본이 저장된 제작 기록과 다릅니다.`);
+    const inputs = await this.resolveInputs(job, number, timeline);
+    return {
+      timeline,
+      fingerprint: await calloutSourceFingerprint(timeline, inputs.cuts, this.profile),
+      profile: this.profile,
+    };
+  }
+  async run(
+    id: string,
+    number: number,
+    signal: AbortSignal,
+    request: { readonly replaceFinal?: boolean } = {},
+  ): Promise<void> {
     const job = this.guard.check(id, signal);
+    const script =
+      job.videoScripts.find((item) => item.number === number) ?? job.videoScripts[number - 1];
+    if (script?.infoClips.some((clip) => clip.labelLayer))
+      verifyVideoScript(script, number, script.hypothesisId);
     const font = resolveFont();
     // 완성본이 저장됐으면 다시 만들지 않는다. 다만 저장과 renders.final 기록 사이에 끊겼다면 기록을 복원한다.
-    if (hasArtifact(job, renderNames.final(number))) {
+    if (!request.replaceFinal && hasArtifact(job, renderNames.final(number))) {
       await this.reconcileFinal(job, number, font, signal);
       return;
     }
@@ -105,14 +142,38 @@ export class RenderProduction {
         "자막용 한글 폰트를 찾을 수 없습니다. assets/fonts 또는 FONT_DIR 을 확인하세요.",
         503,
       );
-    const timeline = await this.loadTimeline(job, number);
-    const inputs = await this.resolveInputs(job, number, timeline);
+    const originalTimeline = await this.loadTimeline(job, number);
+    const inputs = await this.resolveInputs(job, number, originalTimeline);
+    const timeline = await applyCalloutOverrides(this.assets, job, number, {
+      timeline: originalTimeline,
+      fingerprint: await calloutSourceFingerprint(originalTimeline, inputs.cuts, this.profile),
+      profile: this.profile,
+    });
     const scratch = this.scratchDir(id, number);
     await mkdir(scratch, { recursive: true });
     const fonts = fontDigest(font);
     const artworkTop = artworkTopRatio(timeline);
     const approvedPath = inputs.approved?.path ?? null;
-    const graphicCuts = inputs.cuts.filter((item) => item.cut.sourceRef.kind === "graphic");
+    // 패널 글줄이 같은 시각의 음성 자막과 겹치면 그 글줄은 그리지 않는다(H6, 2026-10-07). 말하는 구간의 자막은
+    // captionsAss 가 늘 그리므로(c65223c) 패널 쪽을 뺀다. 세그먼트 캐시 키는 뺀 뒤의 글줄로 잡는다.
+    const spokenCaptions = (timeline.captions ?? []).filter((caption) =>
+      timeline.voice.some(
+        (voice) =>
+          caption.startMs < voice.startMs + voice.durationMs && caption.endMs > voice.startMs,
+      ),
+    );
+    const renderCuts = inputs.cuts.map((item) =>
+      item.cut.sourceRef.kind === "graphic"
+        ? {
+            ...item,
+            cut: {
+              ...item.cut,
+              graphicLines: graphicLinesWithoutCaptions(item.cut, spokenCaptions),
+            },
+          }
+        : item,
+    );
+    const graphicCuts = renderCuts.filter((item) => item.cut.sourceRef.kind === "graphic");
     if (graphicCuts.length > 0)
       await this.guard.operation(id, {
         phase: "graphics",
@@ -150,10 +211,52 @@ export class RenderProduction {
       phase: "assemble",
       signal,
       run: async () => {
+        const prepared = [...renderCuts];
+        const labelWarnings: string[] = [];
+        for (const clip of script?.infoClips ?? []) {
+          if (!clip.labelLayer) continue;
+          const matches = prepared.filter(
+            (item) => item.cut.sourceRef.kind === "veo" && item.cut.sourceRef.clipId === clip.id,
+          );
+          const original = matches[0];
+          if (!original?.sourcePath) continue;
+          assertHfReadTime(
+            clip.labelLayer,
+            matches.map((item) => item.cut),
+          );
+          this.store.agent(id, "production", {
+            status: "running",
+            action: `영상 ${number} 설명 ${clip.id} · HyperFrames 03 라벨 합성 중`,
+          });
+          const composed = await renderHfClip({
+            sourcePath: original.sourcePath,
+            sourceDigest: original.sourceDigest,
+            plan: clip.labelLayer,
+            infoLines: clip.infoLines,
+            font,
+            profile: this.profile,
+            scratch,
+            signal,
+          });
+          for (const [index, item] of prepared.entries()) {
+            if (item.cut.sourceRef.kind !== "veo" || item.cut.sourceRef.clipId !== clip.id)
+              continue;
+            prepared[index] = {
+              ...item,
+              sourcePath: composed.path,
+              sourceDigest: composed.digest,
+              cleanClip: false,
+              cut: { ...item.cut, effect: "hard_cut" },
+            };
+          }
+          labelWarnings.push(
+            `${clip.id}: HyperFrames 03 라벨 합성. 앵커는 계획 좌표이며 실제 대상 일치·모바일 재생은 사용자 검토가 필요합니다. 원본 좌표 보존을 위해 추가 크롭·화면 효과를 적용하지 않았습니다.`,
+          );
+        }
         const segments: string[] = [];
         const projectAudio: { path: string; startMs: number }[] = [];
         let previous: { path: string; digest: string } | null = null;
-        for (const item of inputs.cuts) {
+        for (const item of prepared) {
           const { cut } = item;
           // 모션그래픽 세그먼트는 graphics 단계가 직전 컷과 무관하게 만든다(효과가 whip_pan·split_screen 이어도 digest 가 같아야 찾는다).
           const dependsOnPrevious =
@@ -215,7 +318,7 @@ export class RenderProduction {
           jobId: id,
           number,
         });
-        const warnings = picked.warning ? [picked.warning] : [];
+        const warnings = [...labelWarnings, ...(picked.warning ? [picked.warning] : [])];
         const bgm = picked.track
           ? {
               path: picked.track.path,
@@ -247,7 +350,11 @@ export class RenderProduction {
           run: this.ffmpeg,
           inputDigests: inputs.digests,
           warnings,
-          ...(this.options.durationBounds ? { durationBounds: this.options.durationBounds } : {}),
+          ...(this.options.durationBounds
+            ? { durationBounds: this.options.durationBounds }
+            : script?.flow === "copy_first"
+              ? { durationBounds: [1, 63] as const }
+              : {}),
           ...(this.options.preset ? { preset: this.options.preset } : {}),
         });
         await this.saveOutputs({ id, number, out, captionsText, report, signal });
@@ -340,14 +447,21 @@ export class RenderProduction {
         `렌더 리포트(${reportName})를 읽을 수 없어 길이를 타임라인 값(${timeline.durationMs}ms)으로 복원했습니다.`,
       );
     if (!hasArtifact(job, captionsName)) {
-      if (font)
+      if (font) {
+        const context = hasArtifact(job, `callout-overrides-${number}.json`)
+          ? await this.calloutContext(id, number)
+          : { timeline, fingerprint: "", profile: this.profile };
         await saveArtifactOnce(this.assets, id, {
           name: captionsName,
           kind: "text",
           agentId: "production",
-          content: captionsAss(timeline, this.profile, font),
+          content: captionsAss(
+            await applyCalloutOverrides(this.assets, job, number, context),
+            this.profile,
+            font,
+          ),
         });
-      else warnings.push("자막 폰트를 찾지 못해 자막 파일(captions)을 복원하지 못했습니다.");
+      } else warnings.push("자막 폰트를 찾지 못해 자막 파일(captions)을 복원하지 못했습니다.");
     }
     this.store.change(id, (draft) => {
       const render = renderStateOf(draft, number);
@@ -483,7 +597,8 @@ export class RenderProduction {
       }
     }
     await this.checkFlowClipLengths(job, number, timeline);
-    const voices: { path: string; startMs: number }[] = [];
+    const voices: { path: string; startMs: number; sourceStartMs?: number; durationMs?: number }[] =
+      [];
     const recorded = await this.voiceDigests(job, number);
     for (const line of timeline.voice) {
       if (!line.artifactName || !hasArtifact(job, line.artifactName))
@@ -493,7 +608,13 @@ export class RenderProduction {
         throw new BlockedError(
           `문장 ${line.index + 1} 의 내레이션 파일이 합성 기록과 다릅니다. 조립을 중단합니다.`,
         );
-      voices.push({ path: this.assets.path(job.id, line.artifactName), startMs: line.startMs });
+      voices.push({
+        path: this.assets.path(job.id, line.artifactName),
+        startMs: line.startMs,
+        ...(line.sourceStartMs !== undefined
+          ? { sourceStartMs: line.sourceStartMs, durationMs: line.durationMs }
+          : {}),
+      });
     }
     return {
       cuts: graphicBackgrounds(cuts),

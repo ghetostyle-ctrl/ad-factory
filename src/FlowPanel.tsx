@@ -1,33 +1,72 @@
 import { Copy, Download, ExternalLink, Upload } from "lucide-react";
-import { type DragEvent, useRef, useState } from "react";
+import { type DragEvent, useEffect, useRef, useState } from "react";
 import {
-  buildFlowExport,
   FLOW_CLIP_MAX_BYTES,
   FLOW_URL,
+  type FlowExportPreview,
+  FlowExportPreviewSchema,
   flowExportName,
   pendingFlowClips,
 } from "../shared/flow-mode";
 import type { ClipId } from "../shared/render-state";
 import type { Job } from "../shared/schema";
-import type { VideoScript } from "../shared/video-script";
+import { scriptDigestOf } from "../shared/script-approval";
+import { type VideoScript, videoPolicyOf } from "../shared/video-script";
 import { api, errorMessage } from "./api";
+import { FlowInfoClips } from "./FlowInfoClips";
 import { Button, Notice } from "./primitives";
 import "./flow.css";
 
 // Flow 모드 대본 카드 섹션: 클립 A~D 마다 시작 이미지·Veo 프롬프트·업로드 상태. 클립은 사용자(또는 브라우저 에이전트)가
 // Google Flow 웹에서 만들어 이 화면이나 `bun run flow import` 로 올린다. Flow 화면 조작은 앱이 하지 않는다.
+// 프롬프트·체크리스트 문장은 지시 파일(instructions/flow.md)이라 브라우저가 조립하지 않고 서버(GET …/flow-export)가 만든 것을 받는다.
 type ClipUi = { readonly pending: boolean; readonly error: string | null };
 const idle: ClipUi = { pending: false, error: null };
+type ExportState =
+  | { readonly kind: "loading" }
+  | { readonly kind: "ready"; readonly data: FlowExportPreview }
+  | { readonly kind: "error"; readonly message: string };
 
 export function FlowPanel({ job, script }: { readonly job: Job; readonly script: VideoScript }) {
   const [ui, setUi] = useState<Partial<Record<ClipId, ClipUi>>>({});
   const [copied, setCopied] = useState<string | null>(null);
-  if (script.veoClips.length === 0) return null;
+  const [exported, setExported] = useState<ExportState>({ kind: "loading" });
   const number = script.number;
   const render = job.renders.find((item) => item.number === number);
+  const policy = job.automation?.policy;
+  // 서버 조립 결과가 달라지는 입력(대본·시작 이미지 이름·영상 모델)이 바뀔 때만 다시 받는다(SSE 상태 갱신마다 받지 않도록).
+  const exportKey = [
+    job.id,
+    number,
+    scriptDigestOf(script),
+    JSON.stringify(render?.startImages ?? {}),
+    policy?.mode === "creative" ? policy.videoModel : "",
+  ].join("|");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: exportKey(대본·시작 이미지·모델 요약)가 바뀔 때만 다시 받는다.
+  useEffect(() => {
+    let cancelled = false;
+    setExported({ kind: "loading" });
+    void api
+      .get(`jobs/${job.id}/videos/${number}/flow-export`)
+      .json()
+      .then((body) => {
+        if (!cancelled) setExported({ kind: "ready", data: FlowExportPreviewSchema.parse(body) });
+      })
+      .catch(async (cause: unknown) => {
+        if (!cancelled) setExported({ kind: "error", message: await errorMessage(cause) });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [exportKey, job.id, number]);
+  const total = script.veoClips.length + script.infoClips.length;
+  if (total === 0) return null;
   const hasFinal = Boolean(render?.final);
   const running = job.status === "running" || job.automation?.status === "running";
-  const data = buildFlowExport(job, number);
+  const data = exported.kind === "ready" ? exported.data : null;
+  // 혼합형(2026-10-07): 실사 클립에는 사람·상황이, 설명 장면에는 사람이 없어야 한다. 앱이 검사하지 않으므로 화면에서 알린다.
+  const hybrid = videoPolicyOf(script) === "hybrid";
+  const hfLabels = script.infoClips.some((clip) => clip.labelLayer);
   const exportMarkdown = job.artifacts.find((item) => item.name === flowExportName(number, "md"));
   const pending = pendingFlowClips(job, number);
   const artifact = (name: string | null | undefined) =>
@@ -60,18 +99,26 @@ export function FlowPanel({ job, script }: { readonly job: Job; readonly script:
     <section className="stack final-section flow-panel" aria-label={`영상 ${number} Flow 클립`}>
       <div className="flow-heading">
         <h4>
-          Google Flow 클립 · {script.veoClips.length - pending.length}/{script.veoClips.length}
+          Google Flow 클립 · {total - pending.length}/{total}
         </h4>
         <a href={FLOW_URL} target="_blank" rel="noreferrer" className="flow-link">
           Flow 열기
           <ExternalLink size={14} aria-hidden="true" />
         </a>
       </div>
-      {pending.length > 0 ? (
+      {hfLabels ? (
+        <Notice tone="warning">
+          CLEAN·INFO 확인 후 글자 없는 Veo 원본을 올리면 HyperFrames가 03 라벨·연결선을 자동
+          합성합니다. 앵커는 계획 좌표이므로 완성본에서 대상 일치와 모바일 가독성을 확인하세요.
+        </Notice>
+      ) : pending.length > 0 ? (
         <Notice tone="warning">
           클립 {pending.length}개를 Flow에서 만들어 업로드해 주세요. 시작 이미지를 첫 프레임으로
           올리고 프롬프트를 그대로 붙여 넣은 뒤, 9:16·8초로 생성해 내려받은 MP4를 아래에 올리면
           제작이 자동으로 이어집니다.
+          {hybrid
+            ? " 혼합형: 실사 클립(A~D)에는 사람과 상황이 보여야 하고, 설명 장면(I1~I3)에는 사람이 없어야 합니다(눈으로 확인)."
+            : ""}
         </Notice>
       ) : (
         <p className="muted small-copy">이 영상의 Flow 클립이 모두 올라왔습니다.</p>
@@ -88,8 +135,14 @@ export function FlowPanel({ job, script }: { readonly job: Job; readonly script:
         )}
         를 보세요.
       </p>
+      {exported.kind === "loading" && (
+        <p className="muted small-copy">Flow 프롬프트를 서버에서 읽는 중…</p>
+      )}
+      {exported.kind === "error" && (
+        <Notice tone="error">Flow 프롬프트를 읽지 못했습니다: {exported.message}</Notice>
+      )}
       <ul className="flow-clips">
-        {data.clips.map((clip) => {
+        {(data?.clips ?? []).map((clip) => {
           const state = render?.clips[clip.id];
           const video = artifact(state?.name);
           const start = artifact(render?.startImages[clip.id]?.name);
@@ -118,6 +171,15 @@ export function FlowPanel({ job, script }: { readonly job: Job; readonly script:
           );
         })}
       </ul>
+      <FlowInfoClips
+        job={job}
+        number={number}
+        clips={data?.infoClips ?? []}
+        canUpload={!hasFinal && !running}
+        onUploadClip={(id, file) => {
+          void upload(id, file);
+        }}
+      />
       <details className="evidence-details">
         <summary>명령줄로 내보내기·업로드</summary>
         <div className="stack">

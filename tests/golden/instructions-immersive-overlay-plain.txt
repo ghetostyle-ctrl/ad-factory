@@ -1,0 +1,13 @@
+Use the attached CLEAN frame as the same 3D scene. Preserve object identity, materials, scale relationships and light direction. Create the planned final spatial state, including the final camera perspective; the composition may evolve through the same scene.
+A thick callout line from the oil droplet to an empty rounded panel floating on the right
+
+Final camera perspective: Orbit a quarter turn around the bottle and hold a steady close-up
+Show these explanatory objects and transformations in their final state:
+1) A glowing ring settles on the oil droplet
+2) A thick callout line grows from the ring to the right
+3) A translucent rounded panel fades in at the end of the line
+Make the relationship physically visible through a justified cutaway, exploded separation, side-by-side material comparison or guided flow, according to the supplied plan. Objects occupy real depth and occlude one another correctly. Do not substitute floating checkmarks, highlight rings or empty UI cards for the explanation. Do not invent ingredients, ratios or physiology.
+Every part retains the same identity and appearance as in CLEAN. Show the final understood relation without inventing extra objects. A cutaway preserves the product silhouette and locates its actual contents; a composition diagram must not suggest unsupported physical separation of a mixture.
+Visual system: warm ivory background, dark olive structural forms, and one restrained warm-gold accent. Preserve realistic material shading and depth; no cyan, pink, neon glow, rainbow accents or black presentation-slide backgrounds.
+Keep the explanatory objects and their transformation within the middle 20–65% of frame height, leaving clear space above and below for app-composited text. Vertical 9:16.
+No text, letters, words, numbers, labels, logos, captions or typographic marks in any language. The app adds all wording later.

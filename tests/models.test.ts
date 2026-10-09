@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getModelSettings, saveModelSettings, snapshotModels } from "../server/model-settings";
-import { ModelSettingsSchema } from "../shared/models";
+import { defaultScriptModel, ExecutionModelsSchema, ModelSettingsSchema } from "../shared/models";
 
 const roots: string[] = [];
 function root(): string {
@@ -98,4 +98,87 @@ test("rejects incompatible quality, invalid model IDs and secrets when parsing s
       ttsVoiceId: null,
     }).success,
   ).toBe(false);
+});
+
+test("persists a separate OpenAI script model without changing the common model or frozen snapshot", () => {
+  // Given
+  const directory = root();
+  const selected = {
+    ...getModelSettings(directory),
+    textProvider: "openai",
+    textModel: "gpt-planning-fixture",
+    scriptProvider: "openai",
+    scriptModel: "gpt-script-fixture",
+  } as const;
+  // When
+  saveModelSettings(directory, selected);
+  const started = snapshotModels(directory);
+  saveModelSettings(directory, { ...selected, scriptModel: "gpt-script-next" });
+  // Then
+  expect(getModelSettings(directory)).toMatchObject({
+    textModel: "gpt-planning-fixture",
+    scriptProvider: "openai",
+    scriptModel: "gpt-script-next",
+  });
+  expect(started).toMatchObject({
+    textModel: "gpt-planning-fixture",
+    scriptProvider: "openai",
+    scriptModel: "gpt-script-fixture",
+  });
+  expect(Object.isFrozen(started)).toBe(true);
+});
+
+test("keeps legacy snapshots byte-for-byte equivalent when script overrides are absent", () => {
+  // Given
+  const legacy = snapshotModels(root());
+  const original = JSON.stringify(legacy);
+  // When
+  const parsed = ExecutionModelsSchema.parse(legacy);
+  // Then
+  expect(JSON.stringify(parsed)).toBe(original);
+  expect(Object.hasOwn(parsed, "scriptProvider")).toBe(false);
+  expect(Object.hasOwn(parsed, "scriptModel")).toBe(false);
+});
+
+test.each([
+  ["openai", "claude-opus-5-5"],
+  ["anthropic", "gpt-script-fixture"],
+])("rejects a known foreign model family when %s is selected", (scriptProvider, scriptModel) => {
+  // Given
+  const selected = { ...getModelSettings(root()), scriptProvider, scriptModel };
+  // When
+  const parsed = ModelSettingsSchema.safeParse(selected);
+  // Then
+  expect(parsed.success).toBe(false);
+});
+
+test.each([
+  ["openai", "gpt-common-fixture", "gpt-common-fixture"],
+  ["openai", "claude-opus-5-5", "gpt-5-mini"],
+  ["anthropic", "gpt-common-fixture", "claude-opus-5-5"],
+] as const)("selects a compatible default for %s from %s", (provider, common, model) => {
+  // Given / When
+  const selected = defaultScriptModel(provider, common);
+  // Then
+  expect(selected).toBe(model);
+  expect(
+    ModelSettingsSchema.safeParse({
+      ...getModelSettings(root()),
+      scriptProvider: provider,
+      scriptModel: selected,
+    }).success,
+  ).toBe(true);
+});
+
+test("preserves previously captured identifiers when reading legacy frozen models", () => {
+  // Given
+  const legacy = {
+    ...snapshotModels(root()),
+    scriptProvider: "anthropic",
+    scriptModel: "gpt-legacy-alias",
+  } as const;
+  // When
+  const parsed = ExecutionModelsSchema.parse(legacy);
+  // Then
+  expect(parsed).toEqual(legacy);
 });

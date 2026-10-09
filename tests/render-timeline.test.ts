@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
+import { clipNeedMsFromScript, clipNeedMsFromTimeline } from "../server/render/clip-need";
 import { verifyLongVideoScript } from "../server/video-scripts";
+import { firstClipReadConflict } from "../shared/clip-offsets";
 import { HypothesisSchema } from "../shared/creative-plan";
 import { type ProductionAsset, ProductionAssetSchema } from "../shared/production-assets";
 import {
@@ -504,4 +506,133 @@ test("a final graphic keeps its length while speech overflow extends its precedi
   expect((timeline.cuts.at(-1)?.endMs ?? 0) - (timeline.cuts.at(-1)?.startMs ?? 0)).toBe(
     (last.endSec - last.startSec) * 1000,
   );
+});
+
+test("cuts with a clip phase read from that phase, continue after a spill-over and pull back at the clip end", () => {
+  // Given: 클립 A 를 early(3.5초, mid 구간으로 0.5초 넘침)·mid·mid·late·late 컷이, B 를 late 뒤 early 컷이 읽는다
+  const offsets = assignClipOffsets([
+    { index: 0, source: "veo_clip", veoClip: "A", startMs: 0, endMs: 3500, phase: "early" },
+    { index: 1, source: "approved_image", veoClip: "", startMs: 3500, endMs: 4500 },
+    { index: 2, source: "veo_clip", veoClip: "A", startMs: 4500, endMs: 5500, phase: "mid" },
+    { index: 3, source: "veo_clip", veoClip: "A", startMs: 5500, endMs: 6500, phase: "mid" },
+    { index: 4, source: "veo_clip", veoClip: "A", startMs: 6500, endMs: 8500, phase: "late" },
+    { index: 5, source: "veo_clip", veoClip: "A", startMs: 8500, endMs: 10500, phase: "late" },
+    { index: 6, source: "veo_clip", veoClip: "B", startMs: 10500, endMs: 12500, phase: "late" },
+    { index: 7, source: "veo_clip", veoClip: "B", startMs: 12500, endMs: 13500, phase: "early" },
+    { index: 8, source: "veo_clip", veoClip: "B", startMs: 13500, endMs: 14500 },
+    { index: 9, source: "veo_clip", veoClip: "C", startMs: 14500, endMs: 23500, phase: "early" },
+  ]);
+  // Then: early 는 0 부터, 넘친 뒤의 mid 는 구간 시작(3000)이 아니라 넘친 끝(3500)에서 잇고 같은 구간은 이어 읽는다
+  expect(offsets.get(0)).toEqual({ clipId: "A", offsetMs: 0, padMs: 0 });
+  expect(offsets.get(2)).toEqual({ clipId: "A", offsetMs: 3500, padMs: 0 });
+  expect(offsets.get(3)).toEqual({ clipId: "A", offsetMs: 4500, padMs: 0 });
+  expect(offsets.get(4)).toEqual({ clipId: "A", offsetMs: 5500, padMs: 0 });
+  // late 두 번째 컷은 7500+2000 이 8초를 넘으므로 8000-2000 으로 당긴다(복제 없음)
+  expect(offsets.get(5)).toEqual({ clipId: "A", offsetMs: 6000, padMs: 0 });
+  // 뒤 구간을 먼저 읽어도 앞 구간(early)은 구간 시작에서 읽는다
+  expect(offsets.get(6)).toEqual({ clipId: "B", offsetMs: 5500, padMs: 0 });
+  expect(offsets.get(7)).toEqual({ clipId: "B", offsetMs: 0, padMs: 0 });
+  // 구간이 없는 예전 컷은 그 클립에서 읽은 가장 뒤에서 순차로 잇는다(8초 밖은 복제)
+  expect(offsets.get(8)).toEqual({ clipId: "B", offsetMs: 7500, padMs: 500 });
+  // 8초보다 긴 구간 컷은 0 부터 읽고 나머지를 복제한다
+  expect(offsets.get(9)).toEqual({ clipId: "C", offsetMs: 0, padMs: 1000 });
+  expect(offsets.has(1)).toBe(false);
+});
+
+test("a phase-less eight-second INFO cut is untouched without trimSilence and read as its late phase with it", () => {
+  // Given: 컷 0 을 I1 8초(단계 없음)로 바꾸고 나머지를 6초 민다. 문장 0(2.4초)은 컷 0~1 에 묶여 있다.
+  const base = script();
+  const first = base.cuts[0];
+  if (!first) throw new Error("fixture cut missing");
+  const fixture: VideoScript = {
+    ...base,
+    durationSec: base.durationSec + 6,
+    cuts: base.cuts.map((cut, index) =>
+      index === 0
+        ? { ...cut, endSec: 8, source: "veo_clip", veoClip: "I1", phase: "" }
+        : { ...cut, startSec: cut.startSec + 6, endSec: cut.endSec + 6 },
+    ),
+  };
+  const measurements = inWindow(fixture);
+  // When: trimSilence 없이(예전 옵션) 만든 타임라인은 그대로다
+  const plain = timelineOf(buildTimeline(fixture, measurements));
+  expect(plain.cuts[0]?.endMs).toBe(8000);
+  expect("phase" in (plain.cuts[0] ?? {})).toBe(false);
+  expect(plain.warnings.some((warning) => warning.includes("8초"))).toBe(false);
+  expect(plain.cuts[0]?.sourceRef).toEqual({ kind: "veo", clipId: "I1", offsetMs: 0, padMs: 0 });
+  // Then: 제작 옵션(trimSilence)에서는 말 끝(2.4초) + 0.3초까지 줄이고 late 단계로 끝부분을 읽는다
+  const trimmed = timelineOf(buildTimeline(fixture, measurements, { trimSilence: true }));
+  expect(trimmed.cuts[0]?.endMs).toBe(2700);
+  expect(trimmed.cuts[0]?.phase).toBe("late");
+  expect(trimmed.cuts[0]?.sourceRef).toEqual({
+    kind: "veo",
+    clipId: "I1",
+    offsetMs: 5300,
+    padMs: 0,
+  });
+  expect(trimmed.warnings.some((warning) => warning.includes("8초 통째"))).toBe(true);
+  // 업로드 길이 검사(대본 기준)와 조립 검사(타임라인 기준)는 같은 끝 지점(8초)을 본다
+  expect(clipNeedMsFromScript(fixture, "I1")).toBe(clipNeedMsFromTimeline(trimmed.cuts, "I1"));
+  expect(clipNeedMsFromTimeline(trimmed.cuts, "I1")).toBe(8000);
+});
+
+test("the render fixture's phased clips reach the timeline and the Flow length check agrees with assembly", () => {
+  // Given: 클립 C 는 컷 10(early 2초)·컷 11(mid 1초)이 읽는다 → 예전 순차(0, 2000)가 아니라 (0, 3000)
+  const fixture = script();
+  const timeline = timelineOf(buildTimeline(fixture, inWindow(fixture)));
+  const refs = timeline.cuts
+    .filter((cut) => cut.sourceRef.kind === "veo" && cut.sourceRef.clipId === "C")
+    .map((cut) => cut.sourceRef);
+  expect(refs).toEqual([
+    { kind: "veo", clipId: "C", offsetMs: 0, padMs: 0 },
+    { kind: "veo", clipId: "C", offsetMs: 3000, padMs: 0 },
+  ]);
+  // 타임라인 컷은 goal·phase 를 싣고(비면 생략), 업로드 길이 검사(대본 기준)와 조립 검사(타임라인 기준)가 같은 끝 지점을 본다
+  expect(timeline.cuts[10]).toMatchObject({ goal: "장면 11의 핵심", phase: "early" });
+  expect(timeline.cuts[11]?.phase).toBe("mid");
+  expect("phase" in (timeline.cuts[2] ?? {})).toBe(false);
+  for (const clipId of ["A", "B", "C", "D"] as const)
+    expect(clipNeedMsFromScript(fixture, clipId)).toBe(
+      clipNeedMsFromTimeline(timeline.cuts, clipId),
+    );
+  expect(clipNeedMsFromScript(fixture, "C")).toBe(4000);
+});
+
+test("explainer phases read continuously when the early cut spills over: no pull-back, the tail is padded", () => {
+  // Given(실측 2026-10-08, 작업 6e736cd8): I2 early 가 말 길이로 3.35초, 이어 mid 2.5초·late 2.5초
+  const offsets = assignClipOffsets([
+    { index: 6, source: "veo_clip", veoClip: "I2", startMs: 21500, endMs: 24850, phase: "early" },
+    { index: 7, source: "veo_clip", veoClip: "I2", startMs: 24850, endMs: 27350, phase: "mid" },
+    { index: 8, source: "veo_clip", veoClip: "I2", startMs: 27350, endMs: 29850, phase: "late" },
+  ]);
+  // Then: mid 는 early 의 끝(3350)에서, late 는 mid 의 끝(5850)에서 잇고, 8초를 넘는 350ms 는 마지막 프레임을 멈춘다.
+  // 예전처럼 late 를 5500 으로 당기면 mid 가 읽은 5500~5850 을 다시 읽어 clip_too_short 가 됐다.
+  expect(offsets.get(6)).toEqual({ clipId: "I2", offsetMs: 0, padMs: 0 });
+  expect(offsets.get(7)).toEqual({ clipId: "I2", offsetMs: 3350, padMs: 0 });
+  expect(offsets.get(8)).toEqual({ clipId: "I2", offsetMs: 5850, padMs: 350 });
+  // 클립 끝에 닿은 뒤의 짧은 꼬리 복제는 충돌이 아니다(통째 재생 금지 규칙은 겹쳐 읽기만 막는다).
+  expect(
+    firstClipReadConflict(
+      [
+        {
+          index: 6,
+          source: "veo_clip",
+          veoClip: "I2",
+          startMs: 21500,
+          endMs: 24850,
+          phase: "early",
+        },
+        { index: 7, source: "veo_clip", veoClip: "I2", startMs: 24850, endMs: 27350, phase: "mid" },
+        {
+          index: 8,
+          source: "veo_clip",
+          veoClip: "I2",
+          startMs: 27350,
+          endMs: 29850,
+          phase: "late",
+        },
+      ],
+      offsets,
+    ),
+  ).toBeNull();
 });

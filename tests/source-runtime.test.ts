@@ -68,7 +68,7 @@ async function fixture() {
     const angles = ["problem_solution", "usage_context", "objection_answer"] as const;
     return CreativePlanSchema.parse({
       sourceDigest: job.sourceSnapshot.digest,
-      sourceCoverage: evidencePack(job.sourceSnapshot).coverage,
+      sourceCoverage: evidencePack(job.sourceSnapshot, 1).coverage,
       referenceAnalyses: [],
       diversityRationale: "Three distinct contexts",
       limitations: ["Synthetic fixture only"],

@@ -1,6 +1,9 @@
+import type { FlowTexts } from "../shared/flow-texts";
+import { cleanKeyframePrompt } from "../shared/veo-prompt";
 import { type Still, type StillId, StillIdSchema, type VideoScript } from "../shared/video-script";
 import type { Artifacts } from "./artifacts";
 import type { AutomationGuard } from "./automation-guard";
+import { flowTexts } from "./flow-instructions";
 import { renderNames, scriptOf } from "./render-state-helpers";
 import {
   defaultReviewedImageProviders,
@@ -15,8 +18,17 @@ import type { JobStore } from "./store";
 // 장마다 승인 대표 이미지와 비전 검토(최대 2회). 생성·검토·재개 규칙은 시작 이미지와 같은 엔진을 쓴다.
 export type StillProviders = ReviewedImageProviders;
 export const STILL_MAX_ATTEMPTS = REVIEWED_IMAGE_MAX_ATTEMPTS;
-export function stillPrompt(script: VideoScript, still: Still): string {
-  return `${script.styleAnchor}\n${still.prompt}\nPortrait 9:16 photographic still, natural lighting, realistic. The same product, person, place and lighting as the reference image where they appear. No text overlays, added promotional copy, captions or new logos. Preserve visible existing product labels and packaging.`;
+// R3 깨끗한 키프레임: 고정 문장(STILL_IMAGE_TAIL)과 글자·화살표·수치·라벨·아이콘·강조 링 금지 꼬리(CLEAN_KEYFRAME_TAIL)는
+// instructions/flow.md 의 절이다. texts 를 생략하면 지금 파일을 읽는다(재시작 없이 다음 생성부터 반영).
+export function stillPrompt(
+  script: VideoScript,
+  still: Still,
+  texts: Pick<FlowTexts, "STILL_IMAGE_TAIL" | "CLEAN_KEYFRAME_TAIL"> = flowTexts(),
+): string {
+  return cleanKeyframePrompt(
+    `${script.styleAnchor}\n${still.prompt}\n${texts.STILL_IMAGE_TAIL}`,
+    texts.CLEAN_KEYFRAME_TAIL,
+  );
 }
 
 function isStillKey(key: string): key is StillId {

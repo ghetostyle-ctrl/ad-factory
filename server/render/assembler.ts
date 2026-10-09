@@ -6,7 +6,9 @@ import { measureLoudness } from "../audio-probe";
 import { StudioError } from "../errors";
 import { probeProductionVideo } from "../production-video-probe";
 import type { RenderEncoder } from "../provider-environment";
-import { buildAudioGraph, MIX } from "./audio-mix";
+import { probeAudioIntegrity } from "./audio-integrity";
+import { MIX } from "./audio-mix";
+import { renderAudioMix } from "./audio-render";
 import {
   type FfmpegRunner,
   ffmpegCapabilities,
@@ -19,7 +21,7 @@ import {
 import type { FontSet } from "./fonts";
 import type { RenderProfile } from "./theme";
 
-// 세그먼트 concat(-c copy) → 최종 1패스(자막 번인 + 오디오 믹스 + 인코딩) → 검증 → 리포트.
+// 세그먼트 concat → 독립 오디오 믹스 → 자막 번인·최종 인코딩 → 검증 → 리포트.
 export const FINAL_TIMEOUT_MS = 600_000;
 export type RenderReport = {
   readonly number: number;
@@ -41,7 +43,12 @@ export type AssembleInput = {
   readonly timeline: RenderTimeline;
   readonly segments: readonly string[];
   readonly projectAudio: readonly { readonly path: string; readonly startMs: number }[];
-  readonly voices: readonly { readonly path: string; readonly startMs: number }[];
+  readonly voices: readonly {
+    readonly path: string;
+    readonly startMs: number;
+    readonly sourceStartMs?: number;
+    readonly durationMs?: number;
+  }[];
   readonly bgm: {
     readonly path: string;
     readonly id: string;
@@ -124,31 +131,21 @@ export async function assembleVideo(input: AssembleInput): Promise<RenderReport>
     signal,
     timeoutMs: FINAL_TIMEOUT_MS,
   });
-  // 입력 순서: 0 visual, 1..k 음성, bgm, 촬영본 오디오, 마지막 무음 베이스
-  const args: string[] = ["-i", visual];
-  let index = 1;
-  const voice = input.voices.map((item) => {
-    args.push("-i", item.path);
-    return { index: index++, startMs: item.startMs };
+  const audio = await renderAudioMix({
+    voices: input.voices,
+    projectAudio: input.projectAudio,
+    bgm: input.bgm,
+    durationMs: timeline.durationMs,
+    scratch: input.scratch,
+    signal,
+    run,
+    timeoutMs: FINAL_TIMEOUT_MS,
   });
-  let bgm: { index: number } | null = null;
-  if (input.bgm) {
-    args.push("-stream_loop", "-1", "-i", input.bgm.path);
-    bgm = { index: index++ };
-  }
-  const project = input.projectAudio.map((item) => {
-    args.push("-i", item.path);
-    return { index: index++, startMs: item.startMs };
-  });
-  args.push("-f", "lavfi", "-t", sec(timeline.durationMs), "-i", "anullsrc=r=48000:cl=stereo");
-  const silence = { index: index++ };
+  const args = ["-i", visual, "-i", audio];
   // fontsdir 는 폰트만 담은 폴더(라이선스 텍스트가 섞이면 libass 가 컷마다 경고한다).
   const fontsDir = await fontOnlyDir(input.font, input.scratch);
   // setsar=1: 세그먼트 SAR 가 어긋나 있어도 최종 mp4 는 항상 정사각 픽셀로 낸다.
-  const graph = [
-    `[0:v]ass=${ffPath(input.captionsAss)}:fontsdir=${ffPath(fontsDir)},setsar=1[vout]`,
-    buildAudioGraph({ voice, bgm, project, silence, durationMs: timeline.durationMs }),
-  ].join(";\n");
+  const graph = `[0:v]ass=${ffPath(input.captionsAss)}:fontsdir=${ffPath(fontsDir)},setsar=1[vout]`;
   const graphPath = await writeFilterGraph(input.scratch, graph);
   const partial = `${input.out}.partial.mp4`;
   await rm(partial, { force: true });
@@ -160,7 +157,7 @@ export async function assembleVideo(input: AssembleInput): Promise<RenderReport>
       "-map",
       "[vout]",
       "-map",
-      "[aout]",
+      "1:a:0",
       ...encoderArgs(input.encoder, profile, input.preset),
       "-c:a",
       "aac",
@@ -178,6 +175,7 @@ export async function assembleVideo(input: AssembleInput): Promise<RenderReport>
     ],
     { signal, timeoutMs: FINAL_TIMEOUT_MS },
   );
+  await probeAudioIntegrity(partial, timeline.durationMs, signal);
   await rename(partial, input.out);
   const probed = await probeProductionVideo(input.out, "mp4");
   const [minSec, maxSec] = input.durationBounds ?? [30, 63];

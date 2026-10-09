@@ -13,6 +13,7 @@ export function SourceResearchPanel({
   onRefresh,
   onEdit,
   onAdd,
+  onQuestionnaire,
 }: {
   readonly project: Project;
   readonly sources: readonly ProjectSource[];
@@ -23,6 +24,7 @@ export function SourceResearchPanel({
   readonly onRefresh: () => void;
   readonly onEdit: (source: ProjectSource) => void;
   readonly onAdd: () => void;
+  readonly onQuestionnaire: () => void;
 }) {
   return (
     <section className="panel">
@@ -41,9 +43,12 @@ export function SourceResearchPanel({
             )}
           </p>
         </div>
-        <Button onClick={() => onCreateJob(project.id)}>
-          이 프로젝트로 작업 만들기 <ArrowRight size={15} />
-        </Button>
+        <div className="cluster">
+          <Button onClick={onQuestionnaire}>판매자 질문지</Button>
+          <Button onClick={() => onCreateJob(project.id)}>
+            이 프로젝트로 작업 만들기 <ArrowRight size={15} />
+          </Button>
+        </div>
       </header>
       {waiting ? (
         <div className="panel-body">

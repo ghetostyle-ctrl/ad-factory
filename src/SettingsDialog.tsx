@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ConfigStatus } from "../shared/schema";
 import { ConfigStatusSchema } from "../shared/schema";
 import { api, errorMessage } from "./api";
+import { InstructionsCard } from "./InstructionsCard";
 import { ModelSettingsForm } from "./ModelSettingsForm";
 import { Button, Dialog, Field, Notice } from "./primitives";
 
@@ -24,10 +25,11 @@ export function SettingsDialog({
     const form = event.currentTarget;
     const data = new FormData(form);
     const openaiApiKey = String(data.get("openaiApiKey") ?? "").trim();
+    const anthropicApiKey = String(data.get("anthropicApiKey") ?? "").trim();
     const geminiApiKey = String(data.get("geminiApiKey") ?? "").trim();
     const metaAccessToken = String(data.get("metaAccessToken") ?? "").trim();
     const typecastApiKey = String(data.get("typecastApiKey") ?? "").trim();
-    if (!openaiApiKey && !geminiApiKey && !metaAccessToken && !typecastApiKey) {
+    if (!openaiApiKey && !anthropicApiKey && !geminiApiKey && !metaAccessToken && !typecastApiKey) {
       setError("추가할 키 또는 토큰을 입력해 주세요.");
       return;
     }
@@ -40,6 +42,7 @@ export function SettingsDialog({
           .post("connections", {
             json: {
               ...(openaiApiKey ? { openaiApiKey } : {}),
+              ...(anthropicApiKey ? { anthropicApiKey } : {}),
               ...(geminiApiKey ? { geminiApiKey } : {}),
               ...(metaAccessToken ? { metaAccessToken } : {}),
               ...(typecastApiKey ? { typecastApiKey } : {}),
@@ -76,7 +79,7 @@ export function SettingsDialog({
   return (
     <Dialog
       title="연결 설정"
-      description="연결 정보와 텍스트·이미지·영상 모델을 설정합니다."
+      description="연결 정보와 텍스트·이미지·영상 모델을 설정하고 지시 파일 상태를 확인합니다."
       onClose={onClose}
     >
       <div className="stack">
@@ -113,6 +116,15 @@ export function SettingsDialog({
               name="openaiApiKey"
               type="password"
               placeholder="sk-…"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </Field>
+          <Field label="Anthropic API 키" help="영상 대본 단계를 Claude 로 돌릴 때 사용합니다.">
+            <input
+              name="anthropicApiKey"
+              type="password"
+              placeholder="sk-ant-…"
               autoComplete="off"
               spellCheck={false}
             />
@@ -155,6 +167,7 @@ export function SettingsDialog({
           </Button>
         </form>
         <ModelSettingsForm settings={config.modelSettings} onSaved={onSaved} />
+        <InstructionsCard />
         <details className="settings-details">
           <summary>실행 환경 자세히 보기</summary>
           <dl className="definition-list">

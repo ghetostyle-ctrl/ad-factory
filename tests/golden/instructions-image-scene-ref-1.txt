@@ -1,0 +1,2 @@
+Base photographic prompt.
+Use reference image 1 for visible product identity, shape, materials and packaging details. Preserve existing product markings; do not invent branding. Do not copy its promotional text, captions, infographic blocks or card layout. Produce the requested photographic scene, not another advertisement card. Establish a consistent photographic person, setting and lighting from the supplied style direction.

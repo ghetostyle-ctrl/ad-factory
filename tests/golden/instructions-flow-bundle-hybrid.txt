@@ -1,0 +1,151 @@
+# Flow 클립 제작 지시 · 영상 1 · 혼합형 영상 1 대본
+
+작업 ID: <jobId>
+Flow 주소: https://labs.google/fx/tools/flow
+클립 2개를 만들어 앱에 업로드하면 앱이 내레이션·정지 이미지·모션그래픽과 조립해 완성 영상을 만든다.
+혼합형(hybrid_explainer_v1): 실사 클립(A~D)에는 사람과 상황이 보여야 하고, 설명 장면(I1~I3)은 사람 없는 클레이·화이트 3D 모형 세계다. 설명 장면의 글자는 INFO 이미지에 넣을 문구(인포그래픽 라벨·숫자)와 앱 자막 한 줄뿐이다.
+Flow 화면 조작 순서는 실제 화면에서 확인된 적이 없다(미검증). 화면이 다르면 화면에 맞게 조정하되 아래 값(비율·길이·프롬프트·시작 이미지)은 바꾸지 않는다.
+자세한 절차: FLOW-MODE.md
+
+## 공통 순서
+
+1. Flow(https://labs.google/fx/tools/flow)에 AI Pro 구독 Google 계정으로 로그인되어 있는지 확인한다.
+2. 클립마다 새 프로젝트(또는 새 장면)를 열고 모델을 Veo 3.1 - Quality(내보낸 suggestedModel)로 고른다.
+3. 화면 비율 9:16, 길이 8초, 해상도 1080p(선택지가 있을 때)로 설정한다.
+4. 시작 이미지(startImageFile)를 첫 프레임 또는 이미지 참조로 올린다.
+5. 프롬프트(prompt)를 수정 없이 그대로 붙여 넣고 생성한다.
+6. 완성되면 시작 이미지와 같은 제품·인물·배경인지, 계획에 없는 글자·로고가 생기지 않았는지 화면에서 직접 확인한다.
+7. 확인한 클립을 outputFile 이름으로 내려받는다(영상 한 편의 다운로드 확인은 사용자에게 한 번만 묻는다).
+8. importCommand 로 앱에 업로드한다. 업로드가 끝나면 앱이 자동으로 다음 단계를 이어간다.
+9. 번들·화면의 '빨간 외곽선'·'흰 발광선'은 기존 강조 종류 이름이며 색을 강제하는 지시가 아니다. 실제 색과 굵기는 INFO·영상 프롬프트의 대비 기준을 따른다.
+
+혼합형 설명 장면(I1~I3)은 설명 세계 CLEAN 이미지 → 계획한 최종 상태와 인포그래픽을 완성한 INFO 이미지 → 두 이미지를 잇는 전환 영상 순서로 만든다. 실사 시작 이미지는 참조로 첨부하지 않는다. INFO에는 설명에 필요한 강조와 한글 라벨만 넣고, 브랜드 기본색 외에도 읽기 위한 대비색을 쓸 수 있다. INFO의 글자는 번들의 '넣을 문구'와 정확히 같아야 하며 앱이 업로드 때 자동 대조한다. 넣을 문구가 없는 예전 혼합형 장면은 글자·숫자·이름표 없이 글자 유무를 검사한다. CLEAN·INFO는 사용자가 확인한 뒤 영상 단계로 넘어가며, 이미지 검사 통과는 영상 중간 프레임의 글자 검증이 아니다.
+10. 눈으로 확인(앱이 자동 검사하지 않음): 설명 장면에는 사람·손·얼굴이 없고, 실사에는 사람과 상황이 보여야 한다. 비교는 겉이 똑같은 상태에서 시작하며 실사 얼굴은 프레임 안, 휴대폰·모니터는 화면이 꺼져 있어야 한다. 영상을 재생하고 편집에 쓸 구간의 시작·중간·끝과 글자 등장/카메라 전환 순간을 확인한다: 한글 변형·추가 문구·화면 밖 잘림·자막 겹침이 없는지, 선과 라벨이 같은 대상을 가리키는지, 동작·그래픽 순서와 INFO 최종 상태가 맞는지 본다. 각 구간만으로 설명이 이해되는지도 확인하고 실제 등장·완료 시각을 기록한다. 문제가 있으면 업로드·다음 제작을 보류하고 보고한다. 이 기록으로 앱이 자동 재편집하지 않으며, 재생성·크레딧 사용은 사용자 승인 범위에서만 한다.
+
+## 클립 A
+
+- 시작 이미지: flow-start-1-A.png (앱 산출물 )
+- 모델: Veo 3.1 - Quality
+- 비율·길이: 9:16 · 8초
+- 내려받을 파일 이름: flow-1-A.mp4
+- 업로드: `bun run flow import <jobId> 1 A <내려받은-파일-경로>`
+
+프롬프트(수정 없이 그대로):
+
+```text
+The woman hesitates over two supplement bottles, picks one up, reads the label, sighs.
+0–3s: Clip A: start wide at the kitchen doorway, dolly in toward the woman, settle on a medium shot. Scene: She turns from the window and reaches for the amber bottle on the table. 3–5.5s: Continue the dolly past her shoulder to the bottle, settle on a close-up of the label. Scene: Her hand lifts the bottle and tilts the cream label toward the lens. 5.5–8s: Orbit a quarter turn around the bottle and hold a steady close-up. Scene: One capsule rolls out into her open palm.
+Start exactly from the supplied image. One continuous camera move through the same 3D space: no cuts, no scene changes, no jump to another angle. At the end of each phase settle on a stable composition and hold it for about 0.4 seconds. Keep the same person, product and background; never create new people or objects. Eight seconds, 9:16. No text, letters, logos or lip sync at any moment. Photographic live action: a real person in a real setting with the real product, natural light and skin; not a clay model, illustration or 3D explainer world. The person's face stays inside the frame; any phone, tablet or monitor screen is switched off (dark glass, no readable content).
+```
+
+## 클립 B
+
+- 시작 이미지: flow-start-1-B.png (앱 산출물 )
+- 모델: Veo 3.1 - Quality
+- 비율·길이: 9:16 · 8초
+- 내려받을 파일 이름: flow-1-B.mp4
+- 업로드: `bun run flow import <jobId> 1 B <내려받은-파일-경로>`
+
+프롬프트(수정 없이 그대로):
+
+```text
+She takes one capsule with water, relaxed, and puts the bottle in her bag.
+0–3s: Clip B: start wide at the kitchen doorway, dolly in toward the woman, settle on a medium shot. Scene: She turns from the window and reaches for the amber bottle on the table. 3–5.5s: Continue the dolly past her shoulder to the bottle, settle on a close-up of the label. Scene: Her hand lifts the bottle and tilts the cream label toward the lens. 5.5–8s: Orbit a quarter turn around the bottle and hold a steady close-up. Scene: One capsule rolls out into her open palm.
+Start exactly from the supplied image. One continuous camera move through the same 3D space: no cuts, no scene changes, no jump to another angle. At the end of each phase settle on a stable composition and hold it for about 0.4 seconds. Keep the same person, product and background; never create new people or objects. Eight seconds, 9:16. No text, letters, logos or lip sync at any moment. Photographic live action: a real person in a real setting with the real product, natural light and skin; not a clay model, illustration or 3D explainer world. The person's face stays inside the frame; any phone, tablet or monitor screen is switched off (dark glass, no readable content).
+```
+
+## 설명 장면 I1 (mechanism · 과정)
+
+1. 설명 세계 CLEAN: 실사 시작 이미지(flow-start-*.png)는 첨부하지 않는다(사람·사진이 섞인다). 같은 영상에서 먼저 만든 설명 장면 CLEAN 이 있으면 그것을 + 메뉴로 참조 첨부해 같은 모형 세계와 같은 물체 색을 유지한다. 아래 CLEAN 프롬프트로 이미지를 만들어 flow-1-I1-clean.png 로 내려받는다. CLEAN 에는 사람·글자·화살표·이름표·링이 없어야 한다.
+2. CLEAN 이미지를 채팅 + 메뉴로 첨부하고 INFO 프롬프트로 강조(색 구분·빨간 외곽선·흰 발광선·반투명 비유)와 인포그래픽(굵은 화살표·치수선·강조 링·한글 라벨·숫자)을 완성한 이미지를 만들어 flow-1-I1-info.png 로 내려받는다. INFO 의 글자는 아래 '넣을 문구'와 정확히 같아야 하고(다른 글자·영문·깨진 한글 금지) 사람이 없어야 한다. 글자가 다르거나 깨졌으면 다시 만든다(이미지 재생성은 크레딧 0).
+3. 두 이미지를 앱에 올린다(INFO 는 앱이 글자를 넣을 문구와 자동 대조해 빠지거나 다른 글자가 있으면 거부한다; 사람 유무는 눈으로 확인한다):
+   - `bun run flow import-image <jobId> 1 I1 clean <CLEAN-이미지-경로>`
+   - `bun run flow import-image <jobId> 1 I1 info <INFO-이미지-경로>`
+4. CLEAN 을 첫 프레임, INFO 를 마지막 프레임으로 첨부해 영상 프롬프트로 9:16·8초 영상을 만들고 flow-1-I1.mp4 로 내려받아 올린다: `bun run flow import <jobId> 1 I1 <내려받은-파일-경로>`. 재생해서 라벨·숫자가 둘째 구간부터 완성된 모양으로 나타나 끝까지 선명한지, 그 밖의 글자·사람이 없는지, 동작이 순서대로 끝나는지 확인한다.
+
+장면: 과정 · 물체: capsule(강조색 1: clay-white translucent capsule shell, rounded ends) / oil(강조색 2: golden olive oil volume, smooth glossy surface)
+동작 순서: 1) The capsule shell splits open along its seam 2) Golden olive oil pours into the open shell 3) The oil level rises until the shell is full
+강조: 빨간 외곽선 → capsule (동작 1 뒤) / 흰 발광선 → oil (동작 2 뒤)
+넣을 문구(정확히): 캡슐 안은 올리브유
+
+CLEAN 프롬프트:
+
+```text
+Clay-white model world under daylight, two brand accent colors (deep olive, warm gold) and white glow lines, no people, no text, no logos. Clay-white translucent capsule shell with rounded ends resting on a clay table, empty space around it, daylight. Objects in the scene (identifiers are production references, never visible text): 1) capsule — clay-white translucent capsule shell, rounded ends — in the first brand accent color 2) oil — golden olive oil volume, smooth glossy surface — in the second brand accent color Show the objects in their starting state, before any action happens; leave clear negative space around them and keep the lower part of the frame uncluttered for the app's caption line. In a comparison the models start identical in shape, size and neutral clay-white, their difference hidden inside. Clay-white 3D model world under soft daylight on a warm ivory floor and backdrop, exposure one stop below pure white (no blown-out white void): tangible objects with matte material shading, soft contact shadows and real depth. No people, hands, faces or characters anywhere. No text, letters, numbers, labels, name tags, leader lines, arrows, rings, icons, speech bubbles, value boxes, tables, checklists, logos or flat UI panels anywhere in this text-free image or clip, in any language. Spoken captions are added separately by the app. Vertical 9:16.
+```
+
+INFO 프롬프트:
+
+```text
+Use the attached CLEAN image as the same 3D scene: preserve object identity, materials, camera framing and light. Apply only the planned object-state changes below; do not crop, add unrelated objects or restyle the scene.
+Explainer world and its two brand accent colors (the first and second accent named here): Clay-white model world under daylight, two brand accent colors (deep olive, warm gold) and white glow lines, no people, no text, no logos.
+The same capsule shell split open with a red outline, golden olive oil volume inside with a white glow line tracing its rise.
+Show the final state reached after these actions, in order; the described INFO state and the last action must agree: 1) The capsule shell splits open along its seam 2) Golden olive oil pours into the open shell 3) The oil level rises until the shell is full
+Add only these emphasis marks, each attached to an object in the scene: 1) after action 1, a bold, clearly visible outline traces the silhouette or relevant boundary of capsule (clay-white translucent capsule shell, rounded ends) without hiding its structure; use the planned graphic color with strong contrast against the object and background, not a mandatory thin red line. 2) after action 2, a clearly visible glowing line or arrow follows the surface or travel path of oil (golden olive oil volume, smooth glossy surface), using the planned high-contrast graphic color and thickness rather than mandatory white; it explains the actual route inside the scene, never a free-floating spiral, squiggle or letter-like shape.
+Add only the infographic elements needed to explain the relation in the finished scene: a bold arrow for direction, a dimension line with end ticks for a supported measurement, or a boundary/ring for the relevant whole. Attach each to its exact target with correct perspective and depth; omit elements that do not help understanding. Each planned label sits beside its target, on a small flat plate or directly on the surface, large and legible on a phone (each glyph at least 3% of the frame height), in a heavy sans-serif. Use the two base brand colors and additional contrasting graphic colors when needed; preserve object colors and keep the same meaning in the same color across scenes. Give the key label or number the strongest emphasis, not every element equally. Choose line color and thickness for the background rather than defaulting to thin red outlines or white glow. Keep every graphic and text line fully inside the middle band, between 20% and 65% of frame height, without covering key structures or other labels; leave the caption area clear. No floating UI panels, charts, tables or checklists.
+Text rule for this image (it overrides any earlier no-text wording): write exactly these text lines, each exactly once, in Korean exactly as given with the same digits and symbols, and no other letters, words or numbers anywhere: 1) 캡슐 안은 올리브유
+Clay-white 3D model world under soft daylight on a warm ivory floor and backdrop, exposure one stop below pure white (no blown-out white void): tangible objects with matte material shading, soft contact shadows and real depth. No people, hands, faces or characters anywhere.
+Vertical 9:16.
+```
+
+영상 프롬프트:
+
+```text
+Start exactly on the first attached CLEAN frame and end exactly on the second attached INFO frame. One continuous shot inside the same clay-white 3D scene. The phase headings are the single timetable; do not introduce another clock inside camera or action descriptions.
+Explainer world and its two brand accent colors (the first and second accent named here): Clay-white model world under daylight, two brand accent colors (deep olive, warm gold) and white glow lines, no people, no text, no logos.
+0–3s: Scene I1: low angle rising toward the capsule models on a clay table. Scene: The capsule shell splits open along its seam. 3–5.5s: Slow orbit a quarter turn around the models, keep both in frame. Scene: Golden olive oil pours into the open shell. 5.5–8s: Fly past and settle on a steady three-quarter close-up. Scene: The oil level rises until the shell is full.
+The objects perform these actions in order, aligned with the phase plan; each reaches its stated result before the next begins and the final object state matches INFO: 1) The capsule shell splits open along its seam 2) Golden olive oil pours into the open shell 3) The oil level rises until the shell is full
+Emphasis appears in this order and then stays: 1) after action 1, a bold, clearly visible outline traces the silhouette or relevant boundary of capsule (clay-white translucent capsule shell, rounded ends) without hiding its structure; use the planned graphic color with strong contrast against the object and background, not a mandatory thin red line. 2) after action 2, a clearly visible glowing line or arrow follows the surface or travel path of oil (golden olive oil volume, smooth glossy surface), using the planned high-contrast graphic color and thickness rather than mandatory white; it explains the actual route inside the scene, never a free-floating spiral, squiggle or letter-like shape.
+Follow the planned start position, target, spatial route and final viewpoint through real 3D depth. Use two or three connected viewpoints across this eight-second source clip, with foreground/background parallax; no cuts or jump to another scene. Movement must reveal the structure, difference, flow or scope being explained, not orbit just to keep moving. Use fast approaches or retreats selectively; settle or slow down when the target, complete label and its boundary need to be read. Keep each phase useful for the planned edit with its required context. No plain cross-fade, static image zoom or slideshow. Preserve object identities and finish in exactly the supplied INFO composition after the planned actions, without unplanned morphing, melting or dissolving.
+Clay-white 3D model world under soft daylight on a warm ivory floor and backdrop, exposure one stop below pure white (no blown-out white void): tangible objects with matte material shading, soft contact shadows and real depth. No people, hands, faces or characters anywhere.
+Reveal only the graphics present in the supplied INFO image, at the relevant actions in the shared phase plan: first emphasize the target, then any needed direction, path or boundary, then the complete label or value. Omit unnecessary stages; do not pop every graphic in together at a fixed second. Lines and paths may draw or progress; Korean labels and numbers appear as complete unchanged units, never letter by letter or by morphing. Each line endpoint and label keeps the same target during movement. Keep all wording fully in frame and readable without obscuring the structure, and finish at the exact positions and shapes in INFO. The only text is these lines, in Korean exactly as given: 1) 캡슐 안은 올리브유. No other letters, words or numbers appear.
+Eight seconds, 9:16. No speech, dialogue or lip sync.
+```
+
+## 설명 장면 I2 (criteria · 비교)
+
+1. 설명 세계 CLEAN: 실사 시작 이미지(flow-start-*.png)는 첨부하지 않는다(사람·사진이 섞인다). 같은 영상에서 먼저 만든 설명 장면 CLEAN 이 있으면 그것을 + 메뉴로 참조 첨부해 같은 모형 세계와 같은 물체 색을 유지한다. 아래 CLEAN 프롬프트로 이미지를 만들어 flow-1-I2-clean.png 로 내려받는다. CLEAN 에는 사람·글자·화살표·이름표·링이 없어야 한다.
+2. CLEAN 이미지를 채팅 + 메뉴로 첨부하고 INFO 프롬프트로 강조(색 구분·빨간 외곽선·흰 발광선·반투명 비유)와 인포그래픽(굵은 화살표·치수선·강조 링·한글 라벨·숫자)을 완성한 이미지를 만들어 flow-1-I2-info.png 로 내려받는다. INFO 의 글자는 아래 '넣을 문구'와 정확히 같아야 하고(다른 글자·영문·깨진 한글 금지) 사람이 없어야 한다. 글자가 다르거나 깨졌으면 다시 만든다(이미지 재생성은 크레딧 0).
+3. 두 이미지를 앱에 올린다(INFO 는 앱이 글자를 넣을 문구와 자동 대조해 빠지거나 다른 글자가 있으면 거부한다; 사람 유무는 눈으로 확인한다):
+   - `bun run flow import-image <jobId> 1 I2 clean <CLEAN-이미지-경로>`
+   - `bun run flow import-image <jobId> 1 I2 info <INFO-이미지-경로>`
+4. CLEAN 을 첫 프레임, INFO 를 마지막 프레임으로 첨부해 영상 프롬프트로 9:16·8초 영상을 만들고 flow-1-I2.mp4 로 내려받아 올린다: `bun run flow import <jobId> 1 I2 <내려받은-파일-경로>`. 재생해서 라벨·숫자가 둘째 구간부터 완성된 모양으로 나타나 끝까지 선명한지, 그 밖의 글자·사람이 없는지, 동작이 순서대로 끝나는지 확인한다.
+
+장면: 비교 · 물체: capsule(강조색 1: clay-white translucent capsule shell, rounded ends) / bottle(중립(클레이·화이트): amber glass supplement bottle, white cap, cream label)
+동작 순서: 1) Two capsule models rise side by side from the clay table 2) The olive-colored capsule fills with golden olive oil while the neutral one stays hollow
+강조: 색 구분 → capsule (동작 1 뒤)
+넣을 문구(정확히): 겉은 같은 캡슐 / 속은 다른 기름
+
+CLEAN 프롬프트:
+
+```text
+Clay-white model world under daylight, two brand accent colors (deep olive, warm gold) and white glow lines, no people, no text, no logos. Two clay-white translucent capsule shells with rounded ends side by side next to an amber glass supplement bottle, same camera, daylight. Objects in the scene (identifiers are production references, never visible text): 1) capsule — clay-white translucent capsule shell, rounded ends — in neutral clay-white 2) bottle — amber glass supplement bottle, white cap, cream label — in neutral clay-white Show the objects in their starting state, before any action happens; leave clear negative space around them and keep the lower part of the frame uncluttered for the app's caption line. In a comparison the models start identical in shape, size and neutral clay-white, their difference hidden inside. Clay-white 3D model world under soft daylight on a warm ivory floor and backdrop, exposure one stop below pure white (no blown-out white void): tangible objects with matte material shading, soft contact shadows and real depth. No people, hands, faces or characters anywhere. No text, letters, numbers, labels, name tags, leader lines, arrows, rings, icons, speech bubbles, value boxes, tables, checklists, logos or flat UI panels anywhere in this text-free image or clip, in any language. Spoken captions are added separately by the app. Vertical 9:16.
+```
+
+INFO 프롬프트:
+
+```text
+Use the attached CLEAN image as the same 3D scene: preserve object identity, materials, camera framing and light. Apply only the planned object-state changes below; do not crop, add unrelated objects or restyle the scene.
+Explainer world and its two brand accent colors (the first and second accent named here): Clay-white model world under daylight, two brand accent colors (deep olive, warm gold) and white glow lines, no people, no text, no logos.
+The same two capsules, the left one olive-colored and full of golden olive oil, the right one neutral and hollow, no text.
+Show the final state reached after these actions, in order; the described INFO state and the last action must agree: 1) Two capsule models rise side by side from the clay table 2) The olive-colored capsule fills with golden olive oil while the neutral one stays hollow
+Add only these emphasis marks, each attached to an object in the scene: 1) after action 1, capsule (clay-white translucent capsule shell, rounded ends) takes on the first brand accent color so it reads apart from the other objects by color alone; the other objects keep their colors.
+Add only the infographic elements needed to explain the relation in the finished scene: a bold arrow for direction, a dimension line with end ticks for a supported measurement, or a boundary/ring for the relevant whole. Attach each to its exact target with correct perspective and depth; omit elements that do not help understanding. Each planned label sits beside its target, on a small flat plate or directly on the surface, large and legible on a phone (each glyph at least 3% of the frame height), in a heavy sans-serif. Use the two base brand colors and additional contrasting graphic colors when needed; preserve object colors and keep the same meaning in the same color across scenes. Give the key label or number the strongest emphasis, not every element equally. Choose line color and thickness for the background rather than defaulting to thin red outlines or white glow. Keep every graphic and text line fully inside the middle band, between 20% and 65% of frame height, without covering key structures or other labels; leave the caption area clear. No floating UI panels, charts, tables or checklists.
+Text rule for this image (it overrides any earlier no-text wording): write exactly these text lines, each exactly once, in Korean exactly as given with the same digits and symbols, and no other letters, words or numbers anywhere: 1) 겉은 같은 캡슐 2) 속은 다른 기름
+Clay-white 3D model world under soft daylight on a warm ivory floor and backdrop, exposure one stop below pure white (no blown-out white void): tangible objects with matte material shading, soft contact shadows and real depth. No people, hands, faces or characters anywhere.
+Vertical 9:16.
+```
+
+영상 프롬프트:
+
+```text
+Start exactly on the first attached CLEAN frame and end exactly on the second attached INFO frame. One continuous shot inside the same clay-white 3D scene. The phase headings are the single timetable; do not introduce another clock inside camera or action descriptions.
+Explainer world and its two brand accent colors (the first and second accent named here): Clay-white model world under daylight, two brand accent colors (deep olive, warm gold) and white glow lines, no people, no text, no logos.
+0–3s: Scene I2: low angle rising toward the capsule models on a clay table. Scene: Two capsule models rise side by side from the clay table. 3–5.5s: Slow orbit a quarter turn around the models, keep both in frame. Scene: The olive-colored capsule fills with golden olive oil while the neutral one stays hollow. 5.5–8s: Fly past and settle on a steady three-quarter close-up. Scene: The olive-colored capsule fills with golden olive oil while the neutral one stays hollow.
+The objects perform these actions in order, aligned with the phase plan; each reaches its stated result before the next begins and the final object state matches INFO: 1) Two capsule models rise side by side from the clay table 2) The olive-colored capsule fills with golden olive oil while the neutral one stays hollow
+Emphasis appears in this order and then stays: 1) after action 1, capsule (clay-white translucent capsule shell, rounded ends) takes on the first brand accent color so it reads apart from the other objects by color alone; the other objects keep their colors.
+Follow the planned start position, target, spatial route and final viewpoint through real 3D depth. Use two or three connected viewpoints across this eight-second source clip, with foreground/background parallax; no cuts or jump to another scene. Movement must reveal the structure, difference, flow or scope being explained, not orbit just to keep moving. Use fast approaches or retreats selectively; settle or slow down when the target, complete label and its boundary need to be read. Keep each phase useful for the planned edit with its required context. No plain cross-fade, static image zoom or slideshow. Preserve object identities and finish in exactly the supplied INFO composition after the planned actions, without unplanned morphing, melting or dissolving.
+Clay-white 3D model world under soft daylight on a warm ivory floor and backdrop, exposure one stop below pure white (no blown-out white void): tangible objects with matte material shading, soft contact shadows and real depth. No people, hands, faces or characters anywhere.
+Reveal only the graphics present in the supplied INFO image, at the relevant actions in the shared phase plan: first emphasize the target, then any needed direction, path or boundary, then the complete label or value. Omit unnecessary stages; do not pop every graphic in together at a fixed second. Lines and paths may draw or progress; Korean labels and numbers appear as complete unchanged units, never letter by letter or by morphing. Each line endpoint and label keeps the same target during movement. Keep all wording fully in frame and readable without obscuring the structure, and finish at the exact positions and shapes in INFO. The only text is these lines, in Korean exactly as given: 1) 겉은 같은 캡슐 2) 속은 다른 기름. No other letters, words or numbers appear.
+Eight seconds, 9:16. No speech, dialogue or lip sync.
+```

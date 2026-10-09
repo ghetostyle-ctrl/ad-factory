@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { CreativePlan } from "../shared/creative-plan";
+import { clipModeOf } from "../shared/flow-mode";
+import { chainExpectation } from "../shared/persuasion-chain";
 import type { RenderState, StoredVideoScriptReview } from "../shared/render-state";
 import type { Job } from "../shared/schema";
 import {
@@ -20,10 +22,21 @@ import {
   type ScriptProblems,
   scriptFeedback,
 } from "../shared/script-rules";
-import { type VideoScript, VideoScriptSchema, videoTargetSeconds } from "../shared/video-script";
+import { copyProblems } from "../shared/script-rules-v2";
+import {
+  type CopyLine,
+  CopyLineSchema,
+  calloutWordInText,
+  type VideoScript,
+  VideoScriptSchema,
+  videoTargetSeconds,
+  videoVariantIndex,
+} from "../shared/video-script";
 import { Artifacts } from "./artifacts";
 import type { ProductionProviders } from "./automation-production";
-import { BlockedError, StudioError } from "./errors";
+import { assessCopy, copyFactTexts } from "./copy-writer";
+import { BlockedError, publicError, StudioError } from "./errors";
+import { instructionsEventMessage, syncThresholds } from "./instructions";
 import { renderStateOf, saveArtifactOnce } from "./render-state-helpers";
 import { writeVideoScript } from "./script-writer";
 import { videoHypotheses } from "./source-production";
@@ -51,11 +64,22 @@ export const ScriptEditSchema = z
   })
   .strict();
 export type ScriptEdit = z.infer<typeof ScriptEditSchema>;
+// 다시 쓰기 본문: 수정 요청(feedback) 또는 외부 카피(copy) 중 하나는 있어야 한다. copy 가 있으면 편지 1(카피 쓰기)을 건너뛰고
+// 그 문장으로 편지 2(장면)를 돌린다(카피 먼저 흐름, 혼합형 기획에서만). 문장 수는 카피 응답 스키마와 같은 4~14개.
 export const ScriptRewriteSchema = z
-  .object({ feedback: z.string().trim().min(1).max(2000) })
-  .strict();
+  .object({
+    feedback: z.string().trim().max(2000).default(""),
+    copy: z.array(CopyLineSchema).min(4).max(14).optional(),
+  })
+  .strict()
+  .refine((body) => body.feedback.length > 0 || body.copy !== undefined, {
+    message: "수정 요청(feedback) 또는 카피(copy)가 필요합니다.",
+    path: ["feedback"],
+  });
 export type ScriptView = {
   readonly number: number;
+  // 저장 대본 전체. 장면 계획 필드(subjects·컷 goal/phase·문장 callouts·클립 plan·설명 컷 graphicOrder)와
+  // 혼합형 필드(explainerAnchor·설명 컷 sceneType/objects/actions/emphasis·planning.visualPolicy)도 그대로 나간다.
   readonly script: VideoScript;
   readonly scriptDigest: string;
   readonly approvalMode: ScriptApprovalMode;
@@ -77,7 +101,7 @@ export class VideoScriptService {
     readonly store: JobStore,
     readonly providers: Pick<
       ProductionProviders,
-      "videoPlanning" | "videoScript" | "reviewVideoScript"
+      "videoPlanning" | "videoScript" | "reviewVideoScript" | "videoCopy"
     >,
   ) {
     this.assets = new Artifacts(store);
@@ -111,6 +135,23 @@ export class VideoScriptService {
     for (const change of edit.captions)
       if (change.cutIndex >= current.cuts.length)
         throw invalid("script_edit", `${change.cutIndex + 1}번째 컷은 없습니다.`, 400);
+    // 장면 계획(2026-10-06 R7): 글만 바꾸고 콜아웃·goal·phase·plan·subjects 는 그대로 둔다(applyScriptEdit 이 나머지 필드를 보존).
+    // 혼합형(2026-10-07)의 explainerAnchor·설명 장면 필드도 같은 이유로 보존되고, 저장 뒤 규칙 분류(hybridProblems)를 다시 지난다.
+    // 콜아웃은 그 문장의 어절에 붙으므로, 새 문장에서 그 어절이 사라지면 저장 전에 어느 콜아웃인지 알려 준다(콜아웃 자체는 이 API 로 못 바꾼다).
+    const lostCallouts = edit.voiceover.flatMap((change) =>
+      (current.voiceover[change.index]?.callouts ?? [])
+        .filter((callout) => !calloutWordInText(callout.word, change.text))
+        .map(
+          (callout) =>
+            `${change.index + 1}번째 문장 콜아웃 '${callout.text}'의 단어가 문장에 없습니다(어절 "${callout.word}")`,
+        ),
+    );
+    if (lostCallouts.length > 0)
+      throw invalid(
+        "script_rules",
+        `${lostCallouts.join(" / ")}. 콜아웃이 붙은 어절은 문장에 그대로 두세요. 콜아웃을 바꾸려면 다시 쓰기를 하세요.`,
+        400,
+      );
     const candidate = applyScriptEdit(current, edit);
     const parsed = VideoScriptSchema.safeParse(candidate);
     if (!parsed.success)
@@ -154,19 +195,46 @@ export class VideoScriptService {
     });
   }
   // 사용자 피드백을 붙여 다시 생성(유료 텍스트 호출, 사용자가 시작). 규칙 분류·AI 검토를 거쳐 저장하고 승인을 푼다.
-  async rewrite(id: string, number: number, feedback: string, signal: AbortSignal): Promise<Job> {
+  // copy 가 있으면 외부 카피: 카피 규칙(shared/script-rules-v2.ts copyProblems)을 먼저 적용해 hard 면 400 copy_rules 로 돌려보낸다(유료 호출 전).
+  async rewrite(
+    id: string,
+    number: number,
+    feedback: string,
+    signal: AbortSignal,
+    copy?: readonly CopyLine[],
+  ): Promise<Job> {
     const job = this.store.get(id);
     this.scriptOf(job, number);
     this.assertEditable(job, number);
+    const hypothesis = this.hypothesisOf(job, number);
+    const targetSec = videoTargetSeconds(
+      id,
+      number,
+      videoVariantIndex(job.videoScripts, number, hypothesis.id),
+    );
+    if (copy) {
+      syncThresholds();
+      const assessment = assessCopy(copy, {
+        durationTargetSec: targetSec,
+        facts: copyFactTexts(job, hypothesis),
+      });
+      if (assessment.hard.length > 0)
+        throw invalid(
+          "copy_rules",
+          `카피가 규칙을 지키지 않습니다(추정 발화 약 ${assessment.estimatedSec}초): ${assessment.hard.join(" / ")}`,
+          400,
+        );
+    }
     const result = await writeVideoScript({
       store: this.store,
       providers: this.providers,
       id,
       number,
-      hypothesis: this.hypothesisOf(job, number),
-      durationSec: videoTargetSeconds(id, number),
+      hypothesis,
+      durationSec: targetSec,
       signal,
-      userFeedback: feedback,
+      ...(feedback.length > 0 ? { userFeedback: feedback } : {}),
+      ...(copy ? { externalCopy: copy } : {}),
       progress: (attempt, reason) => {
         this.store.agent(id, "creative", {
           status: "running",
@@ -178,6 +246,17 @@ export class VideoScriptService {
           }[reason],
         });
       },
+    }).catch((error: unknown) => {
+      this.store.agent(id, "creative", {
+        status:
+          error instanceof BlockedError
+            ? "blocked"
+            : error instanceof Error && error.name === "AbortError"
+              ? "cancelled"
+              : "failed",
+        action: `영상 ${number} 대본 다시 쓰기 중단 · ${publicError(error)}`,
+      });
+      throw error;
     });
     await this.assets.save(id, {
       name: scriptArtifactName(number),
@@ -198,6 +277,12 @@ export class VideoScriptService {
       result.script,
       () => result.review,
       `영상 ${number} 대본을 사용자 피드백으로 ${outcome}.`,
+      // 다시 쓸 때 읽은 지시 파일(D5)
+      result.review.instructionsDigest
+        ? [
+            `영상 ${number} 대본 · ${instructionsEventMessage({ digest: result.review.instructionsDigest })}`,
+          ]
+        : [],
     );
     this.store.agent(id, "creative", {
       status: "review",
@@ -211,6 +296,7 @@ export class VideoScriptService {
     script: VideoScript,
     review: (current: StoredVideoScriptReview | null) => StoredVideoScriptReview | null,
     message: string,
+    extraEvents: readonly string[] = [],
   ): Job {
     return this.store.change(id, (draft) => {
       const index = draft.videoScripts.findIndex((item) => item.number === number);
@@ -221,6 +307,7 @@ export class VideoScriptService {
       const next = review(render.scriptReview);
       if (next) render.scriptReview = next;
       this.store.event(draft, "creative", "info", message);
+      for (const extra of extraEvents) this.store.event(draft, "creative", "info", extra);
     });
   }
   // 편집 저장: 산출물 video-script-<n>.json 은 같은 이름으로 덮어쓴다(목록 중복 없음).
@@ -274,12 +361,26 @@ export class VideoScriptService {
   // 저장된(또는 편집 후보) 대본의 hard/soft 판정. 길이는 저장 길이를 그대로 목표로 둔다(편집으로 길이를 바꿀 수 없다).
   private rulesOf(job: Job, number: number, script: VideoScript): ScriptProblems {
     const hypothesis = this.hypothesisOf(job, number);
-    return classifyScriptProblems(script, {
+    // 규칙 임계값(글자 수·컷 길이 등)은 instructions/thresholds.json 의 지금 값으로 검사한다(재시작 없이 반영).
+    syncThresholds();
+    const scene = classifyScriptProblems(script, {
       number,
       durationSec: script.durationSec,
       hypothesis,
       hasProjectClips: (job.productionSourceSnapshot?.assets.length ?? 0) > 0,
+      infoClipsAllowed: clipModeOf(job) === "flow",
       facts: scriptFactTexts(job, hypothesis),
+      ...chainExpectation(job.creativePlan, hypothesis),
     });
+    if (script.flow !== "copy_first") return scene;
+    // 카피 먼저 흐름(2026-10-08): 장면 규칙(sceneProblemsV2)은 문장을 다시 보지 않으므로, 사용자가 고친 문장도 카피 규칙 8개로 함께 본다.
+    // (쓰는 도중 3회 뒤에도 못 지킨 카피의 hard 도 같은 판정으로 다시 나오고, 문장을 고치면 사라진다.)
+    const copy = copyProblems(
+      script.voiceover.flatMap((voice) =>
+        voice.chainStep === "" ? [] : [{ chainStep: voice.chainStep, text: voice.text }],
+      ),
+      { durationTargetSec: script.durationSec, facts: copyFactTexts(job, hypothesis) },
+    );
+    return { hard: [...copy.hard, ...scene.hard], soft: [...copy.soft, ...scene.soft] };
   }
 }

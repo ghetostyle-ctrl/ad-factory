@@ -7,6 +7,7 @@ import { ImageQualitySchema, ModelIdSchema } from "../shared/models";
 const EnvSchema = z.object({
   PORT: z.coerce.number().int().min(1024).max(65535).default(4317),
   OPENAI_API_KEY: z.string().default(""),
+  ANTHROPIC_API_KEY: z.string().default(""),
   GEMINI_API_KEY: z.string().default(""),
   TYPECAST_API_KEY: z.string().default(""),
   GOOGLE_API_KEY: z.string().default(""),
@@ -47,6 +48,7 @@ export const dataDir = resolve(env.DATA_DIR);
 export const envFilePath = resolve(".env");
 export const credentials = {
   openai: env.OPENAI_API_KEY,
+  anthropic: env.ANTHROPIC_API_KEY,
   gemini: env.GEMINI_API_KEY || env.GOOGLE_API_KEY,
   meta: env.META_ACCESS_TOKEN,
   typecast: env.TYPECAST_API_KEY,
@@ -54,6 +56,7 @@ export const credentials = {
 
 export async function persistCredentials(input: {
   readonly openaiApiKey?: string | undefined;
+  readonly anthropicApiKey?: string | undefined;
   readonly geminiApiKey?: string | undefined;
   readonly metaAccessToken?: string | undefined;
   readonly typecastApiKey?: string | undefined;
@@ -64,6 +67,7 @@ export async function persistCredentials(input: {
   let content = existing;
   for (const [key, value] of Object.entries({
     OPENAI_API_KEY: input.openaiApiKey,
+    ANTHROPIC_API_KEY: input.anthropicApiKey,
     GEMINI_API_KEY: input.geminiApiKey,
     META_ACCESS_TOKEN: input.metaAccessToken,
     TYPECAST_API_KEY: input.typecastApiKey,

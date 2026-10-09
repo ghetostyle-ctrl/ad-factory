@@ -8,7 +8,7 @@ import {
   type VideoScript,
   videoScriptFromFlat,
 } from "../shared/video-script";
-import { fixtureVoiceover } from "./video-script-fixture";
+import { fixtureClipPlan, fixtureSubjects, fixtureVoiceover } from "./video-script-fixture";
 
 // 렌더 테스트 공용 픽스처: ffmpeg lavfi 로 아주 작은 미디어를 만들고(유료 호출 0),
 // 소스 6종(정지 이미지 포함)·효과 8종·Veo 클립 A~D 를 전부 쓰는 대본을 제공한다.
@@ -160,6 +160,8 @@ type Plan = {
   readonly source: FlatScript["cuts"][number]["source"];
   readonly effect: FlatScript["cuts"][number]["effect"];
   readonly veoClip?: "A" | "B" | "C" | "D";
+  // veo_clip 컷이 읽는 클립 구간(장면 계획 2026-10-06). 한 클립의 컷이 모두 같은 구간이면 경고가 나므로 early·mid 를 섞는다.
+  readonly phase?: "early" | "mid" | "late";
   readonly stillId?: StillId;
   readonly graphicKind?: FlatScript["cuts"][number]["graphicKind"];
   readonly graphicLines?: readonly string[];
@@ -169,8 +171,14 @@ type Plan = {
 // 컷 0~23(36초 기준). 효과 8종 전부, 소스 6종 전부, 클립 A~D 각각 8초 이하(Veo 15초=42%),
 // 정지 이미지 S1(4초)·S2(3초) 각각 4초 이하, 모션그래픽 7초(19%).
 const plan: readonly Plan[] = [
-  { source: "veo_clip", effect: "hard_cut", veoClip: "A", onScreenText: "이런 분 주목" },
-  { source: "veo_clip", effect: "zoom_punch", veoClip: "A" },
+  {
+    source: "veo_clip",
+    effect: "hard_cut",
+    veoClip: "A",
+    phase: "early",
+    onScreenText: "이런 분 주목",
+  },
+  { source: "veo_clip", effect: "zoom_punch", veoClip: "A", phase: "early" },
   {
     source: "project_clip",
     effect: "whip_pan",
@@ -185,8 +193,8 @@ const plan: readonly Plan[] = [
   },
   { source: "approved_image", effect: "split_screen" },
   { source: "card_slide", effect: "speed_ramp" },
-  { source: "veo_clip", effect: "shake", veoClip: "B" },
-  { source: "veo_clip", effect: "freeze_frame", veoClip: "B" },
+  { source: "veo_clip", effect: "shake", veoClip: "B", phase: "early" },
+  { source: "veo_clip", effect: "freeze_frame", veoClip: "B", phase: "early" },
   {
     source: "motion_graphic",
     effect: "hard_cut",
@@ -194,8 +202,14 @@ const plan: readonly Plan[] = [
     graphicLines: ["무설탕", "국내 생산", "1일 1포"],
   },
   { source: "card_slide", effect: "zoom_punch" },
-  { source: "veo_clip", effect: "text_pop", veoClip: "C", onScreenText: "핵심은 이것" },
-  { source: "veo_clip", effect: "hard_cut", veoClip: "C" },
+  {
+    source: "veo_clip",
+    effect: "text_pop",
+    veoClip: "C",
+    phase: "early",
+    onScreenText: "핵심은 이것",
+  },
+  { source: "veo_clip", effect: "hard_cut", veoClip: "C", phase: "mid" },
   {
     source: "still_image",
     effect: "whip_pan",
@@ -209,8 +223,8 @@ const plan: readonly Plan[] = [
     graphicKind: "compare",
     graphicLines: ["기존", "우리"],
   },
-  { source: "veo_clip", effect: "zoom_punch", veoClip: "D" },
-  { source: "veo_clip", effect: "hard_cut", veoClip: "D" },
+  { source: "veo_clip", effect: "zoom_punch", veoClip: "D", phase: "early" },
+  { source: "veo_clip", effect: "hard_cut", veoClip: "D", phase: "mid" },
   {
     source: "still_image",
     effect: "text_pop",
@@ -224,7 +238,7 @@ const plan: readonly Plan[] = [
     graphicKind: "question",
     graphicLines: ["왜 매번 실패할까?"],
   },
-  { source: "veo_clip", effect: "shake", veoClip: "A" },
+  { source: "veo_clip", effect: "shake", veoClip: "A", phase: "mid" },
   { source: "still_image", effect: "hard_cut", stillId: "S2", screenComposition: "아침 창가" },
   {
     source: "motion_graphic",
@@ -232,7 +246,7 @@ const plan: readonly Plan[] = [
     graphicKind: "callout",
     graphicLines: ["오늘만", "무료 배송"],
   },
-  { source: "veo_clip", effect: "hard_cut", veoClip: "B" },
+  { source: "veo_clip", effect: "hard_cut", veoClip: "B", phase: "mid" },
   {
     source: "still_image",
     effect: "text_pop",
@@ -301,6 +315,8 @@ export function renderScript(number: number, hypothesisId: string, durationSec =
       stillId: item.stillId ?? "",
       graphicKind: item.graphicKind ?? "",
       graphicLines: [...(item.graphicLines ?? [])],
+      goal: `장면 ${index + 1}의 핵심`,
+      phase: item.phase ?? "",
     };
     start += length;
     return cut;
@@ -318,10 +334,12 @@ export function renderScript(number: number, hypothesisId: string, durationSec =
     cuts,
     voiceover: fixtureVoiceover(cuts),
     styleAnchor: "Same woman in her 30s, navy blouse, bright kitchen, warm morning light.",
+    subjects: fixtureSubjects.map((subject) => ({ ...subject })),
     veoClips: (["A", "B", "C", "D"] as const).map((id) => ({
       id,
       startImagePrompt: `Start frame ${id}: the woman at the kitchen table, portrait.`,
       prompt: `Clip ${id}: portrait product scene, no people talking.`,
+      plan: fixtureClipPlan(id),
     })),
     stills: stillIds.map((id) => ({
       id,

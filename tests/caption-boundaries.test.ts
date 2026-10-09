@@ -140,7 +140,7 @@ test("a quoted sentence keeps its closing quote and the next sentence keeps its 
   expect(captions[1]?.startMs).toBe(1200);
 });
 
-test("an authored override does not leave a sixteen-millisecond flash of a spoken phrase", () => {
+test("cut text never replaces narration while someone is speaking", () => {
   const line = voice({ startMs: 0 });
   const captions = timelineCaptions(
     [line],
@@ -153,7 +153,6 @@ test("an authored override does not leave a sixteen-millisecond flash of a spoke
       },
     ],
   );
-  expect(captions.some((caption) => caption.text === "직접 쓴 자막")).toBe(true);
-  expect(captions.every((caption) => caption.endMs - caption.startMs >= 500)).toBe(true);
-  expect(captions.find((caption) => caption.text === "오늘도 산뜻하게")?.startMs).toBe(2200);
+  expect(captions.some((caption) => caption.text === "직접 쓴 자막")).toBe(false);
+  expect(captions).toEqual(narrationCaptions([line]));
 });

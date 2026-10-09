@@ -53,6 +53,7 @@ test("render state defaults every optional field so partial records stay readabl
     startImages: {},
     stills: {},
     clips: {},
+    infoImages: {},
     final: null,
   });
   expect(emptyRenderState(3, "abc").scriptDigest).toBe("abc");

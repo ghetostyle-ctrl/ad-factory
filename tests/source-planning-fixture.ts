@@ -41,6 +41,33 @@ export function sourcePlanResponse(sourceId: string, referenceSourceIds: readonl
     ["hesitation", "Is the capacity really as stated?"],
   ] as const;
   return CreativePlanResponseSchema.parse({
+    // 시장 조각은 근거 없는 추정(inferred)으로 둔다: 이 픽스처 프로젝트에는 후기가 없고, 레퍼런스 ID는 호출마다 다르다.
+    fragments: situations.map((situation, index) => ({
+      id: `f${index + 1}`,
+      situation,
+      desire: `Keep ${messages[index]?.toLowerCase()} effortless`,
+      pain: problems[index],
+      // t1 조각은 문제를 모르는 고객(TOFU 가능), t2·t3 조각은 현재 대안이 있어 문제를 안다(MOFU 이상).
+      alternative: index === 0 ? "" : "A bigger cup",
+      failedAttempt: "",
+      believedCause: "",
+      hesitation: "Is the capacity really as stated?",
+      quote: "",
+      origin: "inferred",
+      sourceIds: [],
+    })),
+    targets: audiences.map((label, index) => ({
+      id: `t${index + 1}`,
+      label,
+      experience: index === 0 ? "tried_failed" : "first_time",
+      fragmentIds: [`f${index + 1}`],
+      fit: {
+        painStrength: 4,
+        productAnswer: 5 - index,
+        distinctness: 4,
+        reason: `${problems[index]} is answered directly by the measured capacity`,
+      },
+    })),
     customerQuestions: questions.map(([kind, question], index) => ({
       id: `question-${index}`,
       kind,
@@ -85,6 +112,99 @@ export function sourcePlanResponse(sourceId: string, referenceSourceIds: readonl
       visualMechanism: mechanisms[index],
       claimCitations: [{ sourceId, quote: sourceFact.content }],
       referenceSourceIds,
+      targetId: `t${index + 1}`,
+      entryPoint: (["pain", "alternative", "doubt"] as const)[index],
+      chain: {
+        pain: { content: problems[index], basis: "inferred" as const, sourceIds: [] },
+        believedCause: { content: "", basis: "inferred" as const, sourceIds: [] },
+        realCause: {
+          content: "Refill timing, not cup size",
+          basis: "general_knowledge" as const,
+          sourceIds: [],
+        },
+        requirement: {
+          content: "It must hold a full session without a refill",
+          basis: "inferred" as const,
+          sourceIds: [],
+        },
+        productFact: {
+          content: sourceFact.content,
+          basis: "product_fact" as const,
+          sourceIds: [sourceId],
+        },
+        reasonWhy: {
+          // ⑥은 ⑤에 없는 제품 세부(여기서는 용량 숫자)를 더해야 한다.
+          content: `Because the bottle holds a measured 500ml, 50 ml more than a cup`,
+          basis: "product_fact" as const,
+          sourceIds: [sourceId],
+        },
+        outcome: {
+          content: `${messages[index]} with no ${(problems[index] ?? "").toLowerCase()}`,
+          basis: "inferred" as const,
+          sourceIds: [],
+        },
+        exclusivity: "product_specific" as const,
+      },
+      solutionPath:
+        index === 0
+          ? {
+              flow: "cause_reframe" as const,
+              steps: [
+                {
+                  stage: "past_attempt" as const,
+                  content: "Tried a bigger cup",
+                  basis: "inferred" as const,
+                  sourceIds: [],
+                },
+                {
+                  stage: "real_cause" as const,
+                  content: "Refill timing, not cup size",
+                  basis: "general_knowledge" as const,
+                  sourceIds: [],
+                },
+                {
+                  stage: "mechanism" as const,
+                  content: sourceFact.content,
+                  basis: "product_fact" as const,
+                  sourceIds: [sourceId],
+                },
+                {
+                  stage: "outcome" as const,
+                  content: "No mid-task refills",
+                  basis: "inferred" as const,
+                  sourceIds: [],
+                },
+              ],
+            }
+          : {
+              flow: "criteria_first" as const,
+              steps: [
+                {
+                  stage: "criteria" as const,
+                  content: "Check measured capacity",
+                  basis: "general_knowledge" as const,
+                  sourceIds: [],
+                },
+                {
+                  stage: "mechanism" as const,
+                  content: sourceFact.content,
+                  basis: "product_fact" as const,
+                  sourceIds: [sourceId],
+                },
+                {
+                  stage: "verification" as const,
+                  content: "Read the stated capacity",
+                  basis: "product_fact" as const,
+                  sourceIds: [sourceId],
+                },
+                {
+                  stage: "outcome" as const,
+                  content: "Confident choice",
+                  basis: "inferred" as const,
+                  sourceIds: [],
+                },
+              ],
+            },
       creative: {
         ...creative,
         concept: situations[index],

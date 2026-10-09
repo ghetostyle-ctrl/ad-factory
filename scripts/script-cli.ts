@@ -1,5 +1,17 @@
 import { z } from "zod";
+import { CHAIN_STEP_LABELS } from "../shared/persuasion-chain";
+import type { VisualPolicyId } from "../shared/video-planning";
 import {
+  CLIP_PHASE_RANGES_MS,
+  CLIP_PHASES,
+  type ClipPhaseId,
+  type ClipPlan,
+  type ExplainerEmphasis,
+  type ExplainerObject,
+  type InfoClip,
+  isClipPlanEmpty,
+  isExplainerScene,
+  type VideoScript,
   VideoScriptReviewIssueSchema,
   VideoScriptSchema,
   voiceCutRange,
@@ -68,10 +80,96 @@ async function failure(response: Response): Promise<string> {
     ? message
     : `요청을 완료하지 못했습니다. (HTTP ${response.status})`;
 }
+// 클립 구간 라벨: early(0~3초) 형태.
+function phaseLabel(phase: ClipPhaseId): string {
+  const [from, to] = CLIP_PHASE_RANGES_MS[phase];
+  return `${phase}(${from / 1000}~${to / 1000}초)`;
+}
+// 혼합형(2026-10-07) 한국어 라벨. 값은 shared/video-planning.ts·shared/explainer-scene.ts 의 enum 과 같다.
+const POLICY_LABELS: Record<VisualPolicyId, string> = {
+  immersive_explanations_v1: "입체 설명(이전 기준)",
+  hybrid_explainer_v1: "혼합형(실사 + 3D 설명)",
+};
+const SCENE_TYPE_LABELS = { process: "과정", comparison: "비교", analogy: "비유" } as const;
+const COLOR_LABELS: Record<ExplainerObject["color"], string> = {
+  accent1: "강조색 1",
+  accent2: "강조색 2",
+  neutral: "중립",
+};
+const EMPHASIS_LABELS: Record<ExplainerEmphasis["kind"], string> = {
+  color_code: "색 구분",
+  outline: "빨간 외곽선",
+  glow_line: "흰 발광선",
+  ghost_object: "반투명 비유 물체",
+};
+// 혼합형 설명 장면: 종류 · 물체(색) · 동작 순서 · 강조(몇 번째 동작 뒤). 설명 세계에는 글자가 없어 자막 한 줄만 보인다.
+function explainerSceneLines(clip: InfoClip): string[] {
+  if (!isExplainerScene(clip) || clip.sceneType === "") return [];
+  const objects = clip.objects
+    .map((object) => `${object.subjectId}(${COLOR_LABELS[object.color]})`)
+    .join(", ");
+  const actions = clip.actions.map((action, index) => `${index + 1}) ${action}`).join(" ");
+  const emphasis = clip.emphasis
+    .map(
+      (item) =>
+        `${EMPHASIS_LABELS[item.kind]} → ${item.target} (${item.afterAction + 1}번째 동작 뒤)`,
+    )
+    .join(" · ");
+  return [
+    `  장면: ${SCENE_TYPE_LABELS[clip.sceneType]} · 물체: ${objects}`,
+    `  동작: ${actions}`,
+    ...(emphasis ? [`  강조: ${emphasis}`] : []),
+  ];
+}
+// 장면 계획(2026-10-06 R5): Veo 클립·설명 컷의 세 구간 계획(카메라/동작). 계획이 없는 예전 대본은 절을 내지 않는다.
+// 혼합형 설명 장면은 그래픽 순서 대신 장면 종류·물체·동작·강조를 낸다.
+function clipPlanLines(script: VideoScript): string[] {
+  const clips: {
+    label: string;
+    plan: ClipPlan;
+    order: readonly string[];
+    scene: readonly string[];
+  }[] = [
+    ...script.veoClips.map((clip) => ({
+      label: `Veo 클립 ${clip.id}`,
+      plan: clip.plan,
+      order: [],
+      scene: [],
+    })),
+    ...script.infoClips.map((clip) => ({
+      label: `설명 컷 ${clip.id} (${clip.stage})`,
+      plan: clip.plan,
+      order: clip.graphicOrder,
+      scene: explainerSceneLines(clip),
+    })),
+  ].filter((clip) => !isClipPlanEmpty(clip.plan));
+  if (clips.length === 0) return [];
+  return [
+    "",
+    "[클립 구간 계획] (8초 클립의 세 구간 · 카메라 / 동작)",
+    ...clips.flatMap((clip) => [
+      clip.label,
+      ...CLIP_PHASES.map(
+        (phase) =>
+          `  ${phaseLabel(phase)} 카메라: ${clip.plan[phase].camera} / 동작: ${clip.plan[phase].action}`,
+      ),
+      ...(clip.order.length > 0 ? [`  그래픽 순서: ${clip.order.join(" → ")}`] : []),
+      ...clip.scene,
+    ]),
+  ];
+}
+function copyFlowLine(repairs: readonly string[]): string {
+  const record = repairs.find((item) => item.startsWith("카피 먼저:"));
+  const restored = repairs.filter((item) =>
+    item.endsWith("번째 문장을 카피 원문으로 되돌림"),
+  ).length;
+  return `흐름: 카피 먼저${record ? ` · ${record.replace(/^카피 먼저:\s*/u, "")}` : ""} · 카피 원문으로 되돌린 문장 ${restored}개`;
+}
 export function formatScriptView(view: z.infer<typeof ViewSchema>): string[] {
   const { script } = view;
+  const policy = script.planning?.visualPolicy;
   const lines = [
-    `영상 ${view.number} · ${script.title} · ${script.durationSec}초 · 컷 ${script.cuts.length}개`,
+    `영상 ${view.number} · ${script.title} · ${script.durationSec}초 · 컷 ${script.cuts.length}개${policy ? ` · ${POLICY_LABELS[policy]}` : ""}`,
     view.approvalMode === "auto" && !view.pending.includes(view.number)
       ? "대본 확인: 자동 진행(AI 검토 통과, 승인 없이 제작)"
       : view.approved
@@ -81,14 +179,30 @@ export function formatScriptView(view: z.infer<typeof ViewSchema>): string[] {
           : view.review?.accepted === "needsFix" || (view.rules?.hard.length ?? 0) > 0
             ? "규칙 미통과 초안 · 문장·자막을 고쳐 저장(PUT)하거나 `rewrite` 한 뒤 `approve`"
             : "승인 대기 · 확인 후 `approve` 또는 `rewrite`",
+    // 카피 먼저 흐름(2026-10-08): 카피 회차·추정 초(repairs 맨 앞 기록)와 편지 2 가 바꿔서 원문으로 되돌린 문장 수.
+    ...(script.flow === "copy_first" ? [copyFlowLine(view.review?.repairs ?? [])] : []),
     "",
-    "[내레이션] (문장 → 그 문장이 흐르는 컷 번호(0부터)·화면)",
+    "[내레이션] (문장 → 콜아웃 → 그 문장이 흐르는 컷 번호(0부터)·목표·구간·화면)",
     ...script.voiceover.flatMap((voice, index) => {
       const range = voiceCutRange(voice, script.cuts);
-      const head = `${index + 1}. (${voice.startSec}~${voice.endSec}초${range ? `, 컷 ${range[0]}~${range[1]}` : ""}) ${voice.text}`;
+      const head = `${index + 1}. (${voice.startSec}~${voice.endSec}초${range ? `, 컷 ${range[0]}~${range[1]}` : ""}${voice.chainStep ? ` · ${CHAIN_STEP_LABELS[voice.chainStep]}` : ""}) ${voice.text}`;
+      // 콜아웃(R7): 어절 → 종류 '글자' (위치). 그 어절이 발음되는 순간 그려져 컷 끝까지 남는다.
+      const callouts =
+        voice.callouts.length > 0
+          ? [
+              `   콜아웃: ${voice.callouts
+                .map(
+                  (callout) =>
+                    `"${callout.word}" → ${callout.kind} '${callout.text}' (${callout.anchor})`,
+                )
+                .join(" · ")}`,
+            ]
+          : [];
       const cuts = range
         ? script.cuts.slice(range[0], range[1] + 1).map((cut, offset) => {
             const extra = [
+              cut.goal ? `목표 "${cut.goal}"` : "",
+              cut.phase ? `구간 ${cut.phase}` : "",
               cut.onScreenText ? `자막 "${cut.onScreenText.replace("\n", " / ")}"` : "",
               cut.graphicLines.length > 0 ? `글줄 ${cut.graphicLines.join(" / ")}` : "",
             ]
@@ -97,7 +211,7 @@ export function formatScriptView(view: z.infer<typeof ViewSchema>): string[] {
             return `   컷 ${range[0] + offset} (${cut.startSec}~${cut.endSec}초, ${cut.purpose}, ${cut.source}) ${cut.screenComposition}${extra ? ` · ${extra}` : ""}`;
           })
         : [];
-      return [head, ...cuts];
+      return [head, ...callouts, ...cuts];
     }),
     "",
     "[자막] (컷 번호는 0부터)",
@@ -105,6 +219,22 @@ export function formatScriptView(view: z.infer<typeof ViewSchema>): string[] {
       (cut, index) =>
         `컷 ${index} (${cut.startSec}~${cut.endSec}초) ${cut.onScreenText || "(없음)"}`,
     ),
+    ...(script.subjects.length > 0
+      ? [
+          "",
+          "[등장 대상] (모든 이미지 프롬프트가 이 외형 낱말을 직접 담는다)",
+          ...script.subjects.map((subject) => `- ${subject.id}: ${subject.traits}`),
+        ]
+      : []),
+    // 혼합형: 설명 장면(I1~I3)의 CLEAN·INFO 프롬프트가 따르는 기준. 실사 기준(styleAnchor)과 다르며 사람·글자가 없다.
+    ...(script.explainerAnchor
+      ? [
+          "",
+          "[설명 세계 기준] (설명 장면 I1~I3 전용 · 실사 기준과 별개)",
+          `- ${script.explainerAnchor}`,
+        ]
+      : []),
+    ...clipPlanLines(script),
   ];
   if (view.review && view.review.accepted !== "needsFix") {
     lines.push(

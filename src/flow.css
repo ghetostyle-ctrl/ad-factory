@@ -33,6 +33,9 @@
   border-radius: var(--radius);
   background: var(--surface);
 }
+.flow-info-clip {
+  grid-template-columns: minmax(0, 1fr);
+}
 .flow-thumb img,
 .flow-thumb video,
 .flow-thumb .card-slide-pending {

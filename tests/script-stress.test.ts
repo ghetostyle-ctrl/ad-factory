@@ -30,6 +30,9 @@ function cut(input: Partial<SentenceCutResponse> & { readonly len: number }): Se
     stillId: "",
     graphicKind: "",
     graphicLines: [],
+    goal: "이 컷의 핵심",
+    // 장면 계획(2026-10-06): Veo 컷은 클립 구간이 필수다. 오늘 실패 재현과 무관하므로 early 로 둔다.
+    phase: input.source === "veo_clip" ? "early" : "",
     ...input,
   };
 }
@@ -37,7 +40,22 @@ const sentence = (
   purpose: SentenceResponse["purpose"],
   text: string,
   cuts: SentenceCutResponse[],
-): SentenceResponse => ({ purpose, text, cuts });
+): SentenceResponse => ({
+  purpose,
+  chainStep: "bridge",
+  text,
+  callouts: [],
+  actionSync: null,
+  cuts,
+});
+const plan = (id: string) => ({
+  early: {
+    camera: `Clip ${id}: start at the doorway, dolly in, settle on a medium shot`,
+    action: "She hurries",
+  },
+  mid: { camera: "Continue to the counter, settle on the hands", action: "She grabs the keys" },
+  late: { camera: "Orbit to the bottle and hold a close-up", action: "She pauses at the counter" },
+});
 // 오늘 실패를 본뜬 응답: 문장 1·2·4·5·6 이 범위보다 길고, graphicLines 가 Veo·정지 이미지 컷에 붙어 있고, 600 은 어느 컷에도 보이지 않는다.
 function realFailureResponse(): VideoScriptResponse {
   const response = VideoScriptResponseSchema.parse({
@@ -49,16 +67,19 @@ function realFailureResponse(): VideoScriptResponse {
     payoffSec: 22,
     styleAnchor:
       "Same woman in her 30s, grey hoodie, bright apartment kitchen, soft morning light.",
+    subjects: [],
     veoClips: [
       {
         id: "A",
         startImagePrompt: "Woman at the door checking her watch.",
         prompt: "She hurries, grabs keys, pauses at the counter.",
+        plan: plan("A"),
       },
       {
         id: "B",
         startImagePrompt: "Hand opening a capsule bottle.",
         prompt: "One capsule into the palm, swallowed with water.",
+        plan: plan("B"),
       },
     ],
     stills: [
@@ -66,6 +87,7 @@ function realFailureResponse(): VideoScriptResponse {
       { id: "S2", prompt: "Product bottle front, label readable." },
       { id: "S3", prompt: "A single capsule on a clean wooden table." },
     ],
+    infoClips: [],
     sentences: [
       sentence("hook", "출근 전 10초, 영양 챙길 시간 있나요?", [
         // 실패 1행: 모션그래픽이 아닌데 graphicLines

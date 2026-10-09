@@ -11,6 +11,7 @@ import type { Job } from "../shared/schema";
 import { Artifacts } from "./artifacts";
 import { AutomationGuard, contentDigest } from "./automation-guard";
 import type { VideoProvider } from "./clip-production";
+import type { VideoCopyProvider } from "./copy-writer";
 import { BlockedError, MissingConnectionError, StudioError } from "./errors";
 import { generateImageResult, type ImageSize } from "./image-provider";
 import { type ClipFrameReviewTask, Intelligence, type StartImageReviewTask } from "./intelligence";
@@ -25,6 +26,8 @@ export type ProductionProviders = {
   readonly plan?: PlanProvider;
   readonly videoPlanning?: VideoPlanningProvider;
   readonly videoScript?: VideoScriptProvider;
+  // 카피 먼저 흐름의 편지 1(카피). 없으면 실제 텍스트 공급자(generateVideoCopy). 대본 공급자만 주입한 테스트는 예전 한 번에 쓰기 흐름을 쓴다.
+  readonly videoCopy?: VideoCopyProvider;
   // 대본 AI 품질 검토(없으면 실제 텍스트 공급자. 테스트 환경에서는 주입이 필수).
   readonly reviewVideoScript?: VideoScriptReviewer;
   readonly strategy: (job: Job, signal: AbortSignal) => Promise<ModelResult<Strategy>>;

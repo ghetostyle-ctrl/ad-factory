@@ -1,3 +1,4 @@
+import { defaultScriptModel, scriptProviderLabels } from "../shared/models";
 import type { Artifact, Job } from "../shared/schema";
 
 export function ModelProvenance({ job }: { readonly job: Job }) {
@@ -24,6 +25,20 @@ export function ModelProvenance({ job }: { readonly job: Job }) {
                 : models.textModel}
           </dd>
         </div>
+        {models.scriptProvider && models.scriptProvider !== "same" && (
+          <>
+            <div>
+              <dt>영상 대본 공급자</dt>
+              <dd>{scriptProviderLabels[models.scriptProvider]}</dd>
+            </div>
+            <div>
+              <dt>영상 대본 모델</dt>
+              <dd className="mono">
+                {models.scriptModel ?? defaultScriptModel(models.scriptProvider, models.textModel)}
+              </dd>
+            </div>
+          </>
+        )}
         <div>
           <dt>이미지 모델</dt>
           <dd className="mono">{models.imageModel}</dd>
@@ -44,6 +59,7 @@ export function ModelProvenance({ job }: { readonly job: Job }) {
 const providerLabels = {
   openai: "OpenAI",
   codex: "Codex CLI",
+  anthropic: "Claude (Anthropic)",
   gemini: "Gemini(Veo)",
   typecast: "Typecast",
   ffmpeg: "로컬 렌더(ffmpeg)",

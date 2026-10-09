@@ -1,6 +1,7 @@
 import { Lightbulb } from "lucide-react";
 import type { LearningSignal } from "../shared/creative-plan";
 import type { Job } from "../shared/schema";
+import { ChainView, entryPoints, PlanTargetsSection, SolutionPathView } from "./PlanTargets";
 import { Notice } from "./primitives";
 import { VariantStatus } from "./VariantStatus";
 import "./sources.css";
@@ -79,6 +80,7 @@ export function CreativeEvidence({ job }: { readonly job: Job }) {
             </p>
           )}
         </div>
+        <PlanTargetsSection plan={plan} />
         {plan.customerQuestions.length > 0 && (
           <details className="evidence-details" open>
             <summary>
@@ -208,6 +210,42 @@ export function CreativeEvidence({ job }: { readonly job: Job }) {
                 </div>
               </div>
               <dl className="definition-list operation-definition">
+                {hypothesis.targetId && (
+                  <div>
+                    <dt>타겟</dt>
+                    <dd>
+                      {plan.targets?.find((item) => item.id === hypothesis.targetId)?.label ??
+                        hypothesis.targetId}
+                    </dd>
+                  </div>
+                )}
+                {hypothesis.entryPoint && (
+                  <div>
+                    <dt>앞에 세우는 것</dt>
+                    <dd>{entryPoints[hypothesis.entryPoint]}</dd>
+                  </div>
+                )}
+                {hypothesis.chain && (
+                  <div>
+                    <dt>설득 사슬 (이 영상의 메시지 하나)</dt>
+                    <dd>
+                      <ChainView chain={hypothesis.chain} />
+                    </dd>
+                  </div>
+                )}
+                {hypothesis.solutionPath && (
+                  <div>
+                    <dt>
+                      해결 과정 ·{" "}
+                      {hypothesis.solutionPath.flow === "cause_reframe"
+                        ? "원인 재해석"
+                        : "기준 선점"}
+                    </dt>
+                    <dd>
+                      <SolutionPathView path={hypothesis.solutionPath} />
+                    </dd>
+                  </div>
+                )}
                 {hypothesis.customerQuestionId && (
                   <div>
                     <dt>답하는 고객 질문</dt>

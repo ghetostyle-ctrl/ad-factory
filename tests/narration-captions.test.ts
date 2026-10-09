@@ -12,6 +12,8 @@ function measuredScript(): VideoScript {
     voiceover: [
       {
         ...script.voiceover[0],
+        chainStep: "",
+        callouts: [],
         text: voiceText,
         startSec: 0,
         endSec: 5,
@@ -81,6 +83,8 @@ test("caption timing follows uneven relative word timestamps without scaling tem
   const script = measuredScript();
   script.voiceover[0] = {
     ...script.voiceover[0],
+    chainStep: "",
+    callouts: [],
     text: "아침마다 가볍게 오늘도 산뜻하게",
     startSec: 0,
     endSec: 5,
@@ -124,7 +128,7 @@ test("fractional cuts retain exact millisecond boundaries and overlay values", (
   expect(timeline.disclaimer).toBe(script.disclaimer);
 });
 
-test("authored cut text overrides the spoken caption and survives in a silent cut", () => {
+test("captions follow the narration; cut text appears only on a silent cut", () => {
   const script = measuredScript();
   const first = script.cuts[0];
   const silent = script.cuts[5];
@@ -140,7 +144,9 @@ test("authored cut text overrides the spoken caption and survives in a silent cu
       .map((caption) => caption.text)
       .join("")
       .replace(/\s/g, "");
-  expect(textAt(0, first.endSec * 1000)).toBe("직접고친자막이에요");
+  expect(captions.some((caption) => caption.text.includes("직접 고친"))).toBe(false);
+  const spoken = (script.voiceover[0]?.text ?? "").replace(/\s/g, "");
+  expect(spoken.startsWith(textAt(0, first.endSec * 1000))).toBe(true);
   expect(textAt(silent.startSec * 1000, silent.endSec * 1000)).toBe("말없는컷도보여요");
   expect(
     captions.every(

@@ -1,10 +1,6 @@
 import { expect, test } from "bun:test";
-import {
-  bigramChangeRate,
-  guardCopyEdit,
-  injectedNumbers,
-  KOREAN_COPY_POLISH_RULES,
-} from "../shared/copy-polish";
+import { koreanCopyPolishRules } from "../server/copy-instructions";
+import { bigramChangeRate, guardCopyEdit, injectedNumbers } from "../shared/copy-polish";
 import type { VideoCopyEditingResponse, VideoPlanningDraft } from "../shared/video-planning";
 import { fixtureVideoPlanning } from "./video-planning-fixture";
 
@@ -56,7 +52,20 @@ test("an edit that adds a number absent from the draft is reverted and dropped f
   expect(guarded.lines[0]?.text).toBe("가방은 다 챙겼는데 텀블러는 어디에 넣으세요?");
   expect(guarded.review.edits).toHaveLength(1);
   expect(guarded.review.status).toBe("revised");
-  expect(guarded.review.summary).toContain("숫자가 들어간 수정 1건");
+  expect(guarded.review.summary).toContain("들어간 수정 1건");
+});
+
+test("a narration edit that turns spoken Hangul units into Latin is reverted", () => {
+  const draft = draftOf();
+  const edited = editOf(draft, [
+    { lineIndex: 2, field: "narration", after: "500mL를 담을 수 있어요." },
+    { lineIndex: 2, field: "screenText", after: "500mL 용량" },
+  ]);
+  const guarded = guardCopyEdit(draft, edited);
+  expect(guarded.lines[2]?.text).toBe(draft.copy.lines[2]?.text ?? "");
+  expect(guarded.lines[2]?.screenText).toBe("500mL 용량");
+  expect(guarded.review.edits.map((edit) => edit.field)).toEqual(["screenText"]);
+  expect(guarded.review.summary).toContain("들어간 수정 1건");
 });
 
 test("reverting the only edit leaves an honest pass record", () => {
@@ -109,9 +118,10 @@ test("untouched and light edits pass through unchanged", () => {
   expect(guardCopyEdit(draft, none)).toBe(none);
 });
 
-test("the rulebook is a post-editing guide with meaning guards", () => {
-  expect(KOREAN_COPY_POLISH_RULES).toContain("post-editing only");
-  expect(KOREAN_COPY_POLISH_RULES).toContain("never treat them as bans");
-  expect(KOREAN_COPY_POLISH_RULES).toContain("GUARDS");
-  expect(KOREAN_COPY_POLISH_RULES).toContain("im-not-ai");
+test("the rulebook (instructions/copy.md) is a post-editing guide with meaning guards", () => {
+  const rules = koreanCopyPolishRules();
+  expect(rules).toContain("post-editing only");
+  expect(rules).toContain("never treat them as bans");
+  expect(rules).toContain("GUARDS");
+  expect(rules).toContain("im-not-ai");
 });

@@ -1,0 +1,10 @@
+Use the attached image as the base. Keep the photo, framing, camera angle, lighting, person and product exactly the same; do not crop, move or restyle anything.
+A thick callout line from the oil droplet to an empty rounded panel floating on the right
+Add these graphic elements, in this order; all of them must be present in the final image:
+1) A glowing ring settles on the oil droplet
+2) A thick callout line grows from the ring to the right
+3) A translucent rounded panel fades in at the end of the line
+ABSOLUTELY NO TEXT: no letters, words, numbers, digits, labels, captions, logos or typographic marks of any kind, in any language. The app draws all text and numbers later.
+Graphic style: big, bold and instantly readable; glowing edges, bright outlines and translucent fills; placed in 3D with correct perspective, in front of, behind or on the surface of the subject; callout lines point precisely at their target and never cover a face or the product.
+Place every graphic inside the middle band of the frame, between 20% and 65% of the height from the top. Keep the top 20% and the bottom 35% free: the app adds a title and captions there.
+Colors: two or three accent colors that fit the brand tone, a different accent for each piece of information; no neon overload. Do not add any element that is not described above. Vertical 9:16.

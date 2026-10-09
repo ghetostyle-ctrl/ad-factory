@@ -14,6 +14,8 @@ export type SegmentExtras = {
   readonly still?: string;
   // Flow 클립의 검은 띠·워터마크를 잘라낼 영역(조립 전 정리). veo 컷에서만 쓴다.
   readonly clipCrop?: string;
+  // zoom_punch 의 펀치인 시점(컷 시작 기준 ms, R8). 세그먼트 빌더가 타임라인 컷의 punchMs 를 채운다. 없으면 0(컷 시작).
+  readonly punchMs?: number;
 };
 export const FREEZE_TAIL_MS = 600;
 export const SPEED_RAMP_READ_FACTOR = 1.05;
@@ -115,11 +117,14 @@ export function effectFilters(
     case "text_pop":
     case "freeze_frame":
       return { chain: "", inputs: [] };
-    case "zoom_punch":
+    case "zoom_punch": {
+      // 펀치인 프레임 P(R8): 콜아웃이 있는 컷은 첫 콜아웃 시각까지 1.0 으로 기다렸다가 1.18 로 튀고 3프레임 뒤부터 풀린다.
+      const P = Math.max(0, Math.round(((extras.punchMs ?? 0) * F) / 1000));
       return {
-        chain: `,scale=${W * 2}:${H * 2},zoompan=z='if(lt(in\\,3)\\,1.18\\,max(1\\,1.18-0.02*(in-3)))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${W}x${H}:fps=${F}`,
+        chain: `,scale=${W * 2}:${H * 2},zoompan=z='if(lt(in\\,${P})\\,1\\,if(lt(in\\,${P + 3})\\,1.18\\,max(1\\,1.18-0.02*(in-${P}-3))))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${W}x${H}:fps=${F}`,
         inputs: [],
       };
+    }
     case "whip_pan": {
       const blur = `dblur=angle=0:radius=${px(profile, 24)}:enable='lt(t\\,0.15)'`;
       if (extras.prevFrame)
@@ -166,6 +171,10 @@ export function effectFilters(
     default:
       return effect satisfies never;
   }
+}
+// zoom_punch 펀치인 시점은 타임라인 컷(punchMs)에서 온다. 호출자가 extras 로 직접 주면 그 값이 우선한다.
+function withPunch(cut: Pick<TimelineCut, "punchMs">, extras: SegmentExtras): SegmentExtras {
+  return extras.punchMs === undefined && cut.punchMs ? { ...extras, punchMs: cut.punchMs } : extras;
 }
 // 소스에서 읽을 길이와 뒤에 붙일 정지 길이(ms). 8초 초과분(padMs)과 freeze_frame 꼬리를 합친다.
 export function readPlan(
@@ -217,7 +226,7 @@ export function veoSegmentArgs(
   const durMs = cut.endMs - cut.startMs;
   const ref = cut.sourceRef.kind === "veo" ? cut.sourceRef : { offsetMs: 0, padMs: 0 };
   const plan = readPlan(cut, ref.padMs);
-  const effect = effectFilters(cut.effect, durMs, profile, extras);
+  const effect = effectFilters(cut.effect, durMs, profile, withPunch(cut, extras));
   return assemble({
     inputs: ["-ss", sec(ref.offsetMs), "-t", sec(plan.readMs), "-i", clipPath, ...effect.inputs],
     graph: `[0:v]${extras.clipCrop ? `${extras.clipCrop},` : ""}${normalizeChain(profile)}${effect.chain}${tail(durMs, plan.tailMs)}`,
@@ -255,7 +264,7 @@ export function aiStillSegmentArgs(
   const durMs = cut.endMs - cut.startMs;
   const offsetIndex = cut.sourceRef.kind === "still" ? cut.sourceRef.offsetIndex : 0;
   const plan = readPlan(cut);
-  const effect = effectFilters(cut.effect, durMs, profile, extras);
+  const effect = effectFilters(cut.effect, durMs, profile, withPunch(cut, extras));
   return assemble({
     inputs: [
       "-loop",
@@ -285,7 +294,7 @@ export function projectSegmentArgs(
   const durMs = cut.endMs - cut.startMs;
   const startMs = cut.sourceRef.kind === "project" ? cut.sourceRef.startMs : 0;
   const plan = readPlan(cut);
-  const effect = effectFilters(cut.effect, durMs, profile, extras);
+  const effect = effectFilters(cut.effect, durMs, profile, withPunch(cut, extras));
   return assemble({
     inputs: ["-ss", sec(startMs), "-t", sec(plan.readMs), "-i", assetPath, ...effect.inputs],
     graph: `[0:v]${normalizeChain(profile)}${effect.chain}${tail(durMs, plan.tailMs)}`,
@@ -333,6 +342,7 @@ export function lastFrameArgs(segmentPath: string, out: string, fps = 30): strin
     out,
   ];
 }
+// 세그먼트 캐시 키. cut 에는 펀치인 시점(punchMs)·구간(phase)도 들어 있어 콜아웃 시각이 바뀌면 다시 렌더한다.
 export function segmentDigest(input: {
   readonly cut: TimelineCut;
   readonly sourceDigest: string;

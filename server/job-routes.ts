@@ -2,30 +2,44 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { Hono } from "hono";
 import { validator } from "hono-openapi";
+import { z } from "zod";
 import {
   AutomationResetSchema,
   AutomationResumeSchema,
   AutomationStartSchema,
 } from "../shared/automation";
-import { FLOW_CLIP_MAX_BYTES } from "../shared/flow-mode";
+import { FLOW_CLIP_MAX_BYTES, videoScriptFor } from "../shared/flow-mode";
 import { buildProductionManifest } from "../shared/production-manifest";
 import { ClipIdSchema } from "../shared/render-state";
 import { AccountSelectionSchema, CreateJobSchema, PublishSchema } from "../shared/schema";
+import { INFO_CLIP_IDS } from "../shared/video-script";
 import type { AutomationEngine } from "./automation";
 import { AutomationEnrollment } from "./automation-enrollment";
+import { installCalloutOverrideRoutes } from "./callout-override-routes";
+import { CalloutOverrides } from "./callout-overrides";
 import { publicError, StudioError } from "./errors";
 import { evidencePack } from "./evidence-pack";
 import { FlowImport } from "./flow-import";
+import { flowExportFor } from "./flow-instructions";
 import { logger } from "./logger";
 import { analyzeJob } from "./meta-insights";
 import { publishJob } from "./meta-publish";
+import { MusicLibrary } from "./music-library";
 import type { Pipeline } from "./pipeline";
 import { captureProductionSources } from "./production-snapshot";
 import { ProjectStore } from "./project-store";
+import { RenderProduction } from "./render-production";
 import { ScriptEditSchema, ScriptRewriteSchema } from "./script-service";
 import type { JobStore } from "./store";
+import { VideoReassembly } from "./video-reassembly";
 
-export function jobRoutes(store: JobStore, pipeline: Pipeline, engine: AutomationEngine): Hono {
+export function jobRoutes(
+  store: JobStore,
+  pipeline: Pipeline,
+  engine: AutomationEngine,
+  reassembly = new VideoReassembly(store),
+  calloutOverrides?: CalloutOverrides,
+): Hono {
   const routes = new Hono();
   const mutations = new Set<string>();
   const flowImport = new FlowImport(store);
@@ -40,6 +54,15 @@ export function jobRoutes(store: JobStore, pipeline: Pipeline, engine: Automatio
       mutations.delete(id);
     }
   });
+  installCalloutOverrideRoutes(
+    routes,
+    calloutOverrides ??
+      new CalloutOverrides(
+        store,
+        new RenderProduction(store, new ProjectStore(store.db), store.root, new MusicLibrary()),
+      ),
+    (id) => pipeline.active.has(id) || engine.active.has(id),
+  );
   const editable = (id: string) => {
     const job = store.get(id);
     if (pipeline.active.has(id) || job.status === "running" || job.staged || job.automation)
@@ -151,6 +174,34 @@ export function jobRoutes(store: JobStore, pipeline: Pipeline, engine: Automatio
     engine.wakeFlow(id);
     return c.json(result.job);
   });
+  // 설명 컷(I1~I3)의 Flow CLEAN·INFO 이미지 업로드: 원본 바이트 또는 multipart 'file'. INFO 는 글자를 자동 대조한다.
+  routes.post("/:id/videos/:number/info/:clipId/:which", async (c) => {
+    const number = Number(c.req.param("number"));
+    const clipId = z.enum(INFO_CLIP_IDS).safeParse(c.req.param("clipId"));
+    const which = z.enum(["clean", "info"]).safeParse(c.req.param("which"));
+    if (!Number.isInteger(number) || number < 1 || number > 10 || !clipId.success || !which.success)
+      throw new StudioError(
+        "flow_clip",
+        "영상 번호(1~10), 설명 컷 ID(I1~I3), 이미지 종류(clean|info)를 확인하세요.",
+        400,
+      );
+    let bytes: Uint8Array;
+    if ((c.req.header("Content-Type") ?? "").toLowerCase().startsWith("multipart/form-data")) {
+      const file = (await c.req.formData()).get("file");
+      if (!(file instanceof File))
+        throw new StudioError("info_format", "file 필드에 이미지를 첨부하세요.", 400);
+      bytes = new Uint8Array(await file.arrayBuffer());
+    } else bytes = new Uint8Array(await c.req.arrayBuffer());
+    const result = await flowImport.importInfoImage({
+      jobId: c.req.param("id"),
+      number,
+      clipId: clipId.data,
+      which: which.data,
+      bytes,
+      signal: AbortSignal.timeout(180_000),
+    });
+    return c.json(result.job);
+  });
   // 영상 대본 확인·수정·승인·다시 쓰기(사용자 결정 2026-10-04). 승인 전에는 유료 제작(내레이션)을 시작하지 않는다.
   const videoNumber = (raw: string | undefined) => {
     const number = Number(raw);
@@ -158,6 +209,21 @@ export function jobRoutes(store: JobStore, pipeline: Pipeline, engine: Automatio
       throw new StudioError("script_number", "영상 번호는 1~10 입니다.", 400);
     return number;
   };
+  // Flow 번들 미리 보기(화면 FlowPanel): 지시 파일(flow.md)에서 지금 읽은 문장으로 조립한 내보내기 데이터. 산출물 flow-export-<n>.json 과
+  // 같은 모양이며, 클립 단계 전에도(대본만 있으면) 볼 수 있다. 브라우저는 템플릿을 갖지 않으므로 서버가 만든다.
+  routes.get("/:id/videos/:number/flow-export", (c) => {
+    const job = store.get(c.req.param("id"));
+    const number = videoNumber(c.req.param("number"));
+    if (!videoScriptFor(job, number))
+      throw new StudioError("flow_script", `영상 ${number} 의 대본이 없습니다.`, 404);
+    return c.json(flowExportFor(job, number));
+  });
+  routes.post("/:id/videos/:number/reassemble", async (c) => {
+    const id = c.req.param("id");
+    if (pipeline.active.has(id) || engine.active.has(id))
+      throw new StudioError("reassemble_busy", "실행 중인 작업은 재조립할 수 없습니다.");
+    return c.json(await reassembly.run(id, videoNumber(c.req.param("number")), c.req.raw.signal));
+  });
   routes.get("/:id/videos/:number/script", (c) =>
     c.json(engine.services.scripts.view(c.req.param("id"), videoNumber(c.req.param("number")))),
   );
@@ -182,11 +248,14 @@ export function jobRoutes(store: JobStore, pipeline: Pipeline, engine: Automatio
     async (c) => {
       const id = c.req.param("id");
       const number = videoNumber(c.req.param("number"));
+      const body = c.req.valid("json");
+      // body.copy 가 있으면 외부 카피(카피 먼저 흐름): 편지 1 을 건너뛰고 그 문장으로 장면을 새로 쓴다.
       await engine.services.scripts.rewrite(
         id,
         number,
-        c.req.valid("json").feedback,
+        body.feedback,
         new AbortController().signal,
+        body.copy,
       );
       // 자동 진행 정책에서 다시 쓴 대본이 AI 검토를 통과하면 승인이 필요 없으므로 곧바로 이어간다(기본 정책은 승인 전이라 깨어나지 않는다).
       engine.wakeScripts(id);

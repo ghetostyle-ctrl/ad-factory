@@ -6,11 +6,16 @@ import {
   splitSlowCuts,
   verifyLongVideoScript,
   verifyVideoScript,
+  videoScriptInstructions,
 } from "../server/video-scripts";
 import { HypothesisSchema } from "../shared/creative-plan";
 import {
+  CALLOUTS_MAX,
+  CUT_GOAL_MAX_CHARS,
+  CUT_MAX_SEC,
   FlatScriptSchema,
   fitVoiceover,
+  isClipPlanEmpty,
   narrationProblems,
   normalizeSentence,
   STILL_MAX_SEC,
@@ -27,7 +32,13 @@ import {
 } from "../shared/video-script";
 import { renderScript } from "./render-fixture";
 import { sourcePlanResponse } from "./source-planning-fixture";
-import { flatOf, longVideoScript, nestedScriptResponse } from "./video-script-fixture";
+import {
+  fixtureClipPlan,
+  fixtureSentence,
+  flatOf,
+  longVideoScript,
+  nestedScriptResponse,
+} from "./video-script-fixture";
 
 const script = VideoScriptSchema.parse({
   number: 1,
@@ -128,7 +139,7 @@ test.each([
       ...s,
       cuts: s.cuts.map((cut) =>
         cut.source === "approved_image"
-          ? { ...cut, source: "veo_clip" as const, veoClip: "A" as const }
+          ? { ...cut, source: "veo_clip" as const, veoClip: "A" as const, phase: "late" as const }
           : cut,
       ),
     }),
@@ -215,10 +226,17 @@ test.each([
     true,
   ],
   [
-    "too little narration",
+    "too little narration in a legacy unbound script",
     (s: VideoScript): VideoScript => ({
       ...s,
-      cuts: s.cuts.map((cut) => ({ ...cut, narration: "가" })),
+      cuts: s.cuts.map((cut) => ({ ...cut, narration: "짧아요." })),
+      voiceover: s.voiceover.map((voice, index) => ({
+        ...voice,
+        text: fixtureSentence(index, 5),
+        fromCut: -1,
+        toCut: -1,
+        callouts: [],
+      })),
     }),
     30,
     "내레이션 총량",
@@ -366,7 +384,12 @@ test.each([
       ...s,
       veoClips: [
         ...s.veoClips,
-        { id: "E", startImagePrompt: "Fifth start frame.", prompt: "Fifth motion." },
+        {
+          id: "E",
+          startImagePrompt: "Fifth start frame.",
+          prompt: "Fifth motion.",
+          plan: fixtureClipPlan("E"),
+        },
       ],
     }),
     `Veo 클립은 영상 1편에 ${VEO_SHOTS_MAX}개까지`,
@@ -477,17 +500,28 @@ test("the nested script response schema is strict, shallow and rejects the field
     "openLoop",
     "payoffSec",
     "styleAnchor",
+    "subjects",
     "veoClips",
     "stills",
+    "infoClips",
     "sentences",
     "flowPrompt",
     "editInstructions",
   ]);
   const sentence = schema.properties?.["sentences"]?.items;
-  expect(sentence?.required).toEqual(["purpose", "text", "cuts"]);
+  expect(sentence?.required).toEqual([
+    "purpose",
+    "chainStep",
+    "text",
+    "callouts",
+    "actionSync",
+    "cuts",
+  ]);
   const cut = sentence?.properties?.["cuts"]?.items;
-  expect(cut?.required).toHaveLength(9);
+  expect(cut?.required).toHaveLength(11);
   expect(cut?.required).toContain("len");
+  expect(cut?.required).toContain("goal");
+  expect(cut?.required).toContain("phase");
   let depth = 0;
   let enumValues = 0;
   walk(schema, (node, level) => {
@@ -497,7 +531,8 @@ test("the nested script response schema is strict, shallow and rejects the field
     enumValues += node.enum?.length ?? 0;
   });
   expect(depth).toBeLessThanOrEqual(6);
-  expect(enumValues).toBeLessThan(100);
+  // OpenAI json_schema strict 의 enum 값 상한은 전체 1000개다. 장면 계획(phase·콜아웃 kind/anchor)이 더해져 101개이며 200 안에 둔다.
+  expect(enumValues).toBeLessThan(200);
   // 평면 중간 형태(FlatScriptSchema)는 fromCut/toCut 문장을 그대로 받는다(픽스처·편집 경로용)
   const flat = flatOf(stillScript());
   expect(FlatScriptSchema.safeParse(flat).success).toBe(true);
@@ -507,6 +542,8 @@ test("the nested script response schema is strict, shallow and rejects the field
     "toCut",
     "purpose",
     "text",
+    "chainStep",
+    "callouts",
   ]);
 });
 
@@ -565,7 +602,13 @@ test("a script stored before still images existed still parses with empty defaul
     fromCut: -1,
     toCut: -1,
     purpose: "",
+    chainStep: "",
+    callouts: [],
   });
+  // 장면 계획(2026-10-06) 이전 대본: 컷 goal/phase·클립 plan·subjects 는 기본값으로 읽힌다
+  expect(parsed.cuts.every((cut) => cut.goal === "" && cut.phase === "")).toBe(true);
+  expect(parsed.veoClips.every((clip) => isClipPlanEmpty(clip.plan))).toBe(true);
+  expect(parsed.subjects).toEqual([]);
   expect(parsed.cuts[0]?.veoClip).toBe("E");
   expect(parsed.veoClips).toHaveLength(5);
   // 다시 저장했다가 읽어도 같다(저장 형식이 안정적이다).
@@ -763,10 +806,134 @@ test("metadata defaults keep old script serialization stable and explicit metada
     disclaimer: _disclaimer,
     voicePersona: _persona,
     stills: _stills,
+    infoClips: _infoClips,
+    // 혼합형(2026-10-07) 이전 JSON 에는 explainerAnchor 도 없다
+    explainerAnchor: _explainerAnchor,
+    // 카피 먼저 흐름(2026-10-08) 이전 JSON 에는 flow 도 없다
+    flow: _flow,
     ...old
   } = current;
-  const legacy = { ...old, cuts: old.cuts.map(({ stillId: _stillId, ...cut }) => cut) };
+  // 예전 저장 형식: 기본값인 필드(stillId·chainStep, 장면 계획의 빈 phase·빈 callouts)는 없었다. 값이 있는 goal·phase·plan·subjects 는 남는다.
+  const withoutKeys = (record: Record<string, unknown>, drop: (key: string) => boolean) =>
+    Object.fromEntries(Object.entries(record).filter(([key]) => !drop(key)));
+  const legacy = {
+    ...old,
+    cuts: old.cuts.map((cut) =>
+      withoutKeys(cut, (key) => key === "stillId" || (key === "phase" && cut.phase === "")),
+    ),
+    voiceover: old.voiceover.map((voice) =>
+      withoutKeys(
+        voice,
+        (key) => key === "chainStep" || (key === "callouts" && voice.callouts.length === 0),
+      ),
+    ),
+  };
   const saved = VideoScriptSchema.parse(legacy);
   expect(scriptDigestJson(saved)).toBe(JSON.stringify(legacy));
   expect(scriptDigestJson({ ...saved, fixedTitle: ["내 제품"] })).not.toBe(JSON.stringify(legacy));
+});
+
+// 장면 계획(2026-10-06 R1~R8) 프롬프트 문구: 새 절이 있고, 설명 컷 절은 모드에 따라 바뀌며, 예시 문장에 콜아웃이 든다.
+test("the script prompt carries the scene-plan sections and the callout example", () => {
+  const flow = videoScriptInstructions({
+    seconds: 36,
+    hypothesis,
+    hasClips: false,
+    infoClips: true,
+  });
+  for (const section of [
+    "SCENES:",
+    "SUBJECTS:",
+    "CLEAN KEYFRAMES:",
+    "CLIP PLAN:",
+    "INFO CLIPS:",
+    "CUT PHASE:",
+    "CALLOUTS:",
+    "SNAP ZOOM:",
+    "JSON SHAPE:",
+  ])
+    expect(flow).toContain(section);
+  expect(flow).toContain(`never longer than ${CUT_MAX_SEC} seconds`);
+  expect(flow).toContain(`≤${CUT_GOAL_MAX_CHARS} chars`);
+  expect(flow).toContain("early 0–3s, mid 3–5.5s, late 5.5–8s");
+  expect(flow).toContain(`up to ${CALLOUTS_MAX} callouts`);
+  expect(flow).toContain("never on adjacent cuts");
+  expect(flow).toContain("graphicOrder (2–5 English lines");
+  // 예시 문장: 콜아웃 word 는 문장의 어절 그대로, text 의 숫자는 문장이 말하고 컷 자막에 보인다
+  expect(flow).toContain('"callouts":[{"word":"600밀리그램을","text":"600밀리그램"');
+  expect(flow).toContain('"goal":"캡슐 하나에 600밀리그램이 들어 있다"');
+  expect(flow).toContain('"phase":"late"');
+  // 설명 컷의 글자 줄(infoLines)·움직임 글(motionPrompt)은 더 이상 받지 않는다(글자는 앱이 콜아웃으로 그린다)
+  expect(flow).not.toContain("infoLines");
+  expect(flow).not.toContain("motionPrompt");
+  // API 모드: 설명 컷은 없지만 클립 계획·구간 규칙은 그대로
+  const api = videoScriptInstructions({ seconds: 36, hypothesis, hasClips: false });
+  expect(api).toContain("infoClips must be []");
+  expect(api).toContain("CLIP PLAN:");
+  expect(api).toContain("CUT PHASE:");
+  expect(api).not.toContain("graphicOrder (2–5");
+  // 피드백은 끝에 붙는다
+  expect(
+    videoScriptInstructions({ seconds: 36, hypothesis, hasClips: false, feedback: "컷 2 길이" }),
+  ).toContain("FIX THESE PREVIOUS ISSUES: 컷 2 길이");
+});
+
+// 혼합형(hybrid_explainer_v1, 2026-10-07) 프롬프트 문구: 비트→소스 표, 두 anchor, 설명 장면 필드, 글자 없음, 콜아웃은 실사 문장만,
+// 엔딩, 설명 컷 2~4초, 짧은 호흡 리듬. immersive 프롬프트는 그대로다.
+test("the hybrid script prompt carries the hybrid contract and drops the label-based info clip fields", () => {
+  const hybrid = videoScriptInstructions({
+    seconds: 36,
+    hypothesis,
+    hasClips: false,
+    infoClips: true,
+    hybrid: true,
+  });
+  for (const phrase of [
+    "HYBRID PRODUCTION CONTRACT",
+    "BEAT → SOURCE",
+    "TWO ANCHORS",
+    "EXPLAINER SCENES",
+    "EXPLAINER WORLD GRAMMAR",
+    "INFO CLIPS (explainer scenes)",
+    "motion_graphic is not available in this policy",
+    "Explainer cuts (I1..I3) last 2–4 seconds",
+    "callouts belong only to sentences with live-action cuts",
+    "explainerAnchor, subjects[{id, traits}]",
+    "infoClips[{id, stage, cleanPrompt, infoPrompt, infoLines[], plan, sceneType, objects[{subjectId, color}], actions[], emphasis[{kind, target, afterAction}]}]",
+    "EXAMPLE EXPLAINER SCENE AND SENTENCE",
+    '<copy-rhythm-policy id="legacy_rhythm">',
+    `never longer than ${CUT_MAX_SEC} seconds`,
+  ])
+    expect(hybrid).toContain(phrase);
+  for (const phrase of [
+    "graphicOrder (2–5",
+    "IMMERSIVE PRODUCTION CONTRACT",
+    "infoClips[{id, stage, explanation, cleanPrompt",
+    "motionPrompt",
+  ])
+    expect(hybrid).not.toContain(phrase);
+  // immersive 프롬프트는 2026-10-06 그대로(8초 컷·natural_v1·이름표 설명 컷)
+  const immersive = videoScriptInstructions({
+    seconds: 36,
+    hypothesis,
+    hasClips: false,
+    infoClips: true,
+    immersive: true,
+  });
+  expect(immersive).toContain("IMMERSIVE PRODUCTION CONTRACT");
+  expect(immersive).toContain("never longer than 8 seconds");
+  expect(immersive).toContain('<copy-rhythm-policy id="natural_v1">');
+  expect(immersive).toContain("graphicOrder (2–5");
+  expect(immersive).not.toContain("HYBRID PRODUCTION CONTRACT");
+  // 둘 다 참이면 혼합형이 우선한다
+  const both = videoScriptInstructions({
+    seconds: 36,
+    hypothesis,
+    hasClips: false,
+    infoClips: true,
+    immersive: true,
+    hybrid: true,
+  });
+  expect(both).toContain("HYBRID PRODUCTION CONTRACT");
+  expect(both).not.toContain("IMMERSIVE PRODUCTION CONTRACT");
 });

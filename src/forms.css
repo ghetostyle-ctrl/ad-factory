@@ -54,6 +54,88 @@
 .settings-details p {
   margin-top: var(--s4);
 }
+/* 연결 설정 창의 '지시 파일' 읽기 전용 카드(src/InstructionsCard.tsx). 기존 토큰·definition-list·badge 만 쓴다. */
+.instructions-card {
+  border-top: 1px solid var(--line);
+  padding-top: var(--s4);
+}
+.instructions-card-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+.instructions-card-header h3 {
+  margin: 0;
+}
+.instructions-card-header > .button {
+  margin-left: auto;
+}
+.instructions-card code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.instructions-digest {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.instructions-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.instructions-files li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s1) var(--s3);
+  align-items: baseline;
+  padding: var(--s3) var(--s4);
+  font-size: var(--text-sm);
+}
+.instructions-files li + li {
+  border-top: 1px solid var(--line);
+}
+.instructions-files strong {
+  font-size: var(--text-base);
+  overflow-wrap: anywhere;
+}
+.instructions-files .mono {
+  color: var(--muted);
+}
+.instructions-meta {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.instructions-thresholds .definition-list > div {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.instructions-thresholds dt {
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.instructions-thresholds dd {
+  overflow-wrap: anywhere;
+}
+.instructions-threshold-note {
+  display: block;
+}
+@media (max-width: 760px) {
+  .instructions-card-header > .button {
+    margin-left: 0;
+    width: 100%;
+  }
+  .instructions-files li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .account-options {
   display: flex;
   flex-direction: column;

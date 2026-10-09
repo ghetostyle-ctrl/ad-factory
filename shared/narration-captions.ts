@@ -1,7 +1,9 @@
 import { z } from "zod";
 import type { TimelineVoice } from "./render-timeline";
+import { DEFAULT_THRESHOLDS, thresholds } from "./thresholds";
 
-export const CAPTION_LEAD_MS = 200;
+// 자막 선행 시간 기본값. 계산은 thresholds().CAPTION_LEAD_MS(instructions/thresholds.json 주입값)를 호출 때 읽는다.
+export const CAPTION_LEAD_MS = DEFAULT_THRESHOLDS.CAPTION_LEAD_MS;
 export const CaptionSchema = z.object({
   text: z.string(),
   startMs: z.number().int().nonnegative(),
@@ -11,15 +13,24 @@ export const CaptionSchema = z.object({
   keyword: z.string().optional(),
 });
 export type Caption = z.infer<typeof CaptionSchema>;
-const MIN_CHARS = 7;
-const MAX_CHARS = 12;
-const MIN_MS = 500;
-const MAX_MS = 2000;
+// 구절 자막 길이·표시 시간 한도(임계값 CAPTION_MIN_CHARS·CAPTION_LINE_MAX_CHARS·CAPTION_MIN_MS·CAPTION_MAX_MS). 호출 때 읽는다.
+function captionLimits() {
+  const limits = thresholds();
+  return {
+    minChars: limits.CAPTION_MIN_CHARS,
+    maxChars: limits.CAPTION_LINE_MAX_CHARS,
+    minMs: limits.CAPTION_MIN_MS,
+    maxMs: limits.CAPTION_MAX_MS,
+    leadMs: limits.CAPTION_LEAD_MS,
+  };
+}
 const NUMERIC_SPAN =
   /[+-]?\d+(?:[,.]\d+)*(?:\s?(?:밀리그램|캡슐|개월|만원|천원|억원|퍼센트|kg|mg|ml|cm|mm|km|%|초|분|일|주|년|원|개|배|g|m))?/giu;
 
 type Boundary = { readonly offset: number; readonly timeMs: number };
-function textTiming(voice: TimelineVoice, text: string): (offset: number) => number {
+// 문장 글자 위치(offset, 코드포인트 기준) → 문장 안 시각(ms). 음성 단어 시각(voice.words)이 글과 순서대로 맞으면
+// 단어 경계 사이를 보간하고, 하나라도 어긋나면 글자 수 비례로 돌아간다. 자막 끊기와 콜아웃 시각이 같은 규칙을 쓴다.
+export function textTiming(voice: TimelineVoice, text: string): (offset: number) => number {
   const points: Boundary[] = [{ offset: 0, timeMs: 0 }];
   let cursor = 0;
   let previousMs = 0;
@@ -66,6 +77,7 @@ function textTiming(voice: TimelineVoice, text: string): (offset: number) => num
 // Keep punctuation and ordinary words intact; 7–12 characters is a layout target,
 // not semantic phrase analysis. Only overlong words use character-level fallback.
 export function narrationCaptions(voices: readonly TimelineVoice[]): Caption[] {
+  const { minChars, maxChars, minMs, maxMs, leadMs } = captionLimits();
   return voices.flatMap((voice, voiceIndex) => {
     const text = voice.text.replace(/\s+/g, " ").trim();
     const chars = [...text];
@@ -75,7 +87,7 @@ export function narrationCaptions(voices: readonly TimelineVoice[]): Caption[] {
       const start = [...text.slice(0, match.index)].length;
       return { start, end: start + [...match[0]].length };
     });
-    const phraseEnds = [...text.matchAll(/[,.!?。！？;；:：…]+[”’"')\]）]*/gu)]
+    const phraseEnds = [...text.matchAll(/[,.!?。！？;；:：…—]+[”’"')\]）]*/gu)]
       .map((match) => [...text.slice(0, match.index + match[0].length)].length)
       .filter((end) => !numbers.some((span) => span.start < end && end < span.end));
     const costs = Array.from({ length: chars.length + 1 }, () => Number.POSITIVE_INFINITY);
@@ -91,8 +103,8 @@ export function narrationCaptions(voices: readonly TimelineVoice[]): Caption[] {
       const phraseEnd = phraseEnds.find((end) => end > start) ?? chars.length;
       const wordEnd = chars.findIndex((char, offset) => offset > start && char === " ");
       const tokenEnd = Math.min(phraseEnd, wordEnd < 0 ? chars.length : wordEnd);
-      const splitLongWord = tokenEnd - start > MAX_CHARS;
-      const limit = Math.min(phraseEnd, Math.max(start + MAX_CHARS, numberEnd));
+      const splitLongWord = tokenEnd - start > maxChars;
+      const limit = Math.min(phraseEnd, Math.max(start + maxChars, numberEnd));
       for (let end = start + 1; end <= limit; end++) {
         if (numbers.some((span) => span.start < end && end < span.end)) continue;
         const value = chars.slice(start, end).join("").trimEnd();
@@ -101,12 +113,18 @@ export function narrationCaptions(voices: readonly TimelineVoice[]): Caption[] {
         const duration = timeAt(end) - timeAt(start);
         const wordBoundary = end === chars.length || chars[end] === " " || phraseEnds.includes(end);
         if (!wordBoundary && (!splitLongWord || end >= tokenEnd)) continue;
-        const timingCost = Math.max(0, MIN_MS - duration, duration - MAX_MS) / 10;
+        const timingCost = Math.max(0, minMs - duration, duration - maxMs) / 10;
+        // 실측(2026-10-06): "자꾸 깜빡해서 한 / 통을", "'하루 / 한 캡슐'"처럼 꾸밈말 한 글자나 따옴표 안에서 끊으면 어색하다.
+        const lastWord = value.split(" ").at(-1) ?? "";
+        const danglingWord = end < chars.length && [...lastWord].length === 1 ? 60 : 0;
+        const openQuote = (value.match(/['"‘’“”]/gu)?.length ?? 0) % 2 === 1 ? 60 : 0;
         const cost =
           (costs[end] ?? 0) +
           (length - 10) ** 2 +
-          Math.max(0, MIN_CHARS - length) * 10 +
+          Math.max(0, minChars - length) * 10 +
           (wordBoundary ? 0 : 50) +
+          danglingWord +
+          openQuote +
           timingCost;
         if (cost < (costs[start] ?? Number.POSITIVE_INFINITY)) {
           costs[start] = cost;
@@ -124,14 +142,14 @@ export function narrationCaptions(voices: readonly TimelineVoice[]): Caption[] {
     return chunks.map((chunk, index) => {
       const next = chunks[index + 1];
       const followingVoice = voices[voiceIndex + 1];
-      const startMs = Math.max(0, voice.startMs + chunk.startMs - CAPTION_LEAD_MS);
+      const startMs = Math.max(0, voice.startMs + chunk.startMs - leadMs);
       const nextStart = next
-        ? voice.startMs + next.startMs - CAPTION_LEAD_MS
-        : (followingVoice?.startMs ?? Number.POSITIVE_INFINITY) - CAPTION_LEAD_MS;
+        ? voice.startMs + next.startMs - leadMs
+        : (followingVoice?.startMs ?? Number.POSITIVE_INFINITY) - leadMs;
       const endMs = Math.min(
-        voice.startMs + Math.max(chunk.endMs, chunk.startMs + MIN_MS),
+        voice.startMs + Math.max(chunk.endMs, chunk.startMs + minMs),
         nextStart,
-        startMs + MAX_MS,
+        startMs + maxMs,
         voice.startMs + voice.durationMs,
       );
       // A numeric expression is a deterministic single keyword; no semantic claim is added.
@@ -147,8 +165,9 @@ export function narrationCaptions(voices: readonly TimelineVoice[]): Caption[] {
   });
 }
 
-// Authored on-screen text remains an explicit override, including silent cuts.
-// Uncovered intervals keep the measured speech track, independent of cut boundaries.
+// 자막은 내레이션 그 자체다: 음성 단어 시각으로 끊어 말과 글이 같고 싱크가 맞는다(사용자 결정 2026-10-06).
+// 예전에는 컷 문구(onScreenText)가 자막을 덮어써서, 말과 다른 글이 단어 시각 없이 컷 길이에 고르게 나뉘어
+// "물 한 / 컵 + 한 / 알로 끝"처럼 끊기고 말보다 최대 3초 늦게 떴다. 컷 문구는 말이 없는 컷에서만 자막으로 쓴다.
 export function timelineCaptions(
   voices: readonly TimelineVoice[],
   cuts: readonly {
@@ -158,66 +177,27 @@ export function timelineCaptions(
     readonly caption: Caption | null;
   }[],
 ): Caption[] {
-  const authored = cuts.filter((cut) => cut.caption?.text.trim());
-  let spoken = narrationCaptions(voices).map((caption) => ({ caption, clipped: false }));
-  for (const cut of authored) {
-    spoken = spoken.flatMap((item) => {
-      const { caption } = item;
-      if (caption.endMs <= cut.startMs || caption.startMs >= cut.endMs) return [item];
-      return [
-        ...(caption.startMs < cut.startMs
-          ? [{ caption: { ...caption, endMs: cut.startMs }, clipped: true }]
-          : []),
-        ...(caption.endMs > cut.endMs
-          ? [{ caption: { ...caption, startMs: cut.endMs }, clipped: true }]
-          : []),
-      ];
-    });
-  }
-  const merge = (left: Caption, right: Caption): Caption | null => {
-    const duration = right.endMs - left.startMs;
-    if (left.endMs !== right.startMs || duration < MIN_MS || duration > MAX_MS) return null;
-    if (/[,.!?。！？;；:：…][”’"')\]）]*$/u.test(left.text)) return null;
-    const text = [[left.text, right.text].join(" "), left.text + right.text].find(
-      (value) =>
-        [...value].length <= MAX_CHARS && voices.some((voice) => voice.text.includes(value)),
-    );
-    return text ? { ...left, text, endMs: right.endMs } : null;
-  };
-  const readable: Caption[] = [];
-  for (let index = 0; index < spoken.length; index++) {
-    const item = spoken[index];
-    if (!item) continue;
-    if (!item.clipped || item.caption.endMs - item.caption.startMs >= MIN_MS) {
-      readable.push(item.caption);
-      continue;
-    }
-    const previous = readable.at(-1);
-    const before = previous ? merge(previous, item.caption) : null;
-    if (before) {
-      readable[readable.length - 1] = before;
-      continue;
-    }
-    const next = spoken[index + 1];
-    const after = next ? merge(item.caption, next.caption) : null;
-    if (after) {
-      readable.push(after);
-      index++;
-    }
-    // The authored override covers the rest; omit only an unreadable clipped fragment.
-  }
-  const overrides = authored.flatMap((cut) =>
+  const spoken = narrationCaptions(voices);
+  const { leadMs } = captionLimits();
+  const silent = cuts.filter(
+    (cut) =>
+      cut.caption?.text.trim() &&
+      !voices.some(
+        (voice) => voice.startMs < cut.endMs && voice.startMs + voice.durationMs > cut.startMs,
+      ),
+  );
+  const overrides = silent.flatMap((cut) =>
     narrationCaptions([
       {
         index: cut.index,
         text: cut.caption?.text ?? "",
         artifactName: "",
         tempo: 1,
-        startMs: cut.startMs + CAPTION_LEAD_MS,
-        durationMs: Math.max(1, cut.endMs - cut.startMs - CAPTION_LEAD_MS),
+        startMs: cut.startMs + leadMs,
+        durationMs: Math.max(1, cut.endMs - cut.startMs - leadMs),
         words: [],
       },
     ]).map((caption) => ({ ...caption, style: cut.caption?.style ?? caption.style })),
   );
-  return [...readable, ...overrides].sort((left, right) => left.startMs - right.startMs);
+  return [...spoken, ...overrides].sort((left, right) => left.startMs - right.startMs);
 }

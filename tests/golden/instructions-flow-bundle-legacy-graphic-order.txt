@@ -1,0 +1,125 @@
+# Flow 클립 제작 지시 · 영상 1 · 렌더 영상 1 대본
+
+작업 ID: <jobId>
+Flow 주소: https://labs.google/fx/tools/flow
+클립 4개를 만들어 앱에 업로드하면 앱이 내레이션·정지 이미지·모션그래픽과 조립해 완성 영상을 만든다.
+Flow 화면 조작 순서는 실제 화면에서 확인된 적이 없다(미검증). 화면이 다르면 화면에 맞게 조정하되 아래 값(비율·길이·프롬프트·시작 이미지)은 바꾸지 않는다.
+자세한 절차: FLOW-MODE.md
+
+## 공통 순서
+
+1. Flow(https://labs.google/fx/tools/flow)에 AI Pro 구독 Google 계정으로 로그인되어 있는지 확인한다.
+2. 클립마다 새 프로젝트(또는 새 장면)를 열고 모델을 Veo 3.1 - Quality(내보낸 suggestedModel)로 고른다.
+3. 화면 비율 9:16, 길이 8초, 해상도 1080p(선택지가 있을 때)로 설정한다.
+4. 시작 이미지(startImageFile)를 첫 프레임 또는 이미지 참조로 올린다.
+5. 프롬프트(prompt)를 수정 없이 그대로 붙여 넣고 생성한다.
+6. 완성되면 시작 이미지와 같은 제품·인물·배경인지, 계획에 없는 글자·로고가 생기지 않았는지 화면에서 직접 확인한다.
+7. 확인한 클립을 outputFile 이름으로 내려받는다(영상 한 편의 다운로드 확인은 사용자에게 한 번만 묻는다).
+8. importCommand 로 앱에 업로드한다. 업로드가 끝나면 앱이 자동으로 다음 단계를 이어간다.
+9. 글자 없는 방식의 설명 컷은 CLEAN 이미지 → INFO 이미지 → 전환 영상 순서로 만든다. 이 컷의 INFO 이미지에는 글자·숫자·라벨이 없어야 하며(글자는 앱이 콜아웃으로 그린다) 앱이 업로드 때 글자 유무를 자동 검사한다.
+
+## 클립 A
+
+- 시작 이미지: flow-start-1-A.png (앱 산출물 )
+- 모델: Veo 3.1 - Quality
+- 비율·길이: 9:16 · 8초
+- 내려받을 파일 이름: flow-1-A.mp4
+- 업로드: `bun run flow import <jobId> 1 A <내려받은-파일-경로>`
+
+프롬프트(수정 없이 그대로):
+
+```text
+Clip A: portrait product scene, no people talking.
+0–3s: Clip A: start wide at the kitchen doorway, dolly in toward the woman, settle on a medium shot. Scene: She turns from the window and reaches for the amber bottle on the table. 3–5.5s: Continue the dolly past her shoulder to the bottle, settle on a close-up of the label. Scene: Her hand lifts the bottle and tilts the cream label toward the lens. 5.5–8s: Orbit a quarter turn around the bottle and hold a steady close-up. Scene: One capsule rolls out into her open palm.
+Start exactly from the supplied image. One continuous camera move through the same 3D space: no cuts, no scene changes, no jump to another angle. At the end of each phase settle on a stable composition and hold it for about 0.4 seconds. Keep the same person, product and background; never create new people or objects. Eight seconds, 9:16. No text, letters, logos or lip sync at any moment.
+```
+
+## 클립 B
+
+- 시작 이미지: flow-start-1-B.png (앱 산출물 )
+- 모델: Veo 3.1 - Quality
+- 비율·길이: 9:16 · 8초
+- 내려받을 파일 이름: flow-1-B.mp4
+- 업로드: `bun run flow import <jobId> 1 B <내려받은-파일-경로>`
+
+프롬프트(수정 없이 그대로):
+
+```text
+Clip B: portrait product scene, no people talking.
+0–3s: Clip B: start wide at the kitchen doorway, dolly in toward the woman, settle on a medium shot. Scene: She turns from the window and reaches for the amber bottle on the table. 3–5.5s: Continue the dolly past her shoulder to the bottle, settle on a close-up of the label. Scene: Her hand lifts the bottle and tilts the cream label toward the lens. 5.5–8s: Orbit a quarter turn around the bottle and hold a steady close-up. Scene: One capsule rolls out into her open palm.
+Start exactly from the supplied image. One continuous camera move through the same 3D space: no cuts, no scene changes, no jump to another angle. At the end of each phase settle on a stable composition and hold it for about 0.4 seconds. Keep the same person, product and background; never create new people or objects. Eight seconds, 9:16. No text, letters, logos or lip sync at any moment.
+```
+
+## 클립 C
+
+- 시작 이미지: flow-start-1-C.png (앱 산출물 )
+- 모델: Veo 3.1 - Quality
+- 비율·길이: 9:16 · 8초
+- 내려받을 파일 이름: flow-1-C.mp4
+- 업로드: `bun run flow import <jobId> 1 C <내려받은-파일-경로>`
+
+프롬프트(수정 없이 그대로):
+
+```text
+Clip C: portrait product scene, no people talking.
+0–3s: Clip C: start wide at the kitchen doorway, dolly in toward the woman, settle on a medium shot. Scene: She turns from the window and reaches for the amber bottle on the table. 3–5.5s: Continue the dolly past her shoulder to the bottle, settle on a close-up of the label. Scene: Her hand lifts the bottle and tilts the cream label toward the lens. 5.5–8s: Orbit a quarter turn around the bottle and hold a steady close-up. Scene: One capsule rolls out into her open palm.
+Start exactly from the supplied image. One continuous camera move through the same 3D space: no cuts, no scene changes, no jump to another angle. At the end of each phase settle on a stable composition and hold it for about 0.4 seconds. Keep the same person, product and background; never create new people or objects. Eight seconds, 9:16. No text, letters, logos or lip sync at any moment.
+```
+
+## 클립 D
+
+- 시작 이미지: flow-start-1-D.png (앱 산출물 )
+- 모델: Veo 3.1 - Quality
+- 비율·길이: 9:16 · 8초
+- 내려받을 파일 이름: flow-1-D.mp4
+- 업로드: `bun run flow import <jobId> 1 D <내려받은-파일-경로>`
+
+프롬프트(수정 없이 그대로):
+
+```text
+Clip D: portrait product scene, no people talking.
+0–3s: Clip D: start wide at the kitchen doorway, dolly in toward the woman, settle on a medium shot. Scene: She turns from the window and reaches for the amber bottle on the table. 3–5.5s: Continue the dolly past her shoulder to the bottle, settle on a close-up of the label. Scene: Her hand lifts the bottle and tilts the cream label toward the lens. 5.5–8s: Orbit a quarter turn around the bottle and hold a steady close-up. Scene: One capsule rolls out into her open palm.
+Start exactly from the supplied image. One continuous camera move through the same 3D space: no cuts, no scene changes, no jump to another angle. At the end of each phase settle on a stable composition and hold it for about 0.4 seconds. Keep the same person, product and background; never create new people or objects. Eight seconds, 9:16. No text, letters, logos or lip sync at any moment.
+```
+
+## 설명 컷 I1 (mechanism)
+
+1. 같은 영상의 시작 이미지(flow-start-*.png, 인물·제품 기준)를 + 메뉴로 참조 첨부하고 아래 CLEAN 프롬프트로 이미지를 만들어 flow-1-I1-clean.png 로 내려받는다. 참조 없이 만들면 다른 인물·제품이 나온다. CLEAN 에는 글자·화살표·라벨·강조 링이 없어야 한다.
+2. CLEAN 이미지를 채팅 + 메뉴로 첨부하고 INFO 프롬프트로 그래픽을 입힌 이미지를 만들어 flow-1-I1-info.png 로 내려받는다. INFO 에는 글자·숫자·라벨이 없어야 한다(이 컷의 프롬프트 기준). 글자가 보이면 다시 만든다.
+3. 두 이미지를 앱에 올린다(INFO 는 앱이 글자 유무를 자동 검사해 읽히는 글자가 있으면 거부한다):
+   - `bun run flow import-image <jobId> 1 I1 clean <CLEAN-이미지-경로>`
+   - `bun run flow import-image <jobId> 1 I1 info <INFO-이미지-경로>`
+4. CLEAN 을 첫 프레임, INFO 를 마지막 프레임으로 첨부해 영상 프롬프트로 9:16·8초 영상을 만들고 flow-1-I1.mp4 로 내려받아 올린다: `bun run flow import <jobId> 1 I1 <내려받은-파일-경로>`
+
+그래픽 순서: 1) A glowing ring settles on the oil droplet 2) A thick callout line grows from the ring to the right 3) A translucent rounded panel fades in at the end of the line
+
+CLEAN 프롬프트:
+
+```text
+Same woman in her 30s, navy blouse, bright kitchen, warm morning light. Close-up of a capsule cut in half on a wooden table Use the attached reference photo for the same person, clothes, setting and product; do not invent other products or packaging. Photographic vertical 9:16 image, no logos. No text, letters, arrows, numbers, labels, icons or highlight rings anywhere in the image; leave clear negative space for graphics added later.
+```
+
+INFO 프롬프트:
+
+```text
+Use the attached image as the base. Keep the photo, framing, camera angle, lighting, person and product exactly the same; do not crop, move or restyle anything.
+A thick callout line from the oil droplet to an empty rounded panel floating on the right
+Add these graphic elements, in this order; all of them must be present in the final image:
+1) A glowing ring settles on the oil droplet
+2) A thick callout line grows from the ring to the right
+3) A translucent rounded panel fades in at the end of the line
+ABSOLUTELY NO TEXT: no letters, words, numbers, digits, labels, captions, logos or typographic marks of any kind, in any language. The app draws all text and numbers later.
+Graphic style: big, bold and instantly readable; glowing edges, bright outlines and translucent fills; placed in 3D with correct perspective, in front of, behind or on the surface of the subject; callout lines point precisely at their target and never cover a face or the product.
+Place every graphic inside the middle band of the frame, between 20% and 65% of the height from the top. Keep the top 20% and the bottom 35% free: the app adds a title and captions there.
+Colors: two or three accent colors that fit the brand tone, a different accent for each piece of information; no neon overload. Do not add any element that is not described above. Vertical 9:16.
+```
+
+영상 프롬프트:
+
+```text
+Start exactly on the first frame (the clean photo) and end exactly on the last frame (the same photo with the finished graphics).
+0–3s: Clip I1: start wide at the kitchen doorway, dolly in toward the woman, settle on a medium shot. Scene: She turns from the window and reaches for the amber bottle on the table. 3–5.5s: Continue the dolly past her shoulder to the bottle, settle on a close-up of the label. Scene: Her hand lifts the bottle and tilts the cream label toward the lens. 5.5–8s: Orbit a quarter turn around the bottle and hold a steady close-up. Scene: One capsule rolls out into her open palm.
+The graphics build up in this order, each one growing, drawing or lighting itself in: 1) A glowing ring settles on the oil droplet 2) A thick callout line grows from the ring to the right 3) A translucent rounded panel fades in at the end of the line
+One continuous camera move through the same 3D space: no cuts; at the end of each phase settle on a stable composition and hold it for about 0.4 seconds. Not a plain cross-fade and not a static zoom. Keep the person, product and background unchanged; never create new people or objects.
+No text at any moment: no letters, words, numbers, labels, captions or logos appear anywhere in the video, not even in the last frame. Eight seconds, 9:16, no lip sync.
+```

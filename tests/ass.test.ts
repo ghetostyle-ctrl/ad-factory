@@ -6,6 +6,7 @@ import {
   assTime,
   captionsAss,
   checkVector,
+  fixedTitleSpans,
   graphicAss,
   graphicPanel,
 } from "../server/render/ass";
@@ -13,7 +14,7 @@ import { ffPath, fontOnlyDir, runFfmpeg } from "../server/render/ffmpeg";
 import { type FontSet, resolveFont } from "../server/render/fonts";
 import { fitLines, fitText, lineEm } from "../server/render/text-fit";
 import { DEFAULT_PROFILE } from "../server/render/theme";
-import { buildTimeline, type RenderTimeline } from "../shared/render-timeline";
+import { buildTimeline, type RenderTimeline, type TimelineCut } from "../shared/render-timeline";
 import { removeTemp, renderProfile, renderScript, renderTemp } from "./render-fixture";
 
 const hasFfmpeg = Boolean(Bun.which("ffmpeg")) && Boolean(Bun.which("ffprobe"));
@@ -27,8 +28,9 @@ afterAll(async () => {
 });
 
 const font: FontSet = { dir: "C:/fonts", family: "Pretendard", bold: "b.ttf", medium: "m.ttf" };
+// 예전 타임라인 흉내: 음성 자막(captions)·콜아웃(callouts)이 없다(렌더 픽스처는 마지막 문장에 라벨 콜아웃이 있다).
 function legacyTimeline(timeline: RenderTimeline): RenderTimeline {
-  const { captions: _captions, ...legacy } = timeline;
+  const { captions: _captions, callouts: _callouts, ...legacy } = timeline;
   return legacy;
 }
 const malgun: FontSet = {
@@ -356,7 +358,11 @@ test("an explicitly empty phrase track suppresses legacy cut captions", () => {
     })),
   );
   if (!("timeline" in built)) throw new Error("timeline expected");
-  const ass = captionsAss({ ...built.timeline, captions: [] }, DEFAULT_PROFILE, font);
+  const ass = captionsAss(
+    { ...legacyTimeline(built.timeline), captions: [] },
+    DEFAULT_PROFILE,
+    font,
+  );
   expect(ass.split("\n").filter((line) => line.startsWith("Dialogue:"))).toEqual([]);
 });
 
@@ -427,3 +433,57 @@ test.skipIf(!hasFfmpeg || !realFont)(
   },
   60_000,
 );
+
+test("the fixed title is hidden over INFO transition cuts and shown elsewhere", () => {
+  // Given: 설명 컷 I2 가 2~4초, 그 밖은 A 클립·대표 이미지
+  const cut = (
+    index: number,
+    startMs: number,
+    endMs: number,
+    sourceRef: TimelineCut["sourceRef"],
+  ) =>
+    ({
+      index,
+      startMs,
+      endMs,
+      purpose: "hook",
+      source: "veo_clip",
+      effect: "hard_cut",
+      onScreenText: "",
+      caption: null,
+      graphicKind: "",
+      graphicLines: [],
+      sourceRef,
+    }) as TimelineCut;
+  const timeline: RenderTimeline = {
+    number: 1,
+    durationMs: 6000,
+    extendedMs: 0,
+    scriptDigest: "fixture",
+    voice: [],
+    warnings: [],
+    captions: [],
+    fixedTitle: ["출근 전 1초"],
+    cuts: [
+      cut(0, 0, 2000, { kind: "veo", clipId: "A", offsetMs: 0, padMs: 0 }),
+      cut(1, 2000, 4000, { kind: "veo", clipId: "I2", offsetMs: 0, padMs: 0 }),
+      cut(2, 4000, 6000, { kind: "image", artifactName: "image-h1-1.png" }),
+    ],
+  };
+  // When
+  const spans = fixedTitleSpans(timeline);
+  const ass = captionsAss(timeline, DEFAULT_PROFILE, font);
+  // Then
+  expect(spans).toEqual([
+    { startMs: 0, endMs: 2000 },
+    { startMs: 4000, endMs: 6000 },
+  ]);
+  const titles = ass.split("\n").filter((line) => line.includes(",FixedTitle,"));
+  expect(titles).toHaveLength(2);
+  expect(titles[0]).toContain("0:00:00.00,0:00:02.00");
+  expect(titles[1]).toContain("0:00:04.00,0:00:06.00");
+  // 설명 컷이 없으면 전체 구간 하나
+  expect(fixedTitleSpans({ durationMs: 6000, cuts: timeline.cuts.slice(0, 1) })).toEqual([
+    { startMs: 0, endMs: 6000 },
+  ]);
+});

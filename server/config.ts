@@ -18,6 +18,7 @@ export function configStatus(root: string = dataDir): ConfigStatus {
     openai: credentials.openai.length > 0,
     gemini: credentials.gemini.length > 0,
     codex: Boolean(codexBin),
+    anthropic: credentials.anthropic.length > 0,
     meta: credentials.meta.length > 0,
     typecast: credentials.typecast.length > 0,
     // ffmpeg 는 비동기 검사(ffmpegCapabilities) 가 한 번 성공한 뒤에만 true 가 된다(server/index.ts 가 기동 시 1회 실행).

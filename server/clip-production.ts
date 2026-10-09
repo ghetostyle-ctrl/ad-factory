@@ -2,7 +2,6 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  buildFlowExport,
   flowExportMarkdown,
   flowExportName,
   flowReady,
@@ -12,11 +11,11 @@ import type { ModelResult } from "../shared/models";
 import { type ImageReview, ImageReviewSchema } from "../shared/planning";
 import type { ClipId, ClipState } from "../shared/render-state";
 import type { Job } from "../shared/schema";
-import { clipPrompt } from "../shared/veo-prompt";
-import type { VeoClip, VideoScript } from "../shared/video-script";
+import { type VeoClip, type VideoScript, videoPolicyOf } from "../shared/video-script";
 import { Artifacts } from "./artifacts";
 import { AutomationGuard, contentDigest } from "./automation-guard";
 import { BlockedError, StudioError, WaitingError } from "./errors";
+import { clipPromptFor, flowExportFor } from "./flow-instructions";
 import { type ClipFrameReviewTask, Intelligence } from "./intelligence";
 import { extractFrames } from "./render/ffmpeg";
 import {
@@ -60,7 +59,8 @@ export const CLIP_MAX_ATTEMPTS = 2;
 const DETERMINISTIC_VEO_FAILURES = ["veo_failed", "veo_format", "veo_size", "veo_url"] as const;
 export const CLIP_REVIEW_SECONDS = [0.5, 4, 7.5] as const;
 export const DEFAULT_VIDEO_MODEL: VideoModel = "veo-3.1-generate-preview";
-export { clipPrompt };
+// Veo 프롬프트 문장은 instructions/flow.md(server/flow-instructions.ts clipPromptFor)에서 온다.
+export { clipPromptFor as clipPrompt };
 
 const defaultClipState = (): ClipState => ({
   name: null,
@@ -90,7 +90,7 @@ export class ClipProduction {
   async run(id: string, number: number, signal: AbortSignal): Promise<void> {
     const job = this.guard.check(id, signal);
     const script = scriptOf(job, number);
-    if (script.veoClips.length === 0) return;
+    if (script.veoClips.length === 0 && script.infoClips.length === 0) return;
     const policy = job.automation?.policy;
     if (policy?.mode !== "creative") throw new BlockedError("소재 제작 정책이 아닙니다.");
     // Flow 모드: 이 클래스는 Veo API 를 절대 부르지 않는다(공급자 객체도 쓰지 않는다).
@@ -147,7 +147,7 @@ export class ClipProduction {
     if (missing.length === 0) {
       this.store.agent(id, "production", {
         status: "completed",
-        action: `영상 ${number} Flow 클립 ${script.veoClips.length}개 업로드 확인`,
+        action: `영상 ${number} Flow 클립 ${script.veoClips.length + script.infoClips.length}개 업로드 확인`,
       });
       return;
     }
@@ -156,7 +156,8 @@ export class ClipProduction {
     this.store.change(id, (draft) => {
       if (draft.automation) draft.automation.phase = "clips";
     });
-    const data = buildFlowExport(this.store.get(id), number);
+    // 프롬프트·체크리스트 문장은 지시 파일(flow.md)에서 지금 읽은 글로 조립한다(재시작 없이 반영).
+    const data = flowExportFor(this.store.get(id), number);
     await saveArtifactOnce(this.assets, id, {
       name: flowExportName(number, "json"),
       kind: "json",
@@ -263,7 +264,8 @@ export class ClipProduction {
           try {
             const created = await this.veo.create({
               image,
-              prompt: clipPrompt(clip),
+              // 혼합형 실사 클립은 Flow 번들과 같은 실사 꼬리를 붙인다(H3; API 모드도 같은 프롬프트).
+              prompt: clipPromptFor(clip, { liveAction: videoPolicyOf(script) === "hybrid" }),
               model: input.settings.model,
               resolution: input.settings.resolution,
               signal,

@@ -24,39 +24,45 @@ function actionResponse(): VideoScriptResponse {
   const base = nestedScriptResponse(flatOf(longVideoScript(1, hypothesis.id, 30)));
   const cut = base.sentences[0]?.cuts[0];
   if (!cut) throw new Error("fixture cut missing");
+  // 장면 계획(2026-10-06)부터 컷은 5초까지이고 Veo 컷은 클립 구간(early 3초·mid 2.5초) 안에서 읽는다.
+  // 이 픽스처는 짧은 동작을 2~3초로 계획한다. 긴 동작을 위한 4~5초 컷도 허용한다:
+  // 후킹은 클립 A 를 early 3초 + mid 2초 두 컷(문장 둘)으로, 나머지는 대표 이미지 3초·2초 컷 하나씩.
   const beats = [
-    [
-      7,
-      "hook",
-      "뚜껑을 열고 내용물을 꺼내는 손을 따라가 보세요. 손끝에서 제품이 어떻게 달라지는지 바로 확인할 수 있어요.",
-    ],
-    [5, "mechanism", "간편하게 바뀐 모습을 먼저 보여드릴게요. 작은 차이를 눈으로 확인해 보세요."],
-    [5, "pain", "바쁜 아침에는 준비할 일이 많아서 번거로웠죠. 이제 달라진 과정을 살펴보세요."],
-    [5, "proof", "눈앞에서 이어지는 동작을 그대로 담았어요. 처음부터 끝까지 천천히 살펴보세요."],
-    [5, "proof", "매일 쓰는 물건이 놓이는 자리를 보여드릴게요. 익숙한 공간에서 직접 비교해요."],
-    [3, "cta", "우리 집에서 편하게 쓸 수 있을지 자세한 내용을 확인해 보세요."],
+    [[3], "hook", "뚜껑을 열고 꺼내는 손을 그대로 따라가 보세요."],
+    [[2], "hook", "손끝에서 뭐가 달라지는지 바로 보이죠?"],
+    [[3], "mechanism", "간편하게 바뀐 모습부터 눈으로 비교해 보세요."],
+    [[3], "pain", "바쁜 아침마다 준비할 게 많아서 번거로웠죠."],
+    [[3], "proof", "이어지는 동작을 끊지 않고 그대로 담았어요."],
+    [[3], "proof", "매일 쓰는 물건이 놓이는 자리도 함께 보여요."],
+    [[3], "proof", "익숙한 공간에서 직접 견주어 보면 차이가 커요."],
+    [[3], "proof", "처음부터 끝까지 천천히 눈으로 따라와 보세요."],
+    [[3], "proof", "달라진 과정이 한눈에 다 들어오죠?"],
+    [[2], "proof", "작은 차이가 하루 전체를 바꿔요."],
+    [[2], "cta", "우리 집에 맞을지 지금 바로 살펴보세요."],
   ] as const;
   return {
     ...base,
     payoffSec: 5,
-    sentences: beats.map(([len, purpose, text], index) => ({
+    sentences: beats.map(([lengths, purpose, text], index) => ({
       purpose,
+      chainStep: "bridge" as const,
       text,
-      cuts: [
-        {
-          ...cut,
-          len,
-          source: index === 0 ? "veo_clip" : "approved_image",
-          veoClip: index === 0 ? "A" : "",
-          onScreenText: "",
-          effect: "hard_cut",
-        },
-      ],
+      callouts: [],
+      actionSync: null,
+      cuts: lengths.map((len) => ({
+        ...cut,
+        len,
+        source: index <= 1 ? "veo_clip" : "approved_image",
+        veoClip: index <= 1 ? "A" : "",
+        phase: index === 0 ? "early" : index === 1 ? "mid" : "",
+        onScreenText: "",
+        effect: "hard_cut",
+      })),
     })),
   };
 }
 
-test("accepts completed action shots when response cuts last five to seven seconds", () => {
+test("accepts completed action shots when response cuts last two to three seconds", () => {
   // Given
   const response = actionResponse();
   // When
@@ -71,15 +77,24 @@ test("preserves shots, speech timing and an early answer when converting an acti
   // When
   const { script, repairs } = videoScriptFromResponse(response, context);
   // Then
-  expect(script.cuts.map((cut) => cut.endSec - cut.startSec)).toEqual([7, 5, 5, 5, 5, 3]);
-  expect(script.cuts.map((cut) => cut.purpose)).toEqual(response.sentences.map((s) => s.purpose));
+  expect(script.cuts.map((cut) => cut.endSec - cut.startSec)).toEqual([
+    3, 2, 3, 3, 3, 3, 3, 3, 3, 2, 2,
+  ]);
+  expect(script.cuts.map((cut) => cut.purpose)).toEqual(
+    response.sentences.flatMap((s) => s.cuts.map(() => s.purpose)),
+  );
   expect(script.voiceover.map((voice) => [voice.startSec, voice.endSec])).toEqual([
-    [0, 7],
-    [7, 12],
-    [12, 17],
-    [17, 22],
-    [22, 27],
-    [27, 30],
+    [0, 3],
+    [3, 5],
+    [5, 8],
+    [8, 11],
+    [11, 14],
+    [14, 17],
+    [17, 20],
+    [20, 23],
+    [23, 26],
+    [26, 28],
+    [28, 30],
   ]);
   expect(script.payoffSec).toBe(5);
   expect(repairs).toEqual([]);
@@ -94,20 +109,25 @@ test("does not demand faster cuts, middle rehooks or fixed story order when acti
   expect(problems).toEqual({ hard: [], soft: [] });
 });
 
-test("accepts a deliberate seven-second still and proof-led structure with only repetition advice", () => {
+test("accepts a deliberate five-second still and proof-led structure with only repetition advice", () => {
   const response = actionResponse();
   const planned: VideoScriptResponse = {
     ...response,
     veoClips: [],
-    stills: [{ id: "S1", prompt: "A product detail in natural light." }],
+    // 대상(subjects)을 선언한 대본이라 정지 이미지 프롬프트도 대상의 외형 낱말(bottle·kitchen)을 담는다.
+    // 정지 이미지 S1 은 후킹 두 컷(3초+2초=5초)을 채워 4초 넘는 정지 화면 경고만 남긴다.
+    stills: [
+      { id: "S1", prompt: "A product bottle detail on the kitchen table in natural light." },
+    ],
     sentences: response.sentences.map((sentence, index) => ({
       ...sentence,
       purpose: "proof",
       cuts: sentence.cuts.map((cut) => ({
         ...cut,
-        source: index === 0 ? "still_image" : cut.source,
+        source: index <= 1 ? "still_image" : cut.source,
         veoClip: "",
-        stillId: index === 0 ? "S1" : "",
+        phase: "",
+        stillId: index <= 1 ? "S1" : "",
       })),
     })),
   };
@@ -116,7 +136,9 @@ test("accepts a deliberate seven-second still and proof-led structure with only 
     context,
   );
   const problems = classifyScriptProblems(script, expected);
-  expect(script.cuts.map((cut) => cut.endSec - cut.startSec)).toEqual([7, 5, 5, 5, 5, 3]);
+  expect(script.cuts.map((cut) => cut.endSec - cut.startSec)).toEqual([
+    3, 2, 3, 3, 3, 3, 3, 3, 3, 2, 2,
+  ]);
   expect(script.cuts.every((cut) => cut.purpose === "proof")).toBe(true);
   expect(repairs).toEqual([]);
   expect(problems.hard).toEqual([]);

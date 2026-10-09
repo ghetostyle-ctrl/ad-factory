@@ -35,6 +35,7 @@ export function SourceForm({
   readonly onSaved: () => void;
 }) {
   const scanAllowed = source?.provenance.origin !== "success_ai";
+  const [kind, setKind] = useState<string>(source?.kind ?? initialKind ?? "product_fact");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState(source?.title ?? "");
@@ -157,6 +158,7 @@ export function SourceForm({
       status: data.get("included") ? "eligible" : "inactive",
       expiresAt: expiry?.toISOString() ?? null,
       provenance: source?.provenance,
+      ...(kind === "review" && data.get("reviewOf") ? { reviewOf: data.get("reviewOf") } : {}),
       ...(source?.referenceData ? { referenceData: source.referenceData } : {}),
     });
     if (!parsed.success) {
@@ -209,6 +211,7 @@ export function SourceForm({
             <select
               name="kind"
               defaultValue={source?.kind ?? initialKind ?? "product_fact"}
+              onChange={(event) => setKind(event.target.value)}
               disabled={source?.provenance.origin === "success_ai"}
             >
               {Object.entries(sourceKinds).map(([value, label]) => (
@@ -221,6 +224,17 @@ export function SourceForm({
               <input type="hidden" name="kind" value="reference" />
             )}
           </Field>
+          {kind === "review" && (
+            <Field
+              label="누구의 후기인가요?"
+              help="경쟁 제품 후기는 고객의 불편·실패 경험·바라는 점을 찾는 데만 쓰고, 우리 상품의 후기로 쓰지 않습니다."
+            >
+              <select name="reviewOf" defaultValue={source?.reviewOf ?? "own"}>
+                <option value="own">우리 제품 후기</option>
+                <option value="competitor">경쟁 제품 후기</option>
+              </select>
+            </Field>
+          )}
           <Field label="내용의 성격">
             <select name="evidence" defaultValue={source?.evidence ?? "observed"}>
               <option value="observed">실제 자료에서 확인한 내용</option>

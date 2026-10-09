@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
+import ky, { HTTPError } from "ky";
 import type { ProductionProviders } from "../server/automation-production";
 import { StudioError } from "../server/errors";
 import { VideoScriptService } from "../server/script-service";
@@ -103,3 +104,69 @@ test.each(["planning", "writing"] as const)(
     }
   },
 );
+
+test("a failed HTTP review leaves the approved script intact and clears the running agent", async () => {
+  // Given: the draft is valid, but its review endpoint fails after the running event.
+  const f = planningPipelineFixture();
+  let requests = 0;
+  let writes = 0;
+  let providerError: unknown;
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch: () => {
+      requests++;
+      return new Response("private provider failure detail", { status: 503 });
+    },
+  });
+  const service = new VideoScriptService(f.store, {
+    videoPlanning: async () => ({
+      value: { ...f.planning, concept: { ...f.planning.concept, idea: "새 후보 기획" } },
+      model,
+    }),
+    videoScript: async () => {
+      writes++;
+      return { value: f.script, model };
+    },
+    reviewVideoScript: async () => {
+      try {
+        await ky.post(server.url, { retry: 0 }).json();
+      } catch (error) {
+        providerError = error;
+        throw error;
+      }
+      throw new Error("Fixture must fail review");
+    },
+  });
+  await service.saveEdited(f.job.id, 1);
+  service.approve(f.job.id, 1);
+  const before = f.store.get(f.job.id);
+  const path = join(f.store.root, "artifacts", f.job.id, "video-script-1.json");
+  const bytes = await Bun.file(path).text();
+  try {
+    // When
+    const failure = await service.rewrite(f.job.id, 1, "다시 써 주세요", f.input.signal).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    // Then
+    expect(failure).toBeInstanceOf(HTTPError);
+    expect(failure).toBe(providerError);
+    expect(requests).toBe(1);
+    expect(writes).toBe(1);
+    const after = f.store.get(f.job.id);
+    expect(after.videoScripts).toEqual(before.videoScripts);
+    expect(after.renders).toEqual(before.renders);
+    expect(after.artifacts).toEqual(before.artifacts);
+    expect(await Bun.file(path).text()).toBe(bytes);
+    const creative = after.agents.find((agent) => agent.id === "creative");
+    expect(creative?.status).toBe("failed");
+    expect(creative?.finishedAt).not.toBeNull();
+    expect(creative?.action).toContain("HTTP 503");
+    expect(creative?.action).not.toContain("private provider");
+    expect(after.events.at(-1)?.message).toBe(creative?.action);
+  } finally {
+    server.stop(true);
+    await f.close();
+  }
+});

@@ -11,12 +11,13 @@ import { api, errorMessage } from "./api";
 import { ProductionLibrary } from "./ProductionLibrary";
 import { ProjectDialog } from "./ProjectDialog";
 import { Button, Field, Notice } from "./primitives";
+import { SellerQuestionnaire } from "./SellerQuestionnaire";
 import { SourceForm } from "./SourceForm";
 import { SourceImport } from "./SourceImport";
 import { SourceResearchPanel } from "./SourceResearchPanel";
 import "./sources.css";
 
-type SourceModal = "project" | "source" | "import";
+type SourceModal = "project" | "source" | "import" | "questionnaire";
 type SourceDraftKind = "product_fact" | "review" | "offer" | "reference";
 
 export function SourceLibrary({
@@ -197,6 +198,7 @@ export function SourceLibrary({
           onRefresh={refresh}
           onEdit={(item) => openSource(item.kind, item)}
           onAdd={() => openSource("product_fact")}
+          onQuestionnaire={() => setModal("questionnaire")}
         />
       )}
       {project && tab === "production" && <ProductionLibrary key={project.id} project={project} />}
@@ -211,6 +213,13 @@ export function SourceLibrary({
             setModal(successAiHandoff ? "import" : null);
             refresh();
           }}
+        />
+      )}
+      {modal === "questionnaire" && projectId && (
+        <SellerQuestionnaire
+          projectId={projectId}
+          onClose={() => setModal(null)}
+          onSaved={refresh}
         />
       )}
       {modal === "source" && projectId && (

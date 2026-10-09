@@ -180,6 +180,7 @@ export const ConfigStatusSchema = z.object({
   openai: z.boolean(),
   gemini: z.boolean(),
   codex: z.boolean(),
+  anthropic: z.boolean().default(false),
   meta: z.boolean(),
   typecast: z.boolean(),
   // 로컬 렌더 도구 상태: ffmpeg 실행 가능 여부, 자막용 한글 폰트 존재 여부
@@ -206,6 +207,7 @@ export const AccountsSchema = z.object({ accounts: z.array(AccountSchema) });
 export const ConnectionsSchema = z
   .object({
     openaiApiKey: z.string().trim().max(1024).optional(),
+    anthropicApiKey: z.string().trim().max(1024).optional(),
     geminiApiKey: z.string().trim().max(1024).optional(),
     metaAccessToken: z.string().trim().max(4096).optional(),
     typecastApiKey: z.string().trim().max(1024).optional(),

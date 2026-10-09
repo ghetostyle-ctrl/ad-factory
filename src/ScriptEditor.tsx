@@ -1,5 +1,8 @@
 import { CircleCheck, CirclePause, FileCheck, RefreshCw, Save } from "lucide-react";
 import { useState } from "react";
+import { clipModeOf } from "../shared/flow-mode";
+import { hybridProblems } from "../shared/hybrid-script-rules";
+import { chainExpectation } from "../shared/persuasion-chain";
 import type { Job } from "../shared/schema";
 import {
   narrationSynthesized,
@@ -9,7 +12,7 @@ import {
   scriptNeedsApproval,
 } from "../shared/script-approval";
 import { applyScriptEdit } from "../shared/script-edit";
-import { classifyScriptProblems } from "../shared/script-rules";
+import { classifyScriptProblems, scenePlanProblems } from "../shared/script-rules";
 import {
   alignmentProblems,
   hypothesisFactTexts,
@@ -68,11 +71,20 @@ export function ScriptEditor({ job, script }: { readonly job: Job; readonly scri
         durationSec: script.durationSec,
         hypothesis,
         hasProjectClips: (job.productionSourceSnapshot?.assets.length ?? 0) > 0,
+        infoClipsAllowed: clipModeOf(job) === "flow",
         facts: [...hypothesisFactTexts(hypothesis), ...factTexts],
+        ...chainExpectation(job.creativePlan, hypothesis),
       })
-    : {
-        hard: [...narrationProblems(edited.voiceover), ...(bound ? alignmentProblems(edited) : [])],
-        soft: [],
+    : // 가설이 없는 예전 작업: 내레이션·말과 그림 규칙에 더해 장면 계획 규칙(콜아웃 어절·클립 구간)과
+      // 혼합형 규칙(비트별 소스·설명 장면·엔딩; 혼합형이 아니면 빈 결과)도 저장 전에 본다
+      {
+        hard: [
+          ...narrationProblems(edited.voiceover),
+          ...(bound ? alignmentProblems(edited) : []),
+          ...scenePlanProblems(edited).hard,
+          ...hybridProblems(edited).hard,
+        ],
+        soft: [...scenePlanProblems(edited).soft, ...hybridProblems(edited).soft],
       };
   // 고칠 수 있을 때는 지금 입력 기준(live), 아니면 저장된 기록
   const hardProblems = editable ? rules.hard : (review?.hardProblems ?? []);

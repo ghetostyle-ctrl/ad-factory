@@ -1,10 +1,12 @@
+import { explanationLabels } from "./explanation-prompt";
 import {
   type FlatCut,
   type FlatScript,
+  isHybridResponse,
+  type ScriptResponseInput,
   type SentenceCutResponse,
   type SentenceResponse,
   type VideoScript,
-  type VideoScriptResponse,
   videoScriptFromFlat,
 } from "./video-script";
 
@@ -20,6 +22,7 @@ export type ScriptContext = {
   readonly targetSec: number;
   // 광고안에 카드뉴스가 있을 때만 card_slide 컷을 쓸 수 있다(없으면 R4 가 대표 이미지로 바꾼다).
   readonly hasCardSlides?: boolean;
+  readonly requireApprovedImage?: boolean;
 };
 export type Repaired<T> = {
   readonly value: T;
@@ -80,6 +83,11 @@ function hygiene(
     repairs.push(`${where}(${label})의 veoClip ${next.veoClip} 삭제`);
     next = { ...next, veoClip: "" };
   }
+  // 클립 구간(phase)은 veoClip 과 같은 Veo 전용 부속 필드다(2026-10-06). 비어 있는 veo_clip 컷의 구간은 추측하지 않는다(hard).
+  if (next.source !== "veo_clip" && next.phase !== "") {
+    repairs.push(`${where}(${label})의 클립 구간(phase ${next.phase}) 삭제`);
+    next = { ...next, phase: "" };
+  }
   if (next.source !== "still_image" && next.stillId !== "") {
     repairs.push(`${where}(${label})의 stillId ${next.stillId} 삭제`);
     next = { ...next, stillId: "" };
@@ -88,10 +96,11 @@ function hygiene(
 }
 
 // 중첩 형태에서 컷 단위 기계 수리(R1~R6). 문장 순서·문장 수는 바꾸지 않는다.
+// 혼합형 응답(explainerAnchor 있음)도 같은 수리를 거치며 설명 장면 필드(sceneType·objects·actions·emphasis)는 그대로 보존한다.
 export function repairSentences(
-  response: VideoScriptResponse,
-  ctx: Pick<ScriptContext, "hasCardSlides">,
-): Repaired<VideoScriptResponse> {
+  response: ScriptResponseInput,
+  ctx: Pick<ScriptContext, "hasCardSlides" | "requireApprovedImage">,
+): Repaired<ScriptResponseInput> {
   const repairs: string[] = [];
   const warnings: string[] = [];
   const sentences: SentenceResponse[] = response.sentences.map((sentence, index) => {
@@ -100,10 +109,24 @@ export function repairSentences(
     const cuts = sentence.cuts.map((cut, k) =>
       hygiene(cut, `${where} ${k + 1}번째 컷`, ctx, repairs),
     );
+    // 혼합형(2026-10-08 실측): 설명 장면에는 immersive 의 설명 동작(beats)이 없어 actionSync 를 묶을 데가 없다. 모델이
+    // {clipId, beatId: early…} 를 적으면 예전 규칙(설명 동작 연결, hard 5건)과 타임라인(missing_beat)이 막히므로 비운다 —
+    // 컷의 단계(phase)가 타이밍을 정한다.
+    if (isHybridResponse(response) && sentence.actionSync) {
+      repairs.push(
+        `${where}: 혼합형에는 설명 동작 연결(actionSync)이 없어 비웠습니다(컷의 단계가 타이밍을 정합니다).`,
+      );
+      return { ...sentence, cuts, actionSync: null };
+    }
     return { ...sentence, cuts };
   });
   // R5 대표 이미지 컷 보장: 하나도 없으면 마지막 컷(cta)을 대표 이미지로 바꾼다(재개 검사가 대표 이미지 컷을 요구한다).
-  if (!sentences.some((sentence) => sentence.cuts.some((cut) => cut.source === "approved_image"))) {
+  // 혼합형(2026-10-07)은 immersive 와 같이 엔딩 카드를 강제하지 않는다(H8 마지막 실사 규칙은 hybrid 규칙 검사가 본다).
+  if (
+    ctx.requireApprovedImage !== false &&
+    !isHybridResponse(response) &&
+    !sentences.some((sentence) => sentence.cuts.some((cut) => cut.source === "approved_image"))
+  ) {
     const last = sentences[sentences.length - 1];
     const cut = last?.cuts[last.cuts.length - 1];
     if (last && cut) {
@@ -114,6 +137,7 @@ export function repairSentences(
         stillId: "",
         graphicKind: "",
         graphicLines: [],
+        phase: "",
       };
       repairs.push(
         `대표 이미지(approved_image) 컷이 없어 ${sentences.length}번째 문장의 마지막 컷을 대표 이미지로 바꿈`,
@@ -135,6 +159,13 @@ export function repairSentences(
   const stills = response.stills.filter((still) => usedStills.has(still.id));
   const removedClips = response.veoClips.filter((clip) => !usedClips.has(clip.id));
   const removedStills = response.stills.filter((still) => !usedStills.has(still.id));
+  const removedInfo = response.infoClips.filter((clip) => !usedClips.has(clip.id));
+  if (removedInfo.length > 0) {
+    repairs.push(`쓰지 않는 설명 컷 선언 삭제: ${removedInfo.map((clip) => clip.id).join(", ")}`);
+    warnings.push(
+      `선언만 하고 쓰지 않은 설명 컷 ${removedInfo.map((clip) => clip.id).join(", ")}을 뺐습니다(Flow 작업 낭비 방지).`,
+    );
+  }
   if (removedClips.length > 0) {
     repairs.push(`쓰지 않는 Veo 클립 선언 삭제: ${removedClips.map((clip) => clip.id).join(", ")}`);
     warnings.push(
@@ -159,12 +190,64 @@ export function repairSentences(
       );
     }
   }
-  return { value: { ...response, sentences, veoClips, stills, flowPrompt }, repairs, warnings };
+  // 설명 컷 형태가 정책마다 달라 분기해서 같은 필터를 적용한다(타입을 유지하기 위해).
+  const value: ScriptResponseInput = isHybridResponse(response)
+    ? {
+        ...response,
+        sentences,
+        veoClips,
+        stills,
+        infoClips: response.infoClips.filter((clip) => usedClips.has(clip.id)),
+        flowPrompt,
+      }
+    : {
+        ...response,
+        sentences,
+        veoClips,
+        stills,
+        infoClips: response.infoClips.filter((clip) => usedClips.has(clip.id)),
+        flowPrompt,
+      };
+  return { value, repairs, warnings };
+}
+
+// 응답의 설명 컷을 저장 형태로. immersive·예전 응답: 이름표(explanation → infoLines)·graphicOrder, 장면 필드는 기본값.
+// 혼합형 응답: 장면 필드(sceneType·objects·actions·emphasis)와 INFO 문구(infoLines, 2026-10-08)를 보존하고 graphicOrder 는 비운다.
+function storedInfoClips(response: ScriptResponseInput): NonNullable<FlatScript["infoClips"]> {
+  if (isHybridResponse(response))
+    return response.infoClips.map((clip) => ({
+      id: clip.id,
+      stage: clip.stage,
+      cleanPrompt: clip.cleanPrompt,
+      infoPrompt: clip.infoPrompt,
+      infoLines: [...clip.infoLines],
+      ...("labelLayer" in clip ? { labelLayer: structuredClone(clip.labelLayer) } : {}),
+      motionPrompt: "",
+      graphicOrder: [],
+      plan: structuredClone(clip.plan),
+      sceneType: clip.sceneType,
+      objects: clip.objects.map((object) => ({ ...object })),
+      actions: [...clip.actions],
+      emphasis: clip.emphasis.map((item) => ({ ...item })),
+    }));
+  // 새 응답의 설명 컷에는 infoLines(INFO 사진 글자)·motionPrompt 가 없다(글자는 앱이 그리고 움직임은 plan 이 적는다).
+  return response.infoClips.map(({ explanation, ...clip }) => ({
+    ...clip,
+    ...(explanation ? { explanation } : {}),
+    graphicOrder: [...clip.graphicOrder],
+    plan: structuredClone(clip.plan),
+    infoLines: explanation ? explanationLabels(explanation) : [],
+    motionPrompt: "",
+    sceneType: "",
+    objects: [],
+    actions: [],
+    emphasis: [],
+  }));
 }
 
 // 중첩 응답을 평면 대본으로: 컷 시간은 0초부터 연속, 컷 목적은 문장 목적을 상속, 음성 범위는 문장이 가진 컷 번호.
 // 그래서 fromCut/toCut 은 항상 유효·순서대로·겹침 없음, 말 없는 컷 0개, 길이 = 컷 합계(모델이 적지 않음), 마지막 컷 끝 = durationSec.
-export function flattenSentences(response: VideoScriptResponse, ctx: ScriptContext): FlatScript {
+export function flattenSentences(response: ScriptResponseInput, ctx: ScriptContext): FlatScript {
   const cuts: FlatCut[] = [];
   const voiceover: FlatScript["voiceover"] = [];
   let start = 0;
@@ -183,6 +266,9 @@ export function flattenSentences(response: VideoScriptResponse, ctx: ScriptConte
         stillId: cut.stillId,
         graphicKind: cut.graphicKind,
         graphicLines: [...cut.graphicLines],
+        // 장면 계획(2026-10-06): 컷의 핵심 문장과 클립 구간은 그대로 싣는다.
+        goal: cut.goal,
+        phase: cut.phase,
       });
       start = Math.round((start + cut.len) * 1000) / 1000;
     }
@@ -190,7 +276,13 @@ export function flattenSentences(response: VideoScriptResponse, ctx: ScriptConte
       fromCut,
       toCut: Math.max(fromCut, cuts.length - 1),
       purpose: sentence.purpose,
+      chainStep: sentence.chainStep,
       text: sentence.text,
+      callouts: sentence.callouts.map(({ targetId, ...callout }) => ({
+        ...callout,
+        ...(targetId ? { targetId } : {}),
+      })),
+      ...(sentence.actionSync ? { actionSync: sentence.actionSync } : {}),
     });
   }
   return {
@@ -206,8 +298,12 @@ export function flattenSentences(response: VideoScriptResponse, ctx: ScriptConte
     cuts,
     voiceover,
     styleAnchor: response.styleAnchor,
-    veoClips: response.veoClips.map((clip) => ({ ...clip })),
+    // 혼합형만 설명 세계 기준을 따로 가진다.
+    ...(isHybridResponse(response) ? { explainerAnchor: response.explainerAnchor } : {}),
+    subjects: response.subjects.map((subject) => ({ ...subject })),
+    veoClips: response.veoClips.map((clip) => ({ ...clip, plan: structuredClone(clip.plan) })),
     stills: response.stills.map((still) => ({ ...still })),
+    infoClips: storedInfoClips(response),
     flowPrompt: response.flowPrompt,
     editInstructions: response.editInstructions,
   };
@@ -248,14 +344,15 @@ export function repairFlat(flat: FlatScript): Repaired<FlatScript> {
   return { value: { ...flat, cuts, payoffSec }, repairs, warnings };
 }
 
-// 기존 호출자 호환용. 컷 길이만으로 장면을 분할하거나 계획한 구도·효과·음성 범위를 바꾸지 않는다.
+// 기존 호출자 호환용. 컷 길이만으로 장면을 분할하거나 계획한 구도·효과·음성 범위를 바꾸지 않는다
+// (컷의 goal·phase 도 그대로 남는다; 5초 넘는 컷은 자르지 않고 규칙 검사가 거부한다).
 export function splitSlowCuts(script: VideoScript): VideoScript {
   return script;
 }
 
 // 모델 응답 → 저장 대본: 수리(중첩) → 평면화 → 수리(컷 열) → 저장 형식(시간 유도·내레이션 배치·Veo 프롬프트).
 export function videoScriptFromResponse(
-  response: VideoScriptResponse,
+  response: ScriptResponseInput,
   ctx: ScriptContext,
 ): { readonly script: VideoScript; readonly repairs: string[]; readonly warnings: string[] } {
   const sentences = repairSentences(response, ctx);

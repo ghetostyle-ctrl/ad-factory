@@ -10,6 +10,7 @@ import { generateVideoScript, reviewVideoScript } from "../server/video-scripts"
 import { HypothesisSchema } from "../shared/creative-plan";
 import { pendingScriptApprovals, scriptNeedsApproval } from "../shared/script-approval";
 import {
+  isClipPlanEmpty,
   VideoScriptReviewSchema,
   VideoScriptSchema,
   videoTargetSeconds,
@@ -290,6 +291,19 @@ test("the real reviewer sends a video_script_review json_schema request and pars
       ]),
     });
     expect(body.input).not.toContain("local-fixture-only");
+    // 장면 계획(2026-10-06): 등장 대상·문장 콜아웃·컷 goal/phase 가 검토 데이터에 들어가고 규칙 14 가 프롬프트에 있다
+    // (위 toMatchObject 가 받은 객체의 배열을 비우는 Bun 1.3 동작이 있어 같은 문자열을 다시 파싱한다)
+    const scene = JSON.parse(body.input.slice(dataStart + marker.length)) as {
+      subjects: unknown;
+      pairs: { callouts: unknown[]; cuts: { phase: string; goal: string }[] }[];
+    };
+    expect(scene.subjects).toEqual(script.subjects);
+    const pairs = scene.pairs;
+    expect(pairs.at(-1)?.callouts).toEqual(script.voiceover.at(-1)?.callouts ?? []);
+    expect(pairs.at(-1)?.callouts.length).toBeGreaterThan(0);
+    expect(pairs[0]?.cuts[0]).toMatchObject({ goal: "장면 1의 핵심" });
+    expect(pairs.flatMap((pair) => pair.cuts).some((cut) => cut.phase === "early")).toBe(true);
+    expect(body.input).toContain("14. SCENE PLAN");
   } finally {
     await http.server.stop(true);
   }
@@ -484,9 +498,17 @@ test("the real writer sends a nested video_script json_schema request, omits num
           name: string;
           strict: boolean;
           schema: {
+            required: string[];
             properties: {
+              veoClips: { items: { properties: { plan: { required: string[] } } } };
               sentences: {
-                items: { properties: { cuts: { items: { properties: Record<string, unknown> } } } };
+                items: {
+                  required: string[];
+                  properties: {
+                    callouts: { items: { required: string[] } };
+                    cuts: { items: { required: string[]; properties: Record<string, unknown> } };
+                  };
+                };
               };
             };
           };
@@ -496,12 +518,43 @@ test("the real writer sends a nested video_script json_schema request, omits num
     };
     expect(body.text.format.name).toBe("video_script");
     expect(body.text.format.strict).toBe(true);
-    expect(body.max_output_tokens).toBe(12000);
+    // 장면 계획(2026-10-06)으로 응답이 길어져 20000 → 24000
+    expect(body.max_output_tokens).toBe(24000);
     expect(
       Object.keys(
         body.text.format.schema.properties.sentences.items.properties.cuts.items.properties,
       ),
     ).toContain("len");
+    // 장면 계획 필드는 json_schema 필수 목록에 있고(응답 스키마에 default/optional 없음) 프롬프트에 그 절이 있다
+    const sentenceSchema = body.text.format.schema.properties.sentences.items;
+    expect(sentenceSchema.required).toContain("callouts");
+    expect(sentenceSchema.properties.callouts.items.required).toEqual([
+      "word",
+      "text",
+      "kind",
+      "anchor",
+      "targetId",
+    ]);
+    expect(sentenceSchema.properties.cuts.items.required).toEqual(
+      expect.arrayContaining(["goal", "phase"]),
+    );
+    expect(body.text.format.schema.required).toContain("subjects");
+    expect(body.text.format.schema.properties.veoClips.items.properties.plan.required).toEqual([
+      "early",
+      "mid",
+      "late",
+    ]);
+    expect(body.input).toContain("CALLOUTS:");
+    expect(body.input).toContain("CLIP PLAN:");
+    // 픽스처 응답의 장면 계획은 수리·평면화를 지나 저장 대본에 남는다
+    expect(written.value.subjects.length).toBeGreaterThan(0);
+    expect(written.value.voiceover.at(-1)?.callouts.length).toBeGreaterThan(0);
+    expect(written.value.veoClips.every((clip) => !isClipPlanEmpty(clip.plan))).toBe(true);
+    expect(
+      written.value.cuts
+        .filter((cut) => cut.source === "veo_clip")
+        .every((cut) => cut.phase !== "" && cut.goal !== ""),
+    ).toBe(true);
     const data = body.input.slice(body.input.indexOf("\nDATA:\n"));
     expect(data).toContain('"durationTarget":' + String(videoTargetSeconds(job.id, 1)));
     expect(data).not.toContain('"number":');

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CreativeSchema, StrategySchema } from "../shared/planning";
 import { renderScript, sineWav } from "./render-fixture";
-import { flatOf, nestedScriptResponse } from "./video-script-fixture";
+import { flatOf, hybridScriptResponse, nestedScriptResponse } from "./video-script-fixture";
 
 // 모델 응답(video_script, 문장 우선·컷 중첩) 픽스처: 렌더 대본 36초를 중첩 형태로. 정지 이미지 컷 하나에 글줄을 붙여
 // 자동 수리(R4)가 실제 변환 경로에서 도는지 확인할 수 있게 한다.
@@ -185,9 +185,16 @@ export function httpFixture() {
           },
         });
       if (path === "/openai/responses") {
-        const format = z
-          .object({ text: z.object({ format: z.object({ name: z.string() }) }) })
-          .parse(body).text.format.name;
+        const { name: format, schema } = z
+          .object({
+            text: z.object({
+              format: z.object({ name: z.string(), schema: z.unknown().optional() }),
+            }),
+          })
+          .parse(body).text.format;
+        // 혼합형(2026-10-07) 대본 요청은 explainerAnchor 를 요구하는 json_schema 로 구분해 혼합형 응답을 돌려준다
+        const hybridScript =
+          format === "video_script" && JSON.stringify(schema ?? null).includes('"explainerAnchor"');
         const value =
           format === "strategy"
             ? fixtureStrategy
@@ -198,7 +205,9 @@ export function httpFixture() {
                 : format === "video_script_review"
                   ? scriptReviewValue(control)
                   : format === "video_script"
-                    ? scriptResponseValue()
+                    ? hybridScript
+                      ? hybridScriptResponse()
+                      : scriptResponseValue()
                     : format === "image_review"
                       ? control.revisions-- > 0
                         ? {

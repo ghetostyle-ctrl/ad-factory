@@ -1,19 +1,21 @@
+import { DEFAULT_THRESHOLDS, thresholds } from "./thresholds";
 import type { VideoCopyEditingResponse, VideoPlanningDraft } from "./video-planning";
 
-// 한국어 AI 말투 교정 규칙. epoko77-ai/im-not-ai(MIT, https://github.com/epoko77-ai/im-not-ai)의
-// quick-rules 에서 짧은 구어체 광고 카피에 해당하는 항목만 골라 옮겼다. 원본 지침대로 다 쓴 글을
-// 고치는 단계(카피 교정·대본 검토)에만 쓰고 초안 생성 프롬프트에는 넣지 않는다 — 빈도 규칙이
-// 생성 단계에서는 금지 규칙으로 바뀌어 문장이 더 어색해진다.
-export const KOREAN_COPY_POLISH_RULES = `KOREAN AI-TELL RULES (post-editing only; adapted from the MIT-licensed im-not-ai rulebook). These describe wording that makes Korean copy sound machine-written. Most are ordinary Korean when used once — act on clear cases and pile-ups, never treat them as bans.
-A. Translationese: "~에 대해/~에 있어서/~와 관련하여/~에 기반하여" → a direct particle ("성분에 대해 확인" → "성분을 확인"); "~을 가지고 있다" and other have/make/give+noun calques → a plain predicate ("흡수력을 가지고 있어요" → "흡수가 잘 돼요"); double passive "~되어지다/~지게 되다" → active or single passive; "~에 의해" → make the agent the subject; repeated "~를 통해" or "~을 위해" → "~로", "~려고", "~도록".
-B. Abstract subject + all-purpose verb ("편안함을 제공합니다/선사합니다/가져다줍니다/보여줍니다") → a concrete subject doing a concrete thing.
-C. Significance inflation with no fact behind it ("주목할 만한", "매우 중요한", "혁신적인", "차원이 다른", "완벽한") → delete it, or say the concrete supported fact that is already in the copy. Never invent one.
-D. Formulas: "단순한 X를 넘어 Y", "X에서 Y로", cleft "중요한 것은/핵심은/문제는 ~입니다" → a direct statement; "A가 아니라 B" contrast used more than once → keep one; closing formula "~할 때입니다/~할 시간입니다" at most once; personified abstractions ("기술이 답합니다") → a person or the product as subject.
-E. Connectives: sentence-initial "또한/따라서/결론적으로/이를 통해/그리고" chains → drop them; no comma right after a connective ending (-고, -며, -지만, -면서).
-F. Rhythm: three or more consecutive sentences with the same ending or the same length → vary one; stacked three-item parallels ("빠르고, 쉽고, 간편하게") → keep at most one in the whole copy.
-GUARDS: keep proper nouns, numbers, units, dates and quotations exactly. Keep a hedge or condition ("~일 수 있어요", "개인차가 있어요") as a hedge — never raise it to a flat claim. Keep the content nouns of each sentence; change particles, endings and filler, not the claim. Do not introduce any of these patterns while fixing another. A line that already sounds like a person talking stays unchanged; over-editing is a failure.`;
+// 카피 교정 결과의 코드 판정(guardCopyEdit)과 리듬 상수. 한국어 AI 말투 규칙(KOREAN_COPY_POLISH_RULES)·리듬 규칙(legacy_rhythm·
+// natural_v1) 본문은 2026-10-07 부터 instructions/copy.md 에 있고 서버(server/copy-instructions.ts)만 조립한다 — 이 모듈은 브라우저
+// 번들이라 지시 파일을 읽을 수 없고 규칙 글을 갖지 않는다. 규칙의 출처: epoko77-ai/im-not-ai(MIT, https://github.com/epoko77-ai/im-not-ai)
+// quick-rules 에서 짧은 구어체 광고 카피 항목만 골랐고, 다 쓴 글을 고치는 단계(카피 교정·대본 검토)에만 넣는다.
+
+// 기본값(분리 전 상수). 규칙 검사는 thresholds()(instructions/thresholds.json 주입값)를 호출 때 읽는다 — shared/thresholds.ts.
+export const COPY_BEAT_TARGET_CHARS = DEFAULT_THRESHOLDS.COPY_BEAT_TARGET_CHARS;
+export const COPY_BEAT_MAX_CHARS = DEFAULT_THRESHOLDS.COPY_BEAT_MAX_CHARS;
+// 카피 리듬(사용자 결정 2026-10-06): 한 문장 = 한 호흡, 26자 목표·40자 한도. 대본 soft 경고(shared/script-rules.ts)가 쓴다.
+// 설명 꼬리: 광고 말맛을 빼는 서술 끝. 경고만 남긴다(사실 고지가 필요한 문장도 있다).
+export const EXPLANATORY_TAIL =
+  /(할 수 있어요|할 수 있습니다|라는 뜻은 아니에요|되어 있습니다|되어 있어요|표기되어|명시되어|권장하고 있어요)/u;
 
 const DIGITS = /\d+(?:[.,]\d+)*/g;
+const LATIN = /[A-Za-z]/;
 
 function digitGroups(text: string): string[] {
   return (text.match(DIGITS) ?? []).map((group) => group.replaceAll(",", ""));
@@ -49,7 +51,7 @@ export function injectedNumbers(source: string, text: string): string[] {
   return [...new Set(digitGroups(text).filter((group) => !known.has(group)))];
 }
 
-export const COPY_CHANGE_WARNING_RATE = 0.5;
+export const COPY_CHANGE_WARNING_RATE = DEFAULT_THRESHOLDS.COPY_CHANGE_WARNING_RATE;
 
 /**
  * 카피 교정 결과를 코드로 판정한다. 고치지는 않고 되돌리기만 한다.
@@ -69,7 +71,13 @@ export function guardCopyEdit(
     if (!original) return line;
     const kept = { ...line };
     for (const key of ["text", "screenText"] as const) {
-      if (kept[key] === original[key] || injectedNumbers(source, kept[key]).length === 0) continue;
+      // 낭독 규칙이 내레이션 영문을 막으므로 "600밀리그램" → "600mg" 같은 교정도 되돌린다.
+      const latinAdded = key === "text" && LATIN.test(kept[key]) && !LATIN.test(original[key]);
+      if (
+        kept[key] === original[key] ||
+        (injectedNumbers(source, kept[key]).length === 0 && !latinAdded)
+      )
+        continue;
       kept[key] = original[key];
       reverted.add(`${lineIndex}:${key === "text" ? "narration" : "screenText"}`);
     }
@@ -84,9 +92,11 @@ export function guardCopyEdit(
   );
   const notes = [
     ...(reverted.size > 0
-      ? [`초안에 없던 숫자가 들어간 수정 ${reverted.size}건은 교정 전 문장으로 되돌렸습니다.`]
+      ? [
+          `초안에 없던 숫자나 내레이션 영문이 들어간 수정 ${reverted.size}건은 교정 전 문장으로 되돌렸습니다.`,
+        ]
       : []),
-    ...(rate > COPY_CHANGE_WARNING_RATE
+    ...(rate > thresholds().COPY_CHANGE_WARNING_RATE
       ? [
           `내레이션의 약 ${Math.round(rate * 100)}%가 바뀌었습니다. 뜻이 달라지지 않았는지 수정 전후를 확인하세요.`,
         ]

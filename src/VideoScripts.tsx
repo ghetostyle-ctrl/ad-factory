@@ -8,10 +8,12 @@ import {
   scriptNeedsFix,
   scriptNeedsFixBanner,
 } from "../shared/script-approval";
+import { isHybrid } from "../shared/video-script";
 import { FinalVideo, renderStage } from "./FinalVideo";
 import { FlowPanel } from "./FlowPanel";
 import { Button, Notice } from "./primitives";
 import { ScriptEditor, scriptEditorKey } from "./ScriptEditor";
+import { ScriptSources, visualPolicyLabel } from "./ScriptFields";
 import { VideoPlanning } from "./VideoPlanning";
 
 export function VideoScripts({ job }: { readonly job: Job }) {
@@ -76,6 +78,9 @@ export function VideoScripts({ job }: { readonly job: Job }) {
           const legacyClip = job.artifacts.find(
             (item) => item.name === `video-auto-${script.number}.mp4`,
           );
+          // 시각 정책 배지(혼합형·입체 설명). 정책이 없는 예전 대본은 배지 없이 그대로 보인다.
+          const policy = visualPolicyLabel(script.planning?.visualPolicy);
+          const hybrid = isHybrid(script);
           return (
             <article className="hypothesis-card stack" key={script.number}>
               <div className="hypothesis-heading">
@@ -87,6 +92,11 @@ export function VideoScripts({ job }: { readonly job: Job }) {
                   </span>
                   <h3>{script.title}</h3>
                   <p>{concept?.targetAudience ?? script.hypothesisId}</p>
+                  {policy && (
+                    <p>
+                      <span className="badge badge-accent">{policy}</span>
+                    </p>
+                  )}
                 </div>
               </div>
               {script.openLoop && (
@@ -125,21 +135,12 @@ export function VideoScripts({ job }: { readonly job: Job }) {
                   </p>
                   {script.styleAnchor && (
                     <p>
-                      <strong>공통 시각 기준:</strong> {script.styleAnchor}
+                      <strong>{hybrid ? "실사 시각 기준(styleAnchor):" : "공통 시각 기준:"}</strong>{" "}
+                      {script.styleAnchor}
                     </p>
                   )}
-                  {script.veoClips.map((clip) => (
-                    <p key={clip.id}>
-                      <strong>Veo 클립 {clip.id}:</strong> 시작 이미지 — {clip.startImagePrompt}
-                      <br />
-                      움직임 — {clip.prompt}
-                    </p>
-                  ))}
-                  {script.stills.map((still) => (
-                    <p key={still.id}>
-                      <strong>정지 이미지 {still.id}:</strong> {still.prompt}
-                    </p>
-                  ))}
+                  {/* 설명 세계 기준(혼합형) · 등장 대상 · Veo 클립(구간 계획) · 설명 컷(그래픽 순서 또는 장면) · 정지 이미지 */}
+                  <ScriptSources script={script} />
                   <p>
                     <strong>Flow 프롬프트:</strong> {script.flowPrompt}
                   </p>

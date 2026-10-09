@@ -5,6 +5,7 @@ import type { RenderState } from "../shared/render-state";
 import type { Job } from "../shared/schema";
 import type { VideoScript } from "../shared/video-script";
 import { api } from "./api";
+import { CalloutEditor } from "./CalloutEditor";
 import "./render.css";
 
 // 대본 카드의 완성본 섹션: 9:16 플레이어·다운로드·클립 A~H 썸네일·정지 이미지 S1~S14 썸네일·문장별 내레이션·렌더 리포트.
@@ -79,7 +80,12 @@ export function FinalVideo({ job, script }: { readonly job: Job; readonly script
     <div className="stack final-section">
       {final ? (
         <div className="final-video-row">
-          <video controls preload="metadata" className="final-video" src={final.url}>
+          <video
+            controls
+            preload="metadata"
+            className="final-video"
+            src={`${final.url}?v=${render?.final?.digest ?? ""}`}
+          >
             <track kind="captions" />
           </video>
           <div className="stack">
@@ -131,6 +137,13 @@ export function FinalVideo({ job, script }: { readonly job: Job; readonly script
           {renderStage(render, script.veoClips.length, script.stills.length)}
         </p>
       )}
+      {final &&
+        job.status === "completed" &&
+        job.automation?.policy.mode === "creative" &&
+        job.automation.status === "completed" &&
+        !job.staged && (
+          <CalloutEditor key={`${job.id}-${script.number}`} jobId={job.id} number={script.number} />
+        )}
       {script.stills.length > 0 && (
         <ul className="card-slides clip-grid">
           {script.stills.map((still) => {

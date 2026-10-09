@@ -12,10 +12,10 @@ import { automationServices } from "../server/automation-services";
 import { env } from "../server/config";
 import { WaitingError } from "../server/errors";
 import { FlowImport } from "../server/flow-import";
+import { flowExportFor, flowTexts } from "../server/flow-instructions";
 import { Pipeline } from "../server/pipeline";
 import { AutomationPolicySchema } from "../shared/automation";
 import {
-  buildFlowExport,
   clipModeOf,
   FlowExportSchema,
   flowModelId,
@@ -23,11 +23,17 @@ import {
   pendingFlowClips,
   suggestedFlowModel,
 } from "../shared/flow-mode";
+import { cleanKeyframePrompt, clipPrompt } from "../shared/veo-prompt";
+import { emptyClipPlan } from "../shared/video-script";
 import { tinyClip, wideClip } from "./render-fixture";
 import { renderRuntimeFixture, settle } from "./render-runtime-fixture";
+import { fixtureClipPlan } from "./video-script-fixture";
 
 // Flow 모드: Veo API 를 부르지 않고 시작 이미지·프롬프트를 내보낸 뒤 waiting 으로 멈추고,
 // 업로드(HTTP/CLI)된 클립으로 이어서 완성본을 만든다. 유료 공급자는 전부 스텁, 미디어는 lavfi.
+// 고정 문장(꼬리)은 instructions/flow.md 에서 읽는다(서버 로더). 테스트는 같은 글로 순수 조립 함수를 부른다.
+const texts = flowTexts();
+const { CLEAN_KEYFRAME_TAIL, HYBRID_LIVE_TAIL } = texts;
 const hasFfmpeg = Boolean(Bun.which("ffmpeg")) && Boolean(Bun.which("ffprobe"));
 if (!hasFfmpeg) console.log("미검증: ffmpeg 가 없어 Flow 모드 테스트를 건너뜁니다.");
 const origin = `http://127.0.0.1:${env.PORT}`;
@@ -118,6 +124,64 @@ test("model labels are normalized into artifact model ids", () => {
   expect(suggestedFlowModel(undefined)).toBe("Veo 3.1 - Quality");
 });
 
+test("clipPrompt writes the three-phase paragraph with the fixed tail, and keeps the old sentence without a plan", () => {
+  // 구간 계획(R5): 첫 줄 = 장면 설명, 둘째 줄 = 0–3s/3–5.5s/5.5–8s 문단(CLIP_PHASE_RANGES_MS), 마지막 줄 = 고정 꼬리
+  const plan = fixtureClipPlan("A");
+  const prompt = clipPrompt({ prompt: "Clip A: portrait product scene.", plan }, texts);
+  const lines = prompt.split("\n");
+  expect(lines[0]).toBe("Clip A: portrait product scene.");
+  expect(lines[1]).toContain(`0–3s: ${plan.early.camera}. Scene: ${plan.early.action}.`);
+  expect(lines[1]).toContain(`3–5.5s: ${plan.mid.camera}. Scene: ${plan.mid.action}.`);
+  expect(lines[1]).toContain(`5.5–8s: ${plan.late.camera}. Scene: ${plan.late.action}.`);
+  expect(lines[1]?.indexOf("0–3s:")).toBeLessThan(lines[1]?.indexOf("3–5.5s:") ?? -1);
+  expect(lines[1]?.indexOf("3–5.5s:")).toBeLessThan(lines[1]?.indexOf("5.5–8s:") ?? -1);
+  // 꼬리: 시작 이미지에서 시작, 같은 3D 공간 연속 이동(컷 금지), 구간 끝 0.4초 멈춤, 같은 인물·제품·배경, 새 인물·사물 금지, 8초·9:16, 글자·로고·립싱크 없음
+  expect(lines[2]).toContain("Start exactly from the supplied image");
+  expect(lines[2]).toContain("same 3D space");
+  expect(lines[2]).toContain("no cuts");
+  expect(lines[2]).toContain("about 0.4 seconds");
+  expect(lines[2]).toContain("never create new people or objects");
+  expect(lines[2]).toContain("Eight seconds, 9:16");
+  expect(lines[2]).toContain("No text, letters, logos or lip sync at any moment");
+  expect(lines).toHaveLength(3);
+  // 마침표가 겹치지 않는다(계획 글이 마침표로 끝나도)
+  const dotted = clipPrompt(
+    {
+      prompt: "Clip B.",
+      plan: { ...plan, early: { camera: "Push in. ", action: "She smiles." } },
+    },
+    texts,
+  );
+  expect(dotted).toContain("0–3s: Push in. Scene: She smiles. 3–5.5s:");
+  expect(dotted).not.toContain("..");
+  // 계획이 없으면(예전 대본) 예전 문장 그대로
+  const legacy =
+    "Old clip.\nStart exactly from the supplied image. Keep the same product, person and setting. Eight seconds, 9:16, no on-screen text, no lip sync, no extra logos.";
+  expect(clipPrompt({ prompt: "Old clip.", plan: emptyClipPlan() }, texts)).toBe(legacy);
+  expect(clipPrompt({ prompt: "Old clip." }, texts)).toBe(legacy);
+  // R3 깨끗한 키프레임 꼬리(시작 이미지·정지 이미지 생성이 쓸 helper)
+  expect(cleanKeyframePrompt("A woman at a table. ", CLEAN_KEYFRAME_TAIL)).toBe(
+    `A woman at a table.\n${CLEAN_KEYFRAME_TAIL}`,
+  );
+  expect(CLEAN_KEYFRAME_TAIL).toContain("No text, letters, arrows, numbers, labels, icons");
+  expect(CLEAN_KEYFRAME_TAIL).toContain("negative space");
+  // 혼합형(2026-10-07, H3): 실사 클립은 같은 프롬프트 뒤에 "사람이 있는 실제 장소의 촬영 영상" 꼬리 한 문장을 더한다.
+  // 줄 수는 그대로 3줄이고, 다른 정책의 프롬프트(옵션 없음)는 바뀌지 않는다.
+  const live = clipPrompt({ prompt: "Clip A: portrait product scene.", plan }, texts, {
+    liveAction: true,
+  });
+  expect(live.startsWith(prompt)).toBe(true);
+  expect(live).toBe(`${prompt} ${HYBRID_LIVE_TAIL}`);
+  expect(live.split("\n")).toHaveLength(3);
+  expect(HYBRID_LIVE_TAIL).toContain("a real person in a real setting");
+  expect(HYBRID_LIVE_TAIL).toContain("not a clay model");
+  expect(clipPrompt({ prompt: "Old clip." }, texts, { liveAction: true })).toBe(
+    `${legacy} ${HYBRID_LIVE_TAIL}`,
+  );
+  expect(clipPrompt({ prompt: "Old clip." }, texts, { liveAction: false })).toBe(legacy);
+  expect(clipPrompt({ prompt: "Clip A: portrait product scene.", plan }, texts, {})).toBe(prompt);
+});
+
 test.skipIf(!hasFfmpeg)(
   "flow mode exports the bundle and waits without a single Veo call or Gemini key",
   async () => {
@@ -153,16 +217,18 @@ test.skipIf(!hasFfmpeg)(
       const script = job.videoScripts[0]?.veoClips.find((item) => item.id === clip.id);
       expect(clip.startImageArtifact).toBe(`start-1-${clip.id}-1.png`);
       expect(job.artifacts.some((asset) => asset.name === clip.startImageArtifact)).toBe(true);
-      // API 모드와 같은 프롬프트: 클립 프롬프트 + 고정 접미
+      // API 모드와 같은 프롬프트: 클립 프롬프트 + 구간 문단 + 고정 꼬리, 계획은 그대로 실린다
       expect(clip.prompt.startsWith(script?.prompt ?? "?")).toBe(true);
+      expect(clip.prompt).toContain("0–3s:");
       expect(clip.prompt).toContain("Start exactly from the supplied image");
+      expect(clip.plan).toEqual(script?.plan ?? emptyClipPlan());
       expect(clip.aspectRatio).toBe("9:16");
       expect(clip.durationSec).toBe(8);
       expect(clip.suggestedModel).toBe("Veo 3.1 - Quality");
       expect(clip.outputFile).toBe(`flow-1-${clip.id}.mp4`);
       expect(clip.importCommand).toContain(`flow import ${id} 1 ${clip.id}`);
     }
-    expect(data).toEqual(buildFlowExport(job, 1));
+    expect(data).toEqual(flowExportFor(job, 1, texts));
     const markdown = await Bun.file(join(f.root, "artifacts", id, "flow-export-1.md")).text();
     for (const clip of data.clips) {
       expect(markdown).toContain(`## 클립 ${clip.id}`);

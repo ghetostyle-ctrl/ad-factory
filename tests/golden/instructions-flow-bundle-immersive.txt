@@ -1,0 +1,126 @@
+# Flow 클립 제작 지시 · 영상 1 · 렌더 영상 1 대본
+
+작업 ID: <jobId>
+Flow 주소: https://labs.google/fx/tools/flow
+클립 0개를 만들어 앱에 업로드하면 앱이 내레이션·정지 이미지·모션그래픽과 조립해 완성 영상을 만든다.
+Flow 화면 조작 순서는 실제 화면에서 확인된 적이 없다(미검증). 화면이 다르면 화면에 맞게 조정하되 아래 값(비율·길이·프롬프트·시작 이미지)은 바꾸지 않는다.
+자세한 절차: FLOW-MODE.md
+
+## 공통 순서
+
+1. Flow(https://labs.google/fx/tools/flow)에 AI Pro 구독 Google 계정으로 로그인되어 있는지 확인한다.
+2. 클립마다 새 프로젝트(또는 새 장면)를 열고 모델을 Veo 3.1 - Quality(내보낸 suggestedModel)로 고른다.
+3. 화면 비율 9:16, 길이 8초, 해상도 1080p(선택지가 있을 때)로 설정한다.
+4. 시작 이미지(startImageFile)를 첫 프레임 또는 이미지 참조로 올린다.
+5. 프롬프트(prompt)를 수정 없이 그대로 붙여 넣고 생성한다.
+6. 완성되면 시작 이미지와 같은 제품·인물·배경인지, 계획에 없는 글자·로고가 생기지 않았는지 화면에서 직접 확인한다.
+7. 확인한 클립을 outputFile 이름으로 내려받는다(영상 한 편의 다운로드 확인은 사용자에게 한 번만 묻는다).
+8. importCommand 로 앱에 업로드한다. 업로드가 끝나면 앱이 자동으로 다음 단계를 이어간다.
+9. 지정 문구 방식의 설명 컷은 CLEAN 이미지 → 화살표·연결선·라벨을 완성한 INFO 이미지 → 전환 영상 순서로 만든다. 이 컷의 INFO 이미지 글자는 넣을 문구(infoLines)와 같아야 하며 앱이 업로드 때 자동 대조한다.
+
+## 설명 컷 I1 (mechanism)
+
+1. 같은 영상의 시작 이미지(flow-start-*.png, 인물·제품 기준)를 + 메뉴로 참조 첨부하고 아래 CLEAN 프롬프트로 이미지를 만들어 flow-1-I1-clean.png 로 내려받는다. 참조 없이 만들면 다른 인물·제품이 나온다. CLEAN 에는 글자·화살표·라벨·강조 링이 없어야 한다.
+2. CLEAN 이미지를 채팅 + 메뉴로 첨부하고 INFO 프롬프트로 화살표·연결선·라벨까지 완성한 인포그래픽 이미지를 만들어 flow-1-I1-info.png 로 내려받는다. 글자가 지정 문구와 같은지 화면에서 확인한다.
+3. 두 이미지를 앱에 올린다(INFO 는 앱이 글자를 지정 문구와 자동 대조한다):
+   - `bun run flow import-image <jobId> 1 I1 clean <CLEAN-이미지-경로>`
+   - `bun run flow import-image <jobId> 1 I1 info <INFO-이미지-경로>`
+4. CLEAN 을 첫 프레임, INFO 를 마지막 프레임으로 첨부해 영상 프롬프트로 9:16·8초 영상을 만들고 flow-1-I1.mp4 로 내려받아 올린다: `bun run flow import <jobId> 1 I1 <내려받은-파일-경로>`
+
+설명 설계: INFO 이미지에서 대상의 형태·구성·변화와 연결선·라벨을 먼저 완성합니다. 영상에서는 같은 대상과 라벨을 유지합니다. 아래 진행 비율은 생성 전 계획이며 실제 동작 추적 결과가 아닙니다. 영상의 글자 보존·연결선 위치·말과 동작은 재생해서 확인합니다.
+
+```json
+{
+  "id": "lid_structure",
+  "productForm": "손에 쥘 수 있는 원통형 컵과 납작한 뚜껑",
+  "entities": [
+    {
+      "id": "cup",
+      "name": "컵",
+      "representation": "product",
+      "appearance": "아이보리 원통형 컵"
+    },
+    {
+      "id": "lid",
+      "name": "뚜껑",
+      "representation": "component",
+      "appearance": "짙은 올리브색 뚜껑"
+    }
+  ],
+  "beats": [
+    {
+      "id": "lift_lid",
+      "targetIds": [
+        "cup",
+        "lid"
+      ],
+      "startProgress": 0.1,
+      "endProgress": 0.85,
+      "before": "뚜껑이 컵 위에 닫혀 있다.",
+      "action": "뚜껑이 올라가며 맞물린 가장자리를 드러낸다.",
+      "after": "컵과 뚜껑의 가장자리가 같은 시점에서 보인다.",
+      "narrationCue": "뚜껑을 열면",
+      "viewerTakeaway": "어떤 부분이 서로 맞물리는지 이해한다."
+    }
+  ],
+  "annotations": [
+    {
+      "targetId": "lid",
+      "beatId": "lift_lid",
+      "label": "뚜껑",
+      "kind": "pointer",
+      "motionIntent": "뚜껑 가장자리의 같은 지점을 따라가며 가리킨다."
+    }
+  ]
+}
+```
+
+넣을 문구(정확히): 뚜껑
+
+CLEAN 프롬프트:
+
+```text
+Same woman in her 30s, navy blouse, bright kitchen, warm morning light. An ivory cup with an olive lid on an ivory surface Use this structured explanation contract as the identity and action source of truth. Entity IDs are production references, never visible text. Preserve recognizable product form, before/action/after relations and target identities. Beat progress is planned position in the eight-second shot, not measured tracking. CLEAN establishes the objects without graphics; INFO includes the finished explanatory graphics and exact annotation labels. Motion connects those two states with the same target identities. Do not add subtitles to the image: the app adds spoken captions separately.
+<explanation-plan>
+{"id":"lid_structure","productForm":"손에 쥘 수 있는 원통형 컵과 납작한 뚜껑","entities":[{"id":"cup","name":"컵","representation":"product","appearance":"아이보리 원통형 컵"},{"id":"lid","name":"뚜껑","representation":"component","appearance":"짙은 올리브색 뚜껑"}],"beats":[{"id":"lift_lid","targetIds":["cup","lid"],"startProgress":0.1,"endProgress":0.85,"before":"뚜껑이 컵 위에 닫혀 있다.","action":"뚜껑이 올라가며 맞물린 가장자리를 드러낸다.","after":"컵과 뚜껑의 가장자리가 같은 시점에서 보인다.","narrationCue":"뚜껑을 열면","viewerTakeaway":"어떤 부분이 서로 맞물리는지 이해한다."}],"annotations":[{"targetId":"lid","beatId":"lift_lid","label":"뚜껑","kind":"pointer","motionIntent":"뚜껑 가장자리의 같은 지점을 따라가며 가리킨다."}]}
+</explanation-plan> Create the first frame of a dimensional product explainer: tangible three-dimensional objects with material texture, soft contact shadows and visible depth. Use the supplied product reference for actual identity, ingredients, proportions and packaging, not as a demand to include a person or phone in every scene. Establish the objects that will separate, reveal, compare or move in the planned explanation. A blank phone, empty panel or generic lifestyle photo does not demonstrate an ingredient or a mechanism. Do not invent biological effects, internal anatomy or unsupported performance. Keep the known product form recognizable. If it is a capsule, preserve capsule proportions and a coherent outer shell around its contents; no giant loose oil orb, machine chamber or invented container. A comparison establishes like-for-like scale and viewpoint, not a misleading count of containers. Visual system: warm ivory background, dark olive structural forms, and one restrained warm-gold accent. Preserve realistic material shading and depth; no cyan, pink, neon glow, rainbow accents or black presentation-slide backgrounds. Keep the explanatory objects and their transformation within the middle 20–65% of frame height, leaving clear space above and below for app-composited text. Vertical 9:16. No text, letters, arrows, numbers, labels, icons or highlight rings anywhere in the image; leave clear negative space for graphics added later.
+```
+
+INFO 프롬프트:
+
+```text
+Use the attached CLEAN frame as the same 3D scene. Preserve object identity, materials, scale relationships and light direction. Create the planned final spatial state, including the final camera perspective; the composition may evolve through the same scene.
+The same lid lifted above the matching rim
+Use this structured explanation contract as the identity and action source of truth. Entity IDs are production references, never visible text. Preserve recognizable product form, before/action/after relations and target identities. Beat progress is planned position in the eight-second shot, not measured tracking. CLEAN establishes the objects without graphics; INFO includes the finished explanatory graphics and exact annotation labels. Motion connects those two states with the same target identities. Do not add subtitles to the image: the app adds spoken captions separately.
+<explanation-plan>
+{"id":"lid_structure","productForm":"손에 쥘 수 있는 원통형 컵과 납작한 뚜껑","entities":[{"id":"cup","name":"컵","representation":"product","appearance":"아이보리 원통형 컵"},{"id":"lid","name":"뚜껑","representation":"component","appearance":"짙은 올리브색 뚜껑"}],"beats":[{"id":"lift_lid","targetIds":["cup","lid"],"startProgress":0.1,"endProgress":0.85,"before":"뚜껑이 컵 위에 닫혀 있다.","action":"뚜껑이 올라가며 맞물린 가장자리를 드러낸다.","after":"컵과 뚜껑의 가장자리가 같은 시점에서 보인다.","narrationCue":"뚜껑을 열면","viewerTakeaway":"어떤 부분이 서로 맞물리는지 이해한다."}],"annotations":[{"targetId":"lid","beatId":"lift_lid","label":"뚜껑","kind":"pointer","motionIntent":"뚜껑 가장자리의 같은 지점을 따라가며 가리킨다."}]}
+</explanation-plan>
+Final camera perspective: Orbit a quarter turn around the bottle and hold a steady close-up
+Show these explanatory objects and transformations in their final state:
+1) Lift the lid
+2) Hold with both rims visible
+Make the relationship physically visible through a justified cutaway, exploded separation, side-by-side material comparison or guided flow, according to the supplied plan. Objects occupy real depth and occlude one another correctly. Do not substitute floating checkmarks, highlight rings or empty UI cards for the explanation. Do not invent ingredients, ratios or physiology.
+Every part retains the same identity and appearance as in CLEAN. Show the final understood relation without inventing extra objects. A cutaway preserves the product silhouette and locates its actual contents; a composition diagram must not suggest unsupported physical separation of a mixture.
+Visual system: warm ivory background, dark olive structural forms, and one restrained warm-gold accent. Preserve realistic material shading and depth; no cyan, pink, neon glow, rainbow accents or black presentation-slide backgrounds.
+Keep the explanatory objects and their transformation within the middle 20–65% of frame height, leaving clear space above and below for app-composited text. Vertical 9:16.
+Render exactly these completed labels, spelled as supplied: ["뚜껑"]. Put each label beside its named target with the planned leader line, arrow or measurement mark. Preserve correct depth and readable contrast without hiding the product. No other words, subtitles, invented quantities, logos or headings. This is the finished infographic image, not a placeholder for later labels.
+```
+
+영상 프롬프트:
+
+```text
+Start exactly on the first CLEAN frame and finish on the last INFO frame. Animate a continuous dimensional explanation in the same physical scene, not a still image with decorative overlays.
+0–3s: Clip I1: start wide at the kitchen doorway, dolly in toward the woman, settle on a medium shot. Scene: She turns from the window and reaches for the amber bottle on the table. 3–5.5s: Continue the dolly past her shoulder to the bottle, settle on a close-up of the label. Scene: Her hand lifts the bottle and tilts the cream label toward the lens. 5.5–8s: Orbit a quarter turn around the bottle and hold a steady close-up. Scene: One capsule rolls out into her open palm.
+Use this structured explanation contract as the identity and action source of truth. Entity IDs are production references, never visible text. Preserve recognizable product form, before/action/after relations and target identities. Beat progress is planned position in the eight-second shot, not measured tracking. CLEAN establishes the objects without graphics; INFO includes the finished explanatory graphics and exact annotation labels. Motion connects those two states with the same target identities. Do not add subtitles to the image: the app adds spoken captions separately.
+<explanation-plan>
+{"id":"lid_structure","productForm":"손에 쥘 수 있는 원통형 컵과 납작한 뚜껑","entities":[{"id":"cup","name":"컵","representation":"product","appearance":"아이보리 원통형 컵"},{"id":"lid","name":"뚜껑","representation":"component","appearance":"짙은 올리브색 뚜껑"}],"beats":[{"id":"lift_lid","targetIds":["cup","lid"],"startProgress":0.1,"endProgress":0.85,"before":"뚜껑이 컵 위에 닫혀 있다.","action":"뚜껑이 올라가며 맞물린 가장자리를 드러낸다.","after":"컵과 뚜껑의 가장자리가 같은 시점에서 보인다.","narrationCue":"뚜껑을 열면","viewerTakeaway":"어떤 부분이 서로 맞물리는지 이해한다."}],"annotations":[{"targetId":"lid","beatId":"lift_lid","label":"뚜껑","kind":"pointer","motionIntent":"뚜껑 가장자리의 같은 지점을 따라가며 가리킨다."}]}
+</explanation-plan>
+Animate these stages in order: 1) Lift the lid 2) Hold with both rims visible
+The planned objects visibly separate, reveal their structure, travel along a path or settle into a comparison. Move the camera only when tracking, orbiting or approaching reveals the relationship with parallax; otherwise hold a readable viewpoint. Coordinate any camera motion with each transformation; keep the main action understandable and settle on each result before moving on. No cuts, static zoom, slideshow or cross-fade-only transition.
+Preserve the product, material identities and lighting. Only the objects and transformations described in the plan may appear; no invented ingredients, medical anatomy or physiological outcomes.
+Follow the explanation beats in chronological progress order. Each change ends in its stated after state and remains visible long enough to understand. Keep the same target identifiable while the camera moves; no extra rolling orb, ejecting contents, decorative mechanical opening or unplanned jump between identities.
+Visual system: warm ivory background, dark olive structural forms, and one restrained warm-gold accent. Preserve realistic material shading and depth; no cyan, pink, neon glow, rainbow accents or black presentation-slide backgrounds.
+Keep the explanatory objects and their transformation within the middle 20–65% of frame height, leaving clear space above and below for app-composited text. Vertical 9:16.
+Preserve the final INFO image's exact infographic labels: ["뚜껑"]. Reveal each completed label and its leader/arrow at the relevant beat; never generate letters one by one. Keep the same line endpoint on the same named target during movement. Never detach a label onto the wrong component, distort its spelling or invent additional text. If motion compromises readability, hold the labeled target while the explanation settles. End exactly on the supplied complete INFO image. No spoken subtitles in the footage.
+Eight seconds. No speech, dialogue or lip sync.
+```

@@ -12,6 +12,7 @@ import {
   TYPICAL_VEO_CLIPS,
 } from "../shared/video-cost";
 import {
+  INFO_CLIPS_MAX,
   STILL_SHOTS_MAX,
   VEO_CLIP_SEC,
   VEO_SHOTS_MAX,
@@ -53,7 +54,9 @@ export function AutomationSetup({
   const [videoResolution, setVideoResolution] = useState<"720p" | "1080p">("1080p");
   const [bgmMode, setBgmMode] = useState<"auto" | "none">("auto");
   const [clipReview, setClipReview] = useState(true);
-  const [clipMode, setClipMode] = useState<"api" | "flow">("api");
+  const [clipMode, setClipMode] = useState<"api" | "flow">(
+    job.automation?.policy.mode === "creative" ? (job.automation.policy.clipMode ?? "api") : "flow",
+  );
   // 영상 대본 확인(기본 required): 사용자가 대본을 승인해야 내레이션 합성부터 유료 제작을 시작한다.
   const [scriptApproval, setScriptApproval] = useState<"required" | "auto">("required");
   const [pending, setPending] = useState(false);
@@ -165,7 +168,7 @@ export function AutomationSetup({
             <div className="form-grid">
               <Field
                 label="완성 영상 수"
-                help="0~10개 · 영상마다 30초~1분(무작위) 대본을 쓰고 내레이션·자막·BGM을 넣은 세로 MP4를 저장합니다."
+                help="0~10개 · 설명과 장면에 맞춰 30초~최대 1분으로 기획하고 내레이션·자막·BGM을 넣은 세로 MP4를 저장합니다."
               >
                 <input
                   type="number"
@@ -232,7 +235,8 @@ export function AutomationSetup({
                       Veo API를 부르지 않아 API 사용료와 Gemini 키가 필요 없습니다. Google AI Pro
                       구독의 Flow 크레딧을 쓰며 월 제공량과 모델별 소모량은 미검증입니다. 시작
                       이미지와 프롬프트를 내보낸 뒤 클립 단계에서 멈추고, 클립을 Flow에서 만들어
-                      업로드하면 자동으로 이어집니다.
+                      업로드하면 자동으로 이어집니다. 실사 클립 최대 {VEO_SHOTS_MAX}개와 3D 설명
+                      클립 최대 {INFO_CLIPS_MAX}개를 각각 기획합니다.
                     </small>
                   </span>
                 </label>
@@ -328,7 +332,7 @@ export function AutomationSetup({
             : "광고안 1개를 설계하고 이미지를 최초 1회, 필요하면 수정 1회 생성합니다. 이미지 API 호출은 최대 2회입니다."}{" "}
           {videoCount > 0
             ? flow
-              ? ` 완성 영상 ${videoCount}개(30~60초, 내레이션·자막·BGM 포함): 영상마다 Typecast 내레이션 → AI 정지 이미지 최대 ${STILL_SHOTS_MAX}장 → Veo 시작 이미지 → Flow 클립 최대 ${VEO_SHOTS_MAX}개(움직임이 필요한 실사 컷에만, ${VEO_CLIP_SEC}초 클립을 Google Flow에서 직접 만들어 업로드) → 모션그래픽·조립 순서로 진행합니다. 클립 단계에서 시작 이미지·프롬프트를 내보내고 멈춰 업로드를 기다립니다. Typecast·OpenAI 키와 ffmpeg가 필요하고 Gemini 키는 필요 없습니다.`
+              ? ` 완성 영상 ${videoCount}개(30~60초, 내레이션·자막·BGM 포함): 영상마다 Typecast 내레이션 → AI 정지 이미지 최대 ${STILL_SHOTS_MAX}장 → Veo 시작 이미지 → Flow 실사 클립 최대 ${VEO_SHOTS_MAX}개 + 3D 설명 클립 최대 ${INFO_CLIPS_MAX}개(각 ${VEO_CLIP_SEC}초, Google Flow에서 직접 만들어 업로드) → 모션그래픽·조립 순서로 진행합니다. 클립 단계에서 시작 이미지·프롬프트를 내보내고 멈춰 업로드를 기다립니다. Typecast·OpenAI 키와 ffmpeg가 필요하고 Gemini 키는 필요 없습니다.`
               : ` 완성 영상 ${videoCount}개(30~60초, 내레이션·자막·BGM 포함): 영상마다 Typecast 내레이션 → AI 정지 이미지 최대 ${STILL_SHOTS_MAX}장(분위기·상황 컷, 카메라 무브로 재구성) → Veo 시작 이미지 → Veo ${VEO_CLIP_SEC}초 클립 최대 ${VEO_SHOTS_MAX}개(움직임이 필요한 실사 컷에만, 클립마다 생성 ≤2회, 재생성은 최대 1회) → 모션그래픽·조립 순서로 진행합니다. Gemini·Typecast·OpenAI 키와 ffmpeg가 필요합니다.`
             : ""}{" "}
           실제 API 사용료가 발생할 수 있습니다. Meta 광고 등록·게시·광고비 집행은 진행하지 않습니다.
@@ -366,7 +370,11 @@ export function AutomationSetup({
             최대 약 {maxFactor.toFixed(1)}배(약 US$
             {(videoCount * cost.maxUsd).toFixed(2)})까지 늘어날 수 있습니다. 구성이 허용 최대(클립{" "}
             {VEO_SHOTS_MAX}개·정지 이미지 {STILL_SHOTS_MAX}장)이고 재시도까지 모두 일어나면 영상당
-            약 US${worst.maxUsd.toFixed(2)}입니다. 실제 호출 단가는 미검증입니다.{" "}
+            약 US${worst.maxUsd.toFixed(2)}입니다.{" "}
+            {flow
+              ? `3D 설명 클립은 위 API 추정에서 제외되며, 클립당 CLEAN·INFO 이미지 2장 비용과 Flow 크레딧이 추가됩니다(최대 ${INFO_CLIPS_MAX}개). `
+              : ""}
+            실제 호출 단가는 미검증입니다.{" "}
             <a
               href="https://ai.google.dev/gemini-api/docs/pricing"
               target="_blank"

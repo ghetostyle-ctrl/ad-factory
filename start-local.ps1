@@ -6,6 +6,10 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
 $studioBun = & (Join-Path $PSScriptRoot 'ensure-bun.ps1')
+$studioNode = Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $studioNode) { throw 'Node.js 22 or newer is required for HyperFrames. Install the LTS version from https://nodejs.org.' }
+$studioNodeMajor = [int]((& $studioNode.Source --version).TrimStart('v').Split('.')[0])
+if ($studioNodeMajor -lt 22) { throw 'Node.js 22 or newer is required for HyperFrames.' }
 $studioPortOutput = & $studioBun --print 'process.env.PORT || "4317"'
 $studioPort = 0
 if ($LASTEXITCODE -ne 0 -or -not [int]::TryParse(($studioPortOutput | Out-String).Trim(), [ref]$studioPort) -or $studioPort -lt 1024 -or $studioPort -gt 65535) { throw 'PORT must be an integer from 1024 to 65535.' }
@@ -43,9 +47,15 @@ try {
     return
   }
   if (Test-StudioPort) { throw "Port $studioPort is occupied by another or older service. Stop that service or choose a different PORT; this launcher will not replace it." }
-  if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'node_modules'))) {
+  $studioLockHash = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'bun.lock') -Algorithm SHA256).Hash
+  $studioRuntimeRoot = Join-Path $PSScriptRoot '.runtime'
+  $studioDependencyStamp = Join-Path $studioRuntimeRoot 'dependency-lock.sha256'
+  $studioInstalledHash = if (Test-Path -LiteralPath $studioDependencyStamp) { (Get-Content -LiteralPath $studioDependencyStamp -Raw).Trim() } else { '' }
+  if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'node_modules')) -or $studioInstalledHash -ne $studioLockHash) {
     & $studioBun install --frozen-lockfile
     if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
+    New-Item -ItemType Directory -Path $studioRuntimeRoot -Force | Out-Null
+    Set-Content -LiteralPath $studioDependencyStamp -Value $studioLockHash
   }
   if (-not $SkipBuild) {
     & $studioBun run build

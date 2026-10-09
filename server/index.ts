@@ -1,6 +1,7 @@
 import { createApp } from "./app";
 import { AutomationEngine } from "./automation";
 import { dataDir, env } from "./config";
+import { loadInstructions } from "./instructions";
 import { logger } from "./logger";
 import { Pipeline } from "./pipeline";
 import { ffmpegCapabilities } from "./render/ffmpeg";
@@ -26,6 +27,23 @@ logger.info(
   { ffmpeg: ffmpeg ?? "missing", captionFont: font?.family ?? "missing" },
   "studio.render_tools",
 );
+// 지시 파일(instructions/)을 기동 때 한 번 읽는다. 첫 로드 실패는 기동 실패(원인 출력). 이후 깨진 편집은 생성 경로가 마지막 성공본을
+// 쓰고 같은 원인은 로그에 1회만 남는다(GET /api/instructions 의 warnings 에도 보인다).
+try {
+  const instructions = loadInstructions({
+    onWarning: (reason) => logger.warn({ reason }, "instructions.fallback"),
+  });
+  logger.info(
+    { digest: instructions.digest.slice(0, 8), files: instructions.files.map((file) => file.name) },
+    "studio.instructions",
+  );
+} catch (error) {
+  logger.error(
+    { reason: error instanceof Error ? error.message : String(error) },
+    "studio.instructions_failed",
+  );
+  process.exit(1);
+}
 app = createApp(store, new Pipeline(store), engine);
 engine.open();
 logger.info({ url: `http://127.0.0.1:${server.port}` }, "studio.started");

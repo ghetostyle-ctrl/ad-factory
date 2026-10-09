@@ -1,0 +1,2 @@
+Base photographic prompt.
+Use reference image 1 for visible product identity, shape, materials and packaging details. Preserve existing product markings; do not invent branding. Do not copy its promotional text, captions, infographic blocks or card layout. Produce the requested photographic scene, not another advertisement card. Reference image 2 is the established photographic scene: preserve its person, clothing, setting, lighting and product appearance while changing only the action and framing requested for this shot.

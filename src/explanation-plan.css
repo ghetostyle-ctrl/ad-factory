@@ -1,0 +1,14 @@
+.explanation-plan {
+  min-width: 0;
+  color: var(--ink);
+}
+.explanation-beats {
+  display: grid;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.explanation-beats > li {
+  min-width: 0;
+}

@@ -3,7 +3,10 @@ import { AutomationEnrollment } from "../server/automation-enrollment";
 import { StudioError } from "../server/errors";
 import type { VoiceProvider } from "../server/tts-provider";
 import { VoiceManifestSchema, VoiceProduction } from "../server/voice-production";
+import { RenderTimelineSchema } from "../shared/render-timeline";
+import { sineWav } from "./render-fixture";
 import { renderRuntimeFixture } from "./render-runtime-fixture";
+import { fixtureVideoPlanning } from "./video-planning-fixture";
 
 // 내레이션 합성 재개 안전성: 저장된 문장(wav·textDigest·tempo 일치)은 Typecast 재요청 0회, 산출물 이름 중복 없음.
 // Typecast 는 전부 스텁(호출 수 기록)이라 실제 과금 0원.
@@ -147,4 +150,50 @@ test("tempo resynthesis (attempt 2) lines are reused after an interruption in th
   const settled = f.counts.voice;
   await new VoiceProduction(f.store, real).run(id, 1, signal());
   expect(f.counts.voice).toBe(settled);
+}, 60_000);
+
+test("a new immersive script keeps the chosen speaking tempo and extends its own scene", async () => {
+  // Given
+  const id = await readyForVoice();
+  f.store.change(id, (draft) => {
+    const script = draft.videoScripts[0];
+    if (!script) throw new Error("fixture script missing");
+    script.planning = { ...fixtureVideoPlanning(), visualPolicy: "immersive_explanations_v1" };
+  });
+  const script = f.store.get(id).videoScripts[0];
+  if (!script) throw new Error("fixture script missing");
+  const firstText = script.voiceover[0]?.text;
+  const tempos: number[] = [];
+  const provider: VoiceProvider = async (task) => {
+    tempos.push(task.tempo);
+    const durationMs = task.text === firstText ? 4000 : 300;
+    return {
+      value: { audio: sineWav(durationMs), durationMs, words: [] },
+      model: {
+        provider: "typecast",
+        requestedModel: "fixture",
+        effectiveModel: "fixture",
+        quality: null,
+      },
+    };
+  };
+  // When
+  await new VoiceProduction(f.store, provider).run(id, 1, signal());
+  // Then
+  expect(tempos).toEqual(script.voiceover.map(() => 1));
+  const timeline = RenderTimelineSchema.parse(
+    await (await f.production.assets.read(id, "timeline-1.json")).json(),
+  );
+  const first = script.voiceover[0];
+  if (!first) throw new Error("fixture first line missing");
+  expect(timeline.cuts[first.toCut]?.endMs ?? 0).toBeGreaterThanOrEqual(4000);
+  expect(timeline.visualPolicy).toBe("immersive_explanations_v1");
+  expect(timeline.cuts.every((cut) => cut.visualPolicy === timeline.visualPolicy)).toBe(true);
+  const manifest = VoiceManifestSchema.parse(
+    await (await f.production.assets.read(id, "voice-1.json")).json(),
+  );
+  expect(manifest.lines.every((line) => line.attempt === 1)).toBe(true);
+  // A completed saved timeline remains reusable without synthesis.
+  await new VoiceProduction(f.store, provider).run(id, 1, signal());
+  expect(tempos).toHaveLength(script.voiceover.length);
 }, 60_000);

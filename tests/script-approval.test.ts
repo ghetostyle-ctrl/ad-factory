@@ -15,7 +15,7 @@ import {
   scriptApprovalReady,
   scriptApproved,
 } from "../shared/script-approval";
-import { VideoScriptSchema } from "../shared/video-script";
+import { EMPTY_CLIP_PLAN, VideoScriptSchema } from "../shared/video-script";
 import { renderScript } from "./render-fixture";
 import { renderRuntimeFixture, settle } from "./render-runtime-fixture";
 
@@ -270,6 +270,60 @@ test("editing validates the narration rules, recomputes cut narration, resets ap
   await settle(engine);
   expect(f.store.get(id).automation?.status).toBe("waiting");
   expect(f.counts.voice).toBe(0);
+});
+
+// 장면 계획(2026-10-06 R7): 편집은 글만 바꾸고 콜아웃·컷 goal/phase·클립 plan·subjects 를 보존한다. 콜아웃이 붙은 어절이
+// 새 문장에서 사라지면 저장 전에 어느 콜아웃인지 알려 준다(픽스처는 마지막 문장에 라벨 콜아웃이 있다).
+test("editing keeps the scene plan and refuses a sentence edit that drops a callout word", async () => {
+  const id = await waitingJob();
+  const before = VideoScriptSchema.parse(f.store.get(id).videoScripts[0]);
+  const last = before.voiceover.length - 1;
+  const callout = before.voiceover[last]?.callouts[0];
+  if (!callout) throw new Error("픽스처의 마지막 문장에 콜아웃이 있어야 합니다.");
+  expect(before.veoClips.length).toBeGreaterThan(0);
+  expect(before.subjects.length).toBeGreaterThan(0);
+  const dropped = await request(`${id}/videos/1/script`, {
+    method: "PUT",
+    body: { voiceover: [{ index: last, text: "지금 바로 보세요" }] },
+  });
+  expect(dropped.status).toBe(400);
+  const droppedError = await errorOf(dropped);
+  expect(droppedError.code).toBe("script_rules");
+  expect(droppedError.error).toContain(
+    `${last + 1}번째 문장 콜아웃 '${callout.text}'의 단어가 문장에 없습니다`,
+  );
+  expect(droppedError.error).toContain(`"${callout.word}"`);
+  expect(f.store.get(id).videoScripts[0]?.voiceover[last]?.text).toBe(before.voiceover[last]?.text);
+  // 어절을 남긴 편집과 다른 문장·자막 편집은 통과하고 장면 계획 필드는 그대로다
+  const kept = await request(`${id}/videos/1/script`, {
+    method: "PUT",
+    body: {
+      voiceover: [
+        { index: 0, text: "다리가 붓는 분이라면 꼭 보세요" },
+        { index: last, text: `${callout.word} 보세요` },
+      ],
+      captions: [{ cutIndex: 0, onScreenText: "다리 붓는 분" }],
+    },
+  });
+  expect(kept.status).toBe(200);
+  const after = VideoScriptSchema.parse(f.store.get(id).videoScripts[0]);
+  expect(after.voiceover[last]?.text).toBe(`${callout.word} 보세요`);
+  expect(after.voiceover.map((voice) => voice.callouts)).toEqual(
+    before.voiceover.map((voice) => voice.callouts),
+  );
+  expect(after.cuts.map((cut) => [cut.goal, cut.phase])).toEqual(
+    before.cuts.map((cut) => [cut.goal, cut.phase]),
+  );
+  expect(after.cuts.every((cut) => cut.goal !== "")).toBe(true);
+  expect(after.veoClips.map((clip) => clip.plan)).toEqual(before.veoClips.map((clip) => clip.plan));
+  expect(after.subjects).toEqual(before.subjects);
+  // 조회 응답에도 장면 계획이 그대로 나간다
+  const shown = VideoScriptSchema.parse((await view(id)).script);
+  expect(shown.subjects).toEqual(before.subjects);
+  expect(shown.voiceover[last]?.callouts).toEqual(before.voiceover[last]?.callouts);
+  expect(shown.veoClips[0]?.plan).toEqual(before.veoClips[0]?.plan);
+  // 편집은 유료 호출을 만들지 않는다
+  expect(f.counts.script).toBe(1);
 });
 
 test("after narration synthesis an edit or rewrite is refused with 409 and reset is suggested", async () => {
@@ -670,4 +724,36 @@ test("formatScriptView prints repairs, warnings and the unresolved-rules section
   expect(output).toContain("[경고 1건]");
   expect(output).toContain("[자동 수리 2건]");
   expect(output).toContain("- 컷 3: 5초 넘게 효과가 없어 zoom_punch 추가");
+  // 장면 계획(2026-10-06): 컷 줄의 목표·구간, 문장 아래 콜아웃, 등장 대상, 클립 세 구간 계획
+  expect(output).toContain('목표 "장면 1의 핵심"');
+  expect(output).toMatch(/구간 (early|mid|late)/);
+  expect(output).toContain("콜아웃: ");
+  expect(output).toContain("→ label '지금 확인' (subject)");
+  expect(output).toContain("[등장 대상]");
+  expect(output).toContain("- woman: woman in her 30s");
+  expect(output).toContain("[클립 구간 계획]");
+  expect(output).toContain("Veo 클립 A");
+  expect(output).toContain("early(0~3초) 카메라: Clip A: start wide at the kitchen doorway");
+  expect(output).toContain("late(5.5~8초) 카메라: Orbit a quarter turn");
+  // 장면 계획이 없는 예전 대본은 그 절을 내지 않는다
+  const legacy = formatScriptView({
+    number: 1,
+    script: {
+      ...base,
+      subjects: [],
+      cuts: base.cuts.map((cut) => ({ ...cut, goal: "", phase: "" })),
+      voiceover: base.voiceover.map((voice) => ({ ...voice, callouts: [] })),
+      veoClips: base.veoClips.map((clip) => ({ ...clip, plan: EMPTY_CLIP_PLAN })),
+    },
+    approvalMode: "required",
+    approved: false,
+    approval: null,
+    review: null,
+    synthesized: false,
+    pending: [1],
+  }).join("\n");
+  expect(legacy).not.toContain("[등장 대상]");
+  expect(legacy).not.toContain("[클립 구간 계획]");
+  expect(legacy).not.toContain("콜아웃: ");
+  expect(legacy).not.toContain("목표 ");
 });

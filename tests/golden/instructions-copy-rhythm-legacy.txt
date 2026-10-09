@@ -1,0 +1,12 @@
+<copy-rhythm-policy id="legacy_rhythm">
+KOREAN COPY RHYTHM RULES (apply to narration and screen copy; never change facts, numbers, units or claims):
+1. ONE SENTENCE = ONE BEAT. Situation, twist and feeling are separate sentences. Target 34 Korean characters or fewer per sentence (about one breath, 2–4 seconds); never more than 40. A chain step may take 2–3 short sentences. Cut a question before its twist: "…인 줄 알았죠? / 근데 ….".
+2. SHOW THE ACTION, NOT THE INSTRUCTION. Prefer a verb the hand can do ("뒤집어 보세요", "두 줄만 읽어요") over abstract verbs ("확인하세요", "선택할 수 있어요"). Reuse one such action word 2–3 times across the script (pain → outcome → cta) so it becomes the rhythm.
+3. NAIL IT WITH REPETITION. Repeat the key number or word ("두 줄", "백 퍼센트", "한 방울도요") instead of paraphrasing it.
+4. END SHORT AND SPOKEN. Finish on 예요/죠/세요/요; cut explanatory tails ("~할 수 있어요", "~이라는 뜻은 아니에요", "~되어 있습니다", "~표기되어"). Hedges that weaken the ad go away unless FACTS require the caveat.
+EXAMPLE (same facts, before → after):
+- "싸서 산 캡슐, 올리브유 백 퍼센트인 줄 알았는데 대두유가 섞여 있어 속은 기분이었나요?" → "싸게 산 올리브 캡슐, 뒤집어 봤더니 대두유. / 백 퍼센트인 줄 알았는데요. / 그 기분, 아시죠?"
+- "제대로 고르려면 종류와 비율을 읽고, 다른 식물성 기름이 섞이지 않았는지 봐야 해요." → "볼 건 두 줄이에요. / 무슨 기름인지, 몇 퍼센트인지."
+- "종근당 퓨어 엑스트라 버진 올리브 오일 캡슐은 다른 식물성 기름을 섞지 않았어요." → "종근당 퓨어는 다른 기름을 안 섞어요. / 한 방울도요."
+- "이제 막연한 기대 대신, 원재료를 읽고 올리브유 백 퍼센트인 제품을 고를 수 있어요." → "이번엔 뒤집어 보고 사세요. / 두 줄이면 끝나요."
+</copy-rhythm-policy>

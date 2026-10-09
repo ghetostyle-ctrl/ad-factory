@@ -1,6 +1,6 @@
 import type { ClipId } from "../../shared/render-state";
 import { assignClipOffsets, type TimelineCut } from "../../shared/render-timeline";
-import { VEO_CLIP_MS, type VideoScript } from "../../shared/video-script";
+import { usesNaturalTiming, VEO_CLIP_MS, type VideoScript } from "../../shared/video-script";
 import { readPlan } from "./segments";
 
 // 컷들이 Veo 클립 하나에서 실제로 읽는 끝 지점(ms). 클립이 이보다 짧으면 `-ss offset -t read` 가
@@ -23,9 +23,18 @@ export function clipNeedMsFromScript(script: VideoScript, clipId: ClipId): numbe
     const startMs = cursor;
     const endMs = startMs + (cut.endSec - cut.startSec) * 1000;
     cursor = endMs;
-    return { index, source: cut.source, veoClip: cut.veoClip, startMs, endMs, effect: cut.effect };
+    return {
+      index,
+      source: cut.source,
+      veoClip: cut.veoClip,
+      startMs,
+      endMs,
+      effect: cut.effect,
+      // 구간(phase)이 있는 컷은 구간 시작에서 읽으므로(R6) 같은 함수에 넘겨야 조립과 같은 끝 지점이 나온다.
+      phase: cut.phase,
+    };
   });
-  const offsets = assignClipOffsets(slots);
+  const offsets = assignClipOffsets(slots, usesNaturalTiming(script));
   let need = 0;
   for (const slot of slots) {
     const placed = offsets.get(slot.index);

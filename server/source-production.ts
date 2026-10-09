@@ -8,14 +8,16 @@ import {
   scriptApprovalReady,
   scriptArtifactName,
 } from "../shared/script-approval";
-import { videoTargetSeconds } from "../shared/video-script";
+import { videoTargetSeconds, videoVariantIndex } from "../shared/video-script";
 import { Artifacts } from "./artifacts";
 import { AutomationGuard, contentDigest } from "./automation-guard";
 import type { ProductionProviders } from "./automation-production";
 import { BlockedError, MissingConnectionError, StudioError, WaitingError } from "./errors";
+import { instructionsEventMessage } from "./instructions";
 import { renderStateOf } from "./render-state-helpers";
 import { SCRIPT_MAX_GENERATIONS, writeVideoScript } from "./script-writer";
 import { validatePlanEvidence } from "./source-evidence";
+import { sourceImagePrompt } from "./source-image-style";
 import { SourcePlanner } from "./source-planning";
 import type { JobStore } from "./store";
 import { verifyVideoScript } from "./video-scripts";
@@ -99,7 +101,11 @@ export class SourceProduction {
         signal,
         run: async () => {
           const number = index + 1;
-          const durationSec = videoTargetSeconds(id, number);
+          const durationSec = videoTargetSeconds(
+            id,
+            number,
+            videoVariantIndex(this.store.get(id).videoScripts, number, hypothesis.id),
+          );
           // 규칙(길이·컷·자막·내레이션)과 AI 품질 검토에 걸리면 이유를 모아 다시 쓴다(생성 최대 3회).
           const result = await writeVideoScript({
             store: this.store,
@@ -109,13 +115,13 @@ export class SourceProduction {
             hypothesis,
             durationSec,
             signal,
-            progress: (attempt, reason) => {
+            progress: (attempt, reason, plannedDurationSec) => {
               this.store.agent(id, "creative", {
                 status: "running",
                 action: {
                   planning: `영상 ${number}/${videoCount} · 고객 상황 분석·영상 콘셉트 기획 중`,
                   copy: `영상 ${number}/${videoCount} · 내레이션·화면 카피 교정 중`,
-                  write: `영상 ${number}/${videoCount} · ${durationSec}초 대본·컷 구성 작성 중${attempt > 1 ? ` · 수정 ${attempt - 1}회` : ""}`,
+                  write: `영상 ${number}/${videoCount} · ${plannedDurationSec === undefined ? "" : `${plannedDurationSec}초 `}대본·컷 구성 작성 중${attempt > 1 ? ` · 수정 ${attempt - 1}회` : ""}`,
                   review: `영상 ${number}/${videoCount} · 대본 AI 품질 검토 중(말맛·설득력·사실 일치)`,
                 }[reason],
               });
@@ -131,6 +137,14 @@ export class SourceProduction {
           this.store.change(id, (draft) => {
             draft.videoScripts.push(result.script);
             renderStateOf(draft, number).scriptReview = result.review;
+            // 이 대본을 만들 때 읽은 지시 파일(D5): 해시는 scriptReview 에, 이벤트에는 앞 8자리만.
+            if (result.review.instructionsDigest)
+              this.store.event(
+                draft,
+                "creative",
+                "info",
+                `영상 ${number} 대본 · ${instructionsEventMessage({ digest: result.review.instructionsDigest })}`,
+              );
             if (result.review.repairs.length > 0)
               this.store.event(
                 draft,
@@ -205,7 +219,11 @@ export class SourceProduction {
               status: "running",
               action: `${variantId} · 카드뉴스 ${cardNumber}/${slides.length + 1}장 ${attempt === 1 ? "생성" : "수정"} 중`,
             });
-            const result = await this.providers.image(this.store.get(id), prompt, signal);
+            const result = await this.providers.image(
+              this.store.get(id),
+              sourceImagePrompt(this.store.get(id), variantId, prompt),
+              signal,
+            );
             saved = await this.assets.save(id, {
               name: `card-${variantId}-${cardNumber}-${attempt}.png`,
               kind: "image",
@@ -314,7 +332,11 @@ export class SourceProduction {
               this.variant(draft, variantId).imageAttempts = attempt;
             });
             const result = await this.providers
-              .image(this.store.get(id), prompt, signal)
+              .image(
+                this.store.get(id),
+                sourceImagePrompt(this.store.get(id), variantId, prompt),
+                signal,
+              )
               .catch((error) => {
                 if (error instanceof MissingConnectionError)
                   this.store.change(id, (draft) => {

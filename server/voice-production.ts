@@ -1,10 +1,12 @@
 import { z } from "zod";
+import { AD_EDIT_STYLE } from "../shared/ad-edit-style";
 import { type ExecutionModels, ttsVoicePresets } from "../shared/models";
 import { type VoiceLineRecord, VoiceLineRecordSchema } from "../shared/render-state";
 import {
   buildTimeline,
   type RenderTimeline,
-  TIMELINE_DEFAULTS,
+  RenderTimelineSchema,
+  timelineDefaults,
   timelineDigest,
   type VoiceMeasurement,
 } from "../shared/render-timeline";
@@ -16,10 +18,11 @@ import {
   scriptNeedsApproval,
 } from "../shared/script-approval";
 import { sha256Hex } from "../shared/sha256";
-import type { VideoScript } from "../shared/video-script";
+import { usesNaturalTiming, type VideoScript } from "../shared/video-script";
 import { Artifacts } from "./artifacts";
 import { AutomationGuard } from "./automation-guard";
 import { BlockedError, StudioError, WaitingError } from "./errors";
+import { syncThresholds } from "./instructions";
 import {
   approvedSources,
   hasArtifact,
@@ -31,6 +34,7 @@ import {
 } from "./render-state-helpers";
 import type { JobStore } from "./store";
 import { generateVoiceResult, type VoiceProvider } from "./tts-provider";
+import { speechMeasurement } from "./voice-timing";
 
 export type { VoiceLineRecord };
 // phase 'voice': Typecast 문장별 합성 → 실측 길이로 타임라인 확정. 가장 싼 유료 단계라 Veo 보다 먼저 돈다.
@@ -103,6 +107,8 @@ export class VoiceProduction {
           "script_changed",
           `영상 ${number} 대본이 내레이션 합성 이후 바뀌었습니다. 작업을 초기화한 뒤 다시 시작하세요.`,
         );
+      if (usesNaturalTiming(script) && !state.final && !hasArtifact(job, renderNames.final(number)))
+        await this.refreshTimeline(job, script, signal);
       return;
     }
     // 첫 유료 단계: 승인이 필요한 대본(기본 정책, 또는 auto 라도 AI 검토 강제 수용)은 승인 없이 합성을 시작하지 않는다(대기, 실패 아님).
@@ -129,7 +135,7 @@ export class VoiceProduction {
           signal,
           concurrency: Math.max(1, Math.min(options.concurrencyLimit ?? 2, 3)),
         });
-        const timeline = this.timelineFrom(this.store.get(id), script, manifest);
+        const timeline = await this.timelineFrom(this.store.get(id), script, manifest, signal);
         const timelineName = renderNames.timeline(number);
         if (!hasArtifact(this.store.get(id), timelineName))
           await saveArtifactOnce(this.assets, id, {
@@ -156,6 +162,78 @@ export class VoiceProduction {
       },
     });
   }
+  async prepareSavedTimeline(
+    id: string,
+    number: number,
+    signal: AbortSignal,
+  ): Promise<RenderTimeline | null> {
+    signal.throwIfAborted();
+    const job = this.store.get(id);
+    const script = scriptOf(job, number);
+    const state = job.renders.find((item) => item.number === number);
+    const voice = state?.voice;
+    if (!voice) throw new BlockedError(`영상 ${number}의 저장된 내레이션 기록이 없습니다.`);
+    const timelineName = renderNames.timeline(number);
+    const saved = RenderTimelineSchema.parse(
+      await (await this.assets.read(job.id, timelineName)).json(),
+    );
+    if (timelineDigest(saved) !== voice.timelineDigest)
+      throw new BlockedError(
+        `영상 ${script.number} 타임라인 파일이 변경되었습니다. 조립을 중단합니다.`,
+      );
+    const manifest = VoiceManifestSchema.parse(
+      await (await this.assets.read(job.id, voice.manifestName)).json(),
+    );
+    const digest = scriptDigest(script);
+    if (
+      state.scriptDigest !== digest ||
+      saved.scriptDigest !== digest ||
+      manifest.scriptDigest !== digest ||
+      manifest.number !== script.number ||
+      manifest.voiceId !== voice.voiceId ||
+      manifest.lines.length !== script.voiceover.length ||
+      manifest.lines.some(
+        (line, index) =>
+          line.index !== index ||
+          line.text !== script.voiceover[index]?.text ||
+          line.textDigest !== sha256Hex(line.text),
+      )
+    )
+      throw new BlockedError(`영상 ${script.number} 내레이션 기록이 승인된 대본과 다릅니다.`);
+    for (const line of manifest.lines) {
+      const bytes = new Uint8Array(await (await this.assets.read(job.id, line.name)).arrayBuffer());
+      if (sha256Hex(bytes) !== line.digest)
+        throw new BlockedError(`문장 ${line.index + 1}의 내레이션 파일이 합성 기록과 다릅니다.`);
+    }
+    signal.throwIfAborted();
+    const timeline = await this.timelineFrom(job, script, manifest, signal);
+    return timelineDigest(timeline) === voice.timelineDigest ? null : timeline;
+  }
+  private async refreshTimeline(job: Job, script: VideoScript, signal: AbortSignal): Promise<void> {
+    const timeline = await this.prepareSavedTimeline(job.id, script.number, signal);
+    if (!timeline) return;
+    const current = this.guard.check(job.id, signal);
+    const voice = current.renders.find((item) => item.number === script.number)?.voice;
+    if (!voice) throw new BlockedError(`영상 ${script.number}의 내레이션 기록이 없습니다.`);
+    await saveArtifactOnce(this.assets, job.id, {
+      name: renderNames.timeline(script.number),
+      kind: "json",
+      agentId: "production",
+      content: JSON.stringify(timeline),
+    });
+    this.store.change(job.id, (draft) => {
+      renderStateOf(draft, script.number).voice = {
+        ...voice,
+        timelineDigest: timelineDigest(timeline),
+      };
+      this.store.event(
+        draft,
+        "production",
+        "info",
+        `영상 ${script.number} 기존 내레이션을 재사용해 장면 동작 시간을 보존했습니다(${(timeline.durationMs / 1000).toFixed(1)}초).`,
+      );
+    });
+  }
   // voice-<n>.json 이 있으면 재요청 0회. 없으면 문장별 합성 → 창 초과 문장만 템포 재합성(attempt 2) → 저장.
   private async loadOrSynthesize(input: {
     readonly id: string;
@@ -169,16 +247,20 @@ export class VoiceProduction {
   }): Promise<VoiceManifest> {
     const { id, number, script } = input;
     const manifestName = renderNames.voiceManifest(number);
-    if (hasArtifact(this.store.get(id), manifestName)) {
+    const current = this.store.get(id);
+    if (hasArtifact(current, manifestName)) {
       const manifest = VoiceManifestSchema.parse(
         await (await this.assets.read(id, manifestName)).json(),
       );
-      if (manifest.scriptDigest !== input.digest)
+      if (manifest.scriptDigest === input.digest) return manifest;
+      // 타임라인이 확정된 뒤(renders.voice 있음)에 대본이 바뀌면 되돌릴 수 없으니 초기화를 안내한다.
+      // 확정 전(합성 뒤 타임라인 계산이 실패해 사용자가 문장을 고친 경우, 2026-10-08 실측)에는 매니페스트가 낡은 것일 뿐이다:
+      // 아래로 내려가 바뀌지 않은 문장은 voiceLines 기록으로 재사용하고 바뀐 문장만 다시 합성해 매니페스트를 덮어쓴다.
+      if (current.renders.find((item) => item.number === number)?.voice)
         throw new StudioError(
           "script_changed",
           `영상 ${number} 대본이 내레이션 합성 이후 바뀌었습니다. 작업을 초기화한 뒤 다시 시작하세요.`,
         );
-      return manifest;
     }
     const lines = script.voiceover;
     const total = lines.length;
@@ -256,9 +338,14 @@ export class VoiceProduction {
     };
     const baseTempo = input.models.ttsTempo;
     const records = await Promise.all(lines.map((_, index) => synthesizeLine(index, baseTempo, 1)));
+    // 타임라인 임계값(간격·여유·연장·무음 상한)은 instructions/thresholds.json 의 지금 값으로(재시작 없이 반영).
+    syncThresholds();
     // 창 초과 문장만 템포를 올려 1회 재합성. 앞 문장 연장으로 밀린 문장이 또 걸릴 수 있어 두 바퀴까지 본다.
     for (let round = 0; round < 2; round++) {
-      const built = buildTimeline(script, records.map(measurement));
+      const built = buildTimeline(script, records.map(measurement), {
+        trimSilence: true,
+        naturalTiming: usesNaturalTiming(script),
+      });
       if (!("overflow" in built)) break;
       done = 0;
       const resynthesized = await Promise.all(
@@ -327,10 +414,30 @@ export class VoiceProduction {
       }
     }
   }
-  private timelineFrom(job: Job, script: VideoScript, manifest: VoiceManifest): RenderTimeline {
+  private async timelineFrom(
+    job: Job,
+    script: VideoScript,
+    manifest: VoiceManifest,
+    signal: AbortSignal,
+  ): Promise<RenderTimeline> {
     const sources = approvedSources(job, script.hypothesisId);
-    const result = buildTimeline(script, manifest.lines.map(measurement), {
-      ...TIMELINE_DEFAULTS,
+    syncThresholds();
+    const measured =
+      script.flow === "copy_first"
+        ? await Promise.all(
+            manifest.lines.map((line) =>
+              speechMeasurement(line, this.assets.path(job.id, line.name), signal),
+            ),
+          )
+        : manifest.lines.map(measurement);
+    const result = buildTimeline(script, measured, {
+      ...timelineDefaults(),
+      ...(script.flow === "copy_first"
+        ? { gapMs: AD_EDIT_STYLE.pacing.gapMs, slackMs: AD_EDIT_STYLE.pacing.tailMs }
+        : {}),
+      // 말이 끝난 뒤 남는 컷 시간을 줄여 문장 사이·끝의 무음을 없앤다(2026-10-06).
+      trimSilence: true,
+      naturalTiming: usesNaturalTiming(script),
       sources: {
         ...(sources.approvedImage ? { approvedImage: sources.approvedImage.name } : {}),
         cards: sources.cards,
@@ -338,10 +445,22 @@ export class VoiceProduction {
       },
     });
     if ("timeline" in result) return result.timeline;
+    if ("error" in result && result.error === "action_sync")
+      throw new StudioError("action_sync", `영상 ${script.number} ${result.message}`);
     const index = "overflow" in result ? (result.overflow[0]?.index ?? 0) : result.index;
+    if ("error" in result && result.error === "clip_too_short")
+      throw new StudioError(
+        "voice_overflow",
+        `영상 ${script.number} 문장 ${index + 1}을 자연스럽게 읽으면 클립 ${result.clipId}의 8초 분량을 넘거나 같은 구간을 다시 쓰게 됩니다. 대본에서 설명 장면을 나눈 뒤 다시 생성하세요.`,
+      );
+    if (usesNaturalTiming(script))
+      throw new StudioError(
+        "voice_overflow",
+        `영상 ${script.number} 문장 ${index + 1}까지 자연스럽게 읽으면 영상이 60초를 넘습니다. 말 속도를 올리는 대신 반복 문장을 줄이거나 설명을 나눈 뒤 다시 생성하세요.`,
+      );
     throw new StudioError(
       "voice_overflow",
-      `영상 ${script.number} 문장 ${index + 1}의 내레이션이 템포 ${TIMELINE_DEFAULTS.maxTempo}·연장 ${TIMELINE_DEFAULTS.maxExtendMs / 1000}초 안에 들어가지 않습니다. 작업을 초기화하고 대본을 다시 생성하세요.`,
+      `영상 ${script.number} 문장 ${index + 1}의 내레이션이 템포 ${timelineDefaults().maxTempo}·연장 ${timelineDefaults().maxExtendMs / 1000}초 안에 들어가지 않습니다. 작업을 초기화하고 대본을 다시 생성하세요.`,
     );
   }
 }

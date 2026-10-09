@@ -1,4 +1,5 @@
 import type { VideoPlanning as Planning } from "../shared/video-planning";
+import { ExplanationPlan } from "./ExplanationPlan";
 
 const awarenessLabels = {
   unaware: "문제를 아직 뚜렷하게 느끼지 않음",
@@ -17,6 +18,16 @@ const copyFieldLabels = {
   narration: "내레이션",
   screenText: "화면 문구",
 } as const satisfies Record<Planning["copyReview"]["edits"][number]["field"], string>;
+
+const sceneSourceLabels = {
+  project_asset: "실제 촬영본",
+  generated: "AI 생성",
+  graphic: "그래픽",
+  info_clip: "3D 설명 영상",
+} as const satisfies Record<
+  NonNullable<Planning["concept"]["scenePlan"]>[number]["source"],
+  string
+>;
 
 export function VideoPlanning({ planning }: { readonly planning: Planning }) {
   const { audience, concept, copyReview } = planning;
@@ -42,7 +53,36 @@ export function VideoPlanning({ planning }: { readonly planning: Planning }) {
         <p>
           <strong>지금 처한 상황:</strong> {audience.situation}
         </p>
+        {concept.viewerChange ? (
+          <p>
+            <strong>시청자가 얻는 변화:</strong> {concept.viewerChange}
+          </p>
+        ) : null}
+        {concept.mutedMessage ? (
+          <p>
+            <strong>소리 없이 전달할 한 줄:</strong> {concept.mutedMessage}
+          </p>
+        ) : null}
+        {concept.stopReason ? (
+          <p>
+            <strong>첫 2초에 멈출 이유:</strong> {concept.stopReason}
+          </p>
+        ) : null}
       </div>
+      {concept.scenePlan && concept.scenePlan.length > 0 ? (
+        <details className="evidence-details">
+          <summary>장면별 화면 소스 계획 · {concept.scenePlan.length}장면</summary>
+          <ol className="evidence-list stack-tight">
+            {concept.scenePlan.map((item) => (
+              <li key={`${item.source}-${item.scene}-${item.reason}`}>
+                <strong>{sceneSourceLabels[item.source]}</strong> · {item.scene}
+                <p className="small-copy">{item.reason}</p>
+                <ExplanationPlan plan={item.explanation} />
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : null}
       <details className="evidence-details">
         <summary>고객 상황 · 구매 망설임 · 근거 확인</summary>
         <div className="stack">

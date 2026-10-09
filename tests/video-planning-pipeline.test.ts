@@ -16,6 +16,8 @@ test.each([
   async ({ accepted, generations }) => {
     // Given
     const f = planningPipelineFixture();
+    f.planning.durationSec = 54;
+    const writeDurations: (number | undefined)[] = [];
     let plans = 0;
     const stages: string[] = [];
     const writerPlans: (VideoPlanning | undefined)[] = [];
@@ -78,11 +80,15 @@ test.each([
         ...f.input,
         providers,
         userFeedback: "도입을 바꿔 주세요",
-        progress: (_attempt, stage) => stages.push(stage),
+        progress: (_attempt, stage, durationSec) => {
+          stages.push(stage);
+          if (stage === "write") writeDurations.push(durationSec);
+        },
       });
       // Then
       expect(plans).toBe(1);
       expect(stages.slice(0, 3)).toEqual(["planning", "copy", "write"]);
+      expect(writeDurations).toEqual(Array.from({ length: generations }, () => 54));
       expect(writerPlans).toEqual(Array.from({ length: generations }, () => f.planning));
       expect(reviewedPlans).toEqual(
         Array.from({ length: accepted === "needsFix" ? 0 : generations }, () => f.planning),

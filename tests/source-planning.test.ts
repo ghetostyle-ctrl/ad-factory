@@ -22,16 +22,20 @@ afterEach(() => {
 const signal = () => new AbortController().signal;
 
 test.each(["revise", "pass"] as const)(
-  "rejects after one revision when critique reports issues with status %s",
+  "accepts with unresolved-review limitations after two revisions when critique keeps reporting issues (%s)",
   async (status) => {
     // Given
     const fixture = setup();
     fixture.replies.critique = { status, issues: ["Unsupported additional product claim"] };
     // When
-    const planned = fixture.planner.plan(fixture.job(), sourceStrategy, signal());
-    // Then
-    await expect(planned).rejects.toMatchObject({ code: "plan_rejected" });
+    const planned = await fixture.planner.plan(fixture.job(), sourceStrategy, signal());
+    // Then: 구조는 통과한 기획이라 멈추지 않고, 남은 지적을 한계 목록에 적는다.
+    expect(planned.value.limitations).toContain(
+      "검토 미해결: Unsupported additional product claim",
+    );
     expect(fixture.requests.map((item) => item.text.format.name)).toEqual([
+      "source_creative_plan",
+      "creative_plan_critique",
       "source_creative_plan",
       "creative_plan_critique",
       "source_creative_plan",
@@ -172,10 +176,11 @@ test("reuses reference analysis across source IDs and planner instances when dig
   expect(
     fixture.requests.filter((item) => item.text.format.name === "reference_structure"),
   ).toHaveLength(1);
-  expect(result.value.referenceAnalyses.map((item) => item.sourceId)).toEqual([
-    first.id,
-    duplicate.id,
-  ]);
+  // 같은 문구의 두 레퍼런스는 한 묶음(변형 2개)이라 대표만 분석한다.
+  expect(result.value.referenceAnalyses.map((item) => item.sourceId)).toEqual([first.id]);
+  expect(
+    result.value.sourceCoverage.excluded.find((item) => item.sourceId === duplicate.id)?.reason,
+  ).toContain("변형 2개");
 });
 
 test.each(["model", "digest"] as const)(
@@ -246,8 +251,10 @@ test.each([2, 4])(
     // When
     const planned = fixture.planner.plan(fixture.job(), sourceStrategy, signal());
     // Then
+    // 광고안 수·다양성 위반은 피드백을 붙여 최대 세 번 다시 쓰고, 그래도 틀리면 멈춘다.
     await expect(planned).rejects.toMatchObject({ code: "diversity" });
-    expect(fixture.requests).toHaveLength(1);
+    // 구조 오류 재작성 최대 3회 → 생성 4회(2026-10-06)
+    expect(fixture.requests).toHaveLength(4);
   },
 );
 
@@ -311,7 +318,7 @@ test("blocks before calling a model when only reviews and references remain", as
   expect(fixture.requests).toEqual([]);
 });
 
-test("preserves complete records when character budgets exclude oversized evidence", () => {
+test("version 1 preserves complete records when character budgets exclude oversized evidence", () => {
   // Given
   const fixture = setup();
   fixture.library.deactivateSource(fixture.project.id, fixture.fact.id);
@@ -326,7 +333,7 @@ test("preserves complete records when character budgets exclude oversized eviden
     { ...sourceFact, kind: "review", content: "h".repeat(2000) },
   ].map((item) => fixture.library.addSource(fixture.project.id, CreateSourceSchema.parse(item)));
   // When
-  const pack = evidencePack(fixture.library.snapshot(fixture.project.id));
+  const pack = evidencePack(fixture.library.snapshot(fixture.project.id), 1);
   // Then
   expect(pack.facts).toEqual(items.filter((_, index) => [0, 2].includes(index)));
   expect(pack.references).toEqual(items.slice(4, 5));
@@ -341,7 +348,7 @@ test.each([
   { kind: "reference", limit: 5, field: "references" },
   { kind: "review", limit: 4, field: "voices" },
 ] as const)(
-  "caps whole $kind records at $limit when more are available",
+  "version 1 caps whole $kind records at $limit when more are available",
   ({ kind, limit, field }) => {
     // Given
     const fixture = setup();
@@ -354,7 +361,7 @@ test.each([
       }),
     );
     // When
-    const pack = evidencePack(fixture.library.snapshot(fixture.project.id));
+    const pack = evidencePack(fixture.library.snapshot(fixture.project.id), 1);
     // Then
     expect(pack[field]).toEqual(sources.slice(0, limit));
     expect(pack.coverage.excluded.map((item) => item.sourceId)).toEqual(
@@ -362,6 +369,52 @@ test.each([
     );
   },
 );
+
+test("version 2 groups reference copy variants and keeps one representative per group, biggest group first", () => {
+  // Given
+  const fixture = setup();
+  const add = (content: string) =>
+    fixture.library.addSource(fixture.project.id, { ...sourceReference, content });
+  const lone = add("아침공복엔 올리브");
+  const pushed = [
+    add("가품주의, 100% 올리브"),
+    add("가품주의,  100% 올리브!"),
+    add("가품주의 100% 올리브"),
+  ];
+  const pair = [add("하루 900원대"), add("하루 900원대!")];
+  // When
+  const pack = evidencePack(fixture.library.snapshot(fixture.project.id));
+  // Then
+  expect(pack.references.map((item) => String(item.id))).toEqual(
+    [pushed[0], pair[0], lone].map((item) => String(item?.id)),
+  );
+  expect(pack.referenceGroups.map((group) => group.variantCount)).toEqual([3, 2, 1]);
+  expect(pack.coverage.excluded.map((item) => item.sourceId)).toEqual(
+    [pushed[1], pushed[2], pair[1]].map((item) => String(item?.id)),
+  );
+  expect(pack.coverage.excluded[0]?.reason).toContain("변형 3개");
+});
+
+test("version 2 keeps at most five group representatives and up to twelve reviews", () => {
+  // Given
+  const fixture = setup();
+  for (let index = 0; index < 7; index++)
+    fixture.library.addSource(fixture.project.id, { ...sourceReference, content: `소재 ${index}` });
+  for (let index = 0; index < 13; index++)
+    fixture.library.addSource(fixture.project.id, {
+      ...sourceFact,
+      kind: "review",
+      content: `후기 ${index}`,
+    });
+  // When
+  const pack = evidencePack(fixture.library.snapshot(fixture.project.id));
+  // Then
+  expect(pack.references).toHaveLength(5);
+  expect(pack.voices).toHaveLength(12);
+  expect(pack.coverage.excluded.filter((item) => item.reason.includes("묶음 한도"))).toHaveLength(
+    2,
+  );
+});
 
 test("rejects concepts that answer the same customer question with different wording", async () => {
   // Given
@@ -374,28 +427,38 @@ test("rejects concepts that answer the same customer question with different wor
   const planned = fixture.planner.plan(fixture.job(), sourceStrategy, signal());
   // Then
   await expect(planned).rejects.toMatchObject({ code: "diversity" });
-  expect(fixture.requests).toHaveLength(1);
+  // 구조 오류 재작성 최대 3회 → 생성 4회(2026-10-06)
+  expect(fixture.requests).toHaveLength(4);
 });
 
-test.each([
-  ["an unknown question", { customerQuestionId: "question-missing" }, null],
-  ["an inferred question with sources", null, { basis: "inferred" as const }],
-  ["a customer-voice question citing facts", null, { basis: "customer_voice" as const }],
-])("rejects %s", async (_name, hypothesisPatch, questionPatch) => {
+test("rejects an unknown question", async () => {
   // Given
   const fixture = setup();
-  if (hypothesisPatch)
-    fixture.replies.plan.hypotheses = fixture.replies.plan.hypotheses.map((item, index) =>
-      index === 0 ? { ...item, ...hypothesisPatch } : item,
-    );
-  if (questionPatch)
-    fixture.replies.plan.customerQuestions = fixture.replies.plan.customerQuestions.map(
-      (item, index) => (index === 0 ? { ...item, ...questionPatch } : item),
-    );
+  fixture.replies.plan.hypotheses = fixture.replies.plan.hypotheses.map((item, index) =>
+    index === 0 ? { ...item, customerQuestionId: "question-missing" } : item,
+  );
   // When
   const planned = fixture.planner.plan(fixture.job(), sourceStrategy, signal());
   // Then
   await expect(planned).rejects.toMatchObject({ code: "customer_questions" });
+});
+
+// 출처 ID 가 근거 종류와 맞지 않는 고객 질문은 거부하지 않고 고친다(2026-10-06): 맞지 않는 ID 를 빼고 근거가 없으면 inferred.
+test.each([
+  ["an inferred question with sources", { basis: "inferred" as const }],
+  ["a customer-voice question citing facts", { basis: "customer_voice" as const }],
+])("normalizes %s instead of rejecting", async (_name, questionPatch) => {
+  // Given
+  const fixture = setup();
+  fixture.replies.plan.customerQuestions = fixture.replies.plan.customerQuestions.map(
+    (item, index) => (index === 0 ? { ...item, ...questionPatch } : item),
+  );
+  // When
+  const planned = await fixture.planner.plan(fixture.job(), sourceStrategy, signal());
+  // Then
+  const first = planned.value.customerQuestions[0];
+  expect(first?.sourceIds).toEqual([]);
+  expect(first?.basis).toBe("inferred");
 });
 
 test.each([

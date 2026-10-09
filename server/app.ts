@@ -13,6 +13,8 @@ import { ConnectionsSchema } from "../shared/schema";
 import { AutomationEngine } from "./automation";
 import { configStatus, credentials, env, persistCredentials } from "./config";
 import { publicError, StudioError } from "./errors";
+import type { InstructionsOptions } from "./instructions";
+import { instructionsStatus } from "./instructions-status";
 import { jobRoutes } from "./job-routes";
 import { logger } from "./logger";
 import { saveModelSettings } from "./model-settings";
@@ -22,10 +24,15 @@ import { ProjectStore } from "./project-store";
 import { installStatic } from "./static";
 import type { JobStore } from "./store";
 
+export type AppOptions = {
+  // 지시 파일 로더 옵션(테스트가 임시 폴더·작은 절 목록을 주입한다). 기본은 저장소의 instructions/.
+  readonly instructions?: InstructionsOptions;
+};
 export function createApp(
   store: JobStore,
   pipeline = new Pipeline(store),
   engine = new AutomationEngine(store),
+  options: AppOptions = {},
 ): Hono {
   const app = new Hono();
   const library = new ProjectStore(store.db, () => {
@@ -97,6 +104,9 @@ export function createApp(
     engine: engine.state(),
   });
   app.get("/api/state", (c) => c.json(state()));
+  // 지시 파일 상태(읽기 전용, 동일 출처 GET): 파일 목록·해시·마지막 로드·경고·임계값·절 KEY 와 글자 수. 절 본문은 보내지 않는다.
+  // 호출마다 로더가 파일 변경을 확인하므로 파일을 고친 뒤 이 요청으로 파싱 결과를 확인할 수 있다.
+  app.get("/api/instructions", (c) => c.json(instructionsStatus(options.instructions)));
   app.post("/api/model-settings", validator("json", ModelSettingsSchema), (c) => {
     saveModelSettings(store.root, c.req.valid("json"));
     return c.json(configStatus(store.root));
@@ -109,6 +119,7 @@ export function createApp(
       throw new StudioError("busy", "실행 중인 작업이 끝난 후 연결을 변경하세요.");
     const input = c.req.valid("json");
     if (input.openaiApiKey !== undefined) credentials.openai = input.openaiApiKey;
+    if (input.anthropicApiKey !== undefined) credentials.anthropic = input.anthropicApiKey;
     if (input.geminiApiKey !== undefined) credentials.gemini = input.geminiApiKey;
     if (input.metaAccessToken !== undefined) credentials.meta = input.metaAccessToken;
     if (input.typecastApiKey !== undefined) credentials.typecast = input.typecastApiKey;

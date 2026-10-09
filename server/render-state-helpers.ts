@@ -19,6 +19,8 @@ export const renderNames = {
   stillReview: (n: number, stillId: string, attempt: number) =>
     `still-review-${n}-${stillId}-${attempt}.json`,
   clip: (n: number, clipId: string, attempt: number) => `clip-${n}-${clipId}-${attempt}.mp4`,
+  infoImage: (n: number, clipId: string, which: "clean" | "info", attempt: number) =>
+    `info-${n}-${clipId}-${which}-${attempt}.png`,
   clipReview: (n: number, clipId: string, attempt: number) =>
     `clip-review-${n}-${clipId}-${attempt}.json`,
   final: (n: number) => `video-final-${n}.mp4`,
