@@ -34,6 +34,7 @@ const videoRates: Record<VideoModel, { readonly "720p": number; readonly "1080p"
 
 export function AutomationSetup({
   job,
+  imageProvider = "openai",
   geminiConnected,
   typecastConnected,
   ffmpegReady,
@@ -41,6 +42,7 @@ export function AutomationSetup({
   onSaved,
 }: {
   readonly job: Job;
+  readonly imageProvider?: "openai" | "flow";
   readonly geminiConnected: boolean;
   readonly typecastConnected: boolean;
   readonly ffmpegReady: boolean;
@@ -62,6 +64,7 @@ export function AutomationSetup({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const flow = clipMode === "flow";
+  const flowImages = imageProvider === "flow";
   const apiRate = videoRates[videoModel][videoResolution];
   // Flow 모드는 Veo API 를 부르지 않는다: API 클립 비용과 클립 프레임 검토 비용이 없다(Flow 크레딧은 구독에서 차감).
   const rate = flow ? 0 : apiRate;
@@ -327,15 +330,31 @@ export function AutomationSetup({
           </>
         )}
         <Notice>
-          {job.sourceSnapshot
-            ? `소재별 타깃·상황·메시지가 다른 광고안 ${imageCount}개를 설계합니다. 이미지 API 호출은 최대 ${imageCount * 2}회입니다.`
-            : "광고안 1개를 설계하고 이미지를 최초 1회, 필요하면 수정 1회 생성합니다. 이미지 API 호출은 최대 2회입니다."}{" "}
-          {videoCount > 0
-            ? flow
-              ? ` 완성 영상 ${videoCount}개(30~60초, 내레이션·자막·BGM 포함): 영상마다 Typecast 내레이션 → AI 정지 이미지 최대 ${STILL_SHOTS_MAX}장 → Veo 시작 이미지 → Flow 실사 클립 최대 ${VEO_SHOTS_MAX}개 + 3D 설명 클립 최대 ${INFO_CLIPS_MAX}개(각 ${VEO_CLIP_SEC}초, Google Flow에서 직접 만들어 업로드) → 모션그래픽·조립 순서로 진행합니다. 클립 단계에서 시작 이미지·프롬프트를 내보내고 멈춰 업로드를 기다립니다. Typecast·OpenAI 키와 ffmpeg가 필요하고 Gemini 키는 필요 없습니다.`
-              : ` 완성 영상 ${videoCount}개(30~60초, 내레이션·자막·BGM 포함): 영상마다 Typecast 내레이션 → AI 정지 이미지 최대 ${STILL_SHOTS_MAX}장(분위기·상황 컷, 카메라 무브로 재구성) → Veo 시작 이미지 → Veo ${VEO_CLIP_SEC}초 클립 최대 ${VEO_SHOTS_MAX}개(움직임이 필요한 실사 컷에만, 클립마다 생성 ≤2회, 재생성은 최대 1회) → 모션그래픽·조립 순서로 진행합니다. Gemini·Typecast·OpenAI 키와 ffmpeg가 필요합니다.`
-            : ""}{" "}
-          실제 API 사용료가 발생할 수 있습니다. Meta 광고 등록·게시·광고비 집행은 진행하지 않습니다.
+          {flowImages ? (
+            <>
+              이미지 제작은 Google Flow입니다. 대표·카드·정지·시작 이미지를 각 단계의 프롬프트로
+              제작하고 확인 후 업로드합니다. 앱의 OpenAI 이미지 생성 호출은 없습니다. 검토 실패 시
+              수정 이미지를 요청하며, 두 차례 검토 후에도 실패하면 결과를 보고하고 멈춥니다.{" "}
+              {videoCount > 0
+                ? `완성 영상 ${videoCount}편은 내레이션과 ${flow ? "Flow에서 업로드한" : "Veo API로 생성한"} 클립을 합성합니다.`
+                : ""}{" "}
+              글쓰기·검토는 선택한 AI의 사용량, Flow 생성은 Flow 크레딧, 영상 내레이션은 Typecast
+              사용량이 소모됩니다. Meta 게시·집행은 하지 않습니다.
+            </>
+          ) : (
+            <>
+              {job.sourceSnapshot
+                ? `소재별 타깃·상황·메시지가 다른 광고안 ${imageCount}개를 설계합니다. 이미지 API 호출은 최대 ${imageCount * 2}회입니다.`
+                : "광고안 1개를 설계하고 이미지를 최초 1회, 필요하면 수정 1회 생성합니다. 이미지 API 호출은 최대 2회입니다."}{" "}
+              {videoCount > 0
+                ? flow
+                  ? ` 완성 영상 ${videoCount}개(30~60초, 내레이션·자막·BGM 포함): 영상마다 Typecast 내레이션 → AI 정지 이미지 최대 ${STILL_SHOTS_MAX}장 → Veo 시작 이미지 → Flow 실사 클립 최대 ${VEO_SHOTS_MAX}개 + 3D 설명 클립 최대 ${INFO_CLIPS_MAX}개(각 ${VEO_CLIP_SEC}초, Google Flow에서 직접 만들어 업로드) → 모션그래픽·조립 순서로 진행합니다. 클립 단계에서 시작 이미지·프롬프트를 내보내고 멈춰 업로드를 기다립니다. Typecast·OpenAI 키와 ffmpeg가 필요하고 Gemini 키는 필요 없습니다.`
+                  : ` 완성 영상 ${videoCount}개(30~60초, 내레이션·자막·BGM 포함): 영상마다 Typecast 내레이션 → AI 정지 이미지 최대 ${STILL_SHOTS_MAX}장(분위기·상황 컷, 카메라 무브로 재구성) → Veo 시작 이미지 → Veo ${VEO_CLIP_SEC}초 클립 최대 ${VEO_SHOTS_MAX}개(움직임이 필요한 실사 컷에만, 클립마다 생성 ≤2회, 재생성은 최대 1회) → 모션그래픽·조립 순서로 진행합니다. Gemini·Typecast·OpenAI 키와 ffmpeg가 필요합니다.`
+                : ""}{" "}
+              실제 API 사용료가 발생할 수 있습니다. Meta 광고 등록·게시·광고비 집행은 진행하지
+              않습니다.
+            </>
+          )}
         </Notice>
         {videoCount > 0 && !flow && !geminiConnected && (
           <Notice tone="warning">
@@ -353,7 +372,7 @@ export function AutomationSetup({
             고친 뒤 재개할 때까지 멈춥니다.
           </Notice>
         )}
-        {videoCount > 0 && (
+        {videoCount > 0 && !flowImages && (
           <p className="muted small-copy">
             예상 비용(추정): 약 US${estimateUsd.toFixed(2)} — 영상당{" "}
             {scripts.length > 0 ? "대본 평균" : "대표 구성"}{" "}
@@ -391,9 +410,11 @@ export function AutomationSetup({
             onChange={(event) => setConfirmed(event.target.checked)}
           />
           <span>
-            {flow
-              ? `위 자료와 이미지 생성 횟수(정지 이미지 최대 ${STILL_SHOTS_MAX}장×장당 생성 ≤2회, 시작 이미지 클립당 ≤2회)로 소재를 제작합니다. Veo 클립은 API로 만들지 않고 Flow에서 직접 만들어 올릴 때까지 멈춰 기다립니다.`
-              : `위 자료와 이미지·영상 생성 횟수(클립 최대 ${VEO_SHOTS_MAX}개×클립당 생성 ≤2회, 정지 이미지 최대 ${STILL_SHOTS_MAX}장×장당 생성 ≤2회)로 소재를 자동 제작합니다.`}
+            {flowImages
+              ? `위 자료로 기획·대본을 작성하고, Flow에서 직접 만든 이미지를 확인 후 업로드합니다. 이미지 검토는 장당 최대 2회이며 선택한 AI의 사용량이 소모됩니다. ${flow ? "영상 클립도 Flow에서 만들어 업로드합니다." : "영상 클립은 선택한 Veo API 설정으로 생성합니다."}`
+              : flow
+                ? `위 자료와 이미지 생성 횟수(정지 이미지 최대 ${STILL_SHOTS_MAX}장×장당 생성 ≤2회, 시작 이미지 클립당 ≤2회)로 소재를 제작합니다. Veo 클립은 API로 만들지 않고 Flow에서 직접 만들어 올릴 때까지 멈춰 기다립니다.`
+                : `위 자료와 이미지·영상 생성 횟수(클립 최대 ${VEO_SHOTS_MAX}개×클립당 생성 ≤2회, 정지 이미지 최대 ${STILL_SHOTS_MAX}장×장당 생성 ≤2회)로 소재를 자동 제작합니다.`}
           </span>
         </label>
         {error && <Notice tone="error">{error}</Notice>}

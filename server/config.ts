@@ -1,6 +1,6 @@
 import type { ConfigStatus } from "../shared/schema";
 import { getModelSettings, resolveTextProvider } from "./model-settings";
-import { codexBin, credentials, dataDir, env } from "./provider-environment";
+import { claudeCodeBin, codexBin, credentials, dataDir, env } from "./provider-environment";
 import { ffmpegReady } from "./render/ffmpeg";
 import { resolveFont } from "./render/fonts";
 
@@ -18,6 +18,7 @@ export function configStatus(root: string = dataDir): ConfigStatus {
     openai: credentials.openai.length > 0,
     gemini: credentials.gemini.length > 0,
     codex: Boolean(codexBin),
+    claudeCode: Boolean(claudeCodeBin),
     anthropic: credentials.anthropic.length > 0,
     meta: credentials.meta.length > 0,
     typecast: credentials.typecast.length > 0,

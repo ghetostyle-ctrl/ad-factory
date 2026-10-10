@@ -19,6 +19,7 @@ import { installCalloutOverrideRoutes } from "./callout-override-routes";
 import { CalloutOverrides } from "./callout-overrides";
 import { publicError, StudioError } from "./errors";
 import { evidencePack } from "./evidence-pack";
+import { installFlowImageRoutes } from "./flow-image-routes";
 import { FlowImport } from "./flow-import";
 import { flowExportFor } from "./flow-instructions";
 import { logger } from "./logger";
@@ -54,6 +55,7 @@ export function jobRoutes(
       mutations.delete(id);
     }
   });
+  installFlowImageRoutes(routes, store, engine);
   installCalloutOverrideRoutes(
     routes,
     calloutOverrides ??

@@ -11,6 +11,7 @@ import { ModelSettingsSchema } from "../shared/models";
 import { PRODUCTION_UPLOAD_MAX_BYTES } from "../shared/production-assets";
 import { ConnectionsSchema } from "../shared/schema";
 import { AutomationEngine } from "./automation";
+import { checkCliConnections } from "./cli-connections";
 import { configStatus, credentials, env, persistCredentials } from "./config";
 import { publicError, StudioError } from "./errors";
 import type { InstructionsOptions } from "./instructions";
@@ -111,6 +112,9 @@ export function createApp(
     saveModelSettings(store.root, c.req.valid("json"));
     return c.json(configStatus(store.root));
   });
+  app.post("/api/cli-connections/check", async (c) =>
+    c.json(await checkCliConnections(store.root)),
+  );
   app.get("/api/accounts", async (c) =>
     c.json({ accounts: await pipeline.metaClientFactory().accounts() }),
   );

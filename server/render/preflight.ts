@@ -109,9 +109,14 @@ export async function renderPreflight(
     throw new MissingConnectionError(
       "내레이션 합성에는 Typecast API 키가 필요합니다. 연결 설정에서 키를 입력하면 재개할 수 있습니다.",
     );
-  // 시작 이미지(Veo)와 정지 이미지(AI 사진풍 컷)는 둘 다 OpenAI 이미지 생성·비전 검토를 쓴다.
+  // Flow 이미지 + CLI 검토에서는 OpenAI 키를 요구하지 않는다.
   const needsImages = script.veoClips.length > 0 || script.stills.length > 0;
-  if (needsImages && !keys.openai)
+  if (
+    needsImages &&
+    !keys.openai &&
+    (job.executionModels?.imageProvider !== "flow" ||
+      job.executionModels?.textProvider === "openai")
+  )
     throw new MissingConnectionError(
       `${[script.veoClips.length > 0 ? "Veo 시작 이미지" : "", script.stills.length > 0 ? "정지 이미지" : ""].filter(Boolean).join("·")} 생성·검토에는 OpenAI API 키가 필요합니다. 연결 설정에서 키를 입력하면 재개할 수 있습니다.`,
     );

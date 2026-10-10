@@ -16,9 +16,11 @@ const EnvSchema = z.object({
   OPENAI_IMAGE_QUALITY: ImageQualitySchema.default("medium"),
   TYPECAST_VOICE_ID: z.union([z.literal(""), ModelIdSchema]).default(""),
   TYPECAST_TEMPO: z.coerce.number().finite().min(0.7).max(1.3).default(1.2),
-  TEXT_PROVIDER: z.enum(["auto", "openai", "codex", "none"]).default("auto"),
+  TEXT_PROVIDER: z.enum(["auto", "openai", "codex", "claudeCode", "none"]).default("auto"),
   CODEX_MODEL: z.union([z.literal(""), ModelIdSchema]).default(""),
   CODEX_BIN: z.string().default(""),
+  CLAUDE_CODE_BIN: z.string().default(""),
+  CLAUDE_CODE_MODEL: z.union([z.literal(""), ModelIdSchema]).default(""),
   META_ACCESS_TOKEN: z.string().default(""),
   META_API_VERSION: z
     .string()
@@ -44,6 +46,14 @@ const windowsCodex = join(
 );
 export const codexBin =
   env.CODEX_BIN || (existsSync(windowsCodex) ? windowsCodex : Bun.which("codex"));
+const nativeClaude = join(
+  homedir(),
+  ".local",
+  "bin",
+  process.platform === "win32" ? "claude.exe" : "claude",
+);
+export const claudeCodeBin =
+  env.CLAUDE_CODE_BIN || (existsSync(nativeClaude) ? nativeClaude : Bun.which("claude"));
 export const dataDir = resolve(env.DATA_DIR);
 export const envFilePath = resolve(".env");
 export const credentials = {

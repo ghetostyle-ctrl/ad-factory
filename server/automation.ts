@@ -1,4 +1,5 @@
 import type { AutomationPolicy } from "../shared/automation";
+import { flowImagesReady } from "../shared/flow-images";
 import { flowReady } from "../shared/flow-mode";
 import type { Job } from "../shared/schema";
 import { scriptApprovalReady } from "../shared/script-approval";
@@ -90,6 +91,13 @@ export class AutomationEngine {
   // Flow 모드에서 클립이 업로드될 때 부른다: 기다리던 영상의 클립이 모두 들어왔으면 곧바로 이어서 실행한다.
   // 대기(waiting)가 아니면(아직 실행 중이거나 중지 등) 아무것도 바꾸지 않는다. 실행 중이던 작업이 곧 대기에 들어가는
   // 경합은 execute 의 park 가 같은 조건(flowReady)을 다시 검사해 메운다.
+  wakeImages(id: string): boolean {
+    return this.wakeWaiting(
+      id,
+      flowImagesReady,
+      "Flow 이미지 업로드가 완료되어 검토와 제작을 이어갑니다.",
+    );
+  }
   wakeFlow(id: string): boolean {
     return this.wakeWaiting(id, flowReady, "Flow 클립이 모두 업로드되어 제작을 이어갑니다.");
   }

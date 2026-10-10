@@ -1,21 +1,12 @@
 import { Save } from "lucide-react";
 import type { FormEvent } from "react";
 import { useState } from "react";
-import {
-  defaultScriptModel,
-  imageModelPresets,
-  type ModelSettings,
-  ModelSettingsSchema,
-  SCRIPT_PROVIDERS,
-  ScriptProviderSchema,
-  scriptProviderLabels,
-  textModelPresets,
-  ttsVoicePresets,
-} from "../shared/models";
+import { type ModelSettings, ModelSettingsSchema, ttsVoicePresets } from "../shared/models";
 import { ConfigStatusSchema } from "../shared/schema";
 import { api, errorMessage } from "./api";
+import { ImageModelSettings } from "./ImageModelSettings";
 import { Button, Field, Notice } from "./primitives";
-
+import { TextModelSettings } from "./TextModelSettings";
 export function ModelSettingsForm({
   settings,
   onSaved,
@@ -23,54 +14,36 @@ export function ModelSettingsForm({
   readonly settings: ModelSettings;
   readonly onSaved: () => void;
 }) {
-  const [textModel, setTextModel] = useState(settings.textModel);
-  const [customTextModel, setCustomTextModel] = useState(
-    !textModelPresets.some((model) => model === settings.textModel),
-  );
-  const [scriptProvider, setScriptProvider] = useState(settings.scriptProvider ?? "same");
-  const initialScriptModel =
-    settings.scriptModel ??
-    defaultScriptModel(settings.scriptProvider ?? "same", settings.textModel);
-  const [scriptModel, setScriptModel] = useState(initialScriptModel);
-  const [customScriptModel, setCustomScriptModel] = useState(
-    !textModelPresets.some((model) => model === initialScriptModel),
-  );
-  const [imageModel, setImageModel] = useState(settings.imageModel);
-  const [quality, setQuality] = useState<string>(settings.imageQuality);
   const [ttsSelection, setTtsSelection] = useState(settings.ttsSelection);
   const [ttsVoiceId, setTtsVoiceId] = useState(settings.ttsVoiceId ?? ttsVoicePresets[0].id);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const extendedQuality =
-    imageModel === "gpt-image-2.5-sunburst" || imageModel === "gpt-image-2.5-flare";
-  const chooseImageModel = (value: string) => {
-    setImageModel(value);
-    if (
-      value !== "gpt-image-2.5-sunburst" &&
-      value !== "gpt-image-2.5-flare" &&
-      ["xhigh", "max"].includes(quality)
-    )
-      setQuality("high");
-  };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    const text = (name: string, fallback: string) => String(data.get(name) ?? fallback).trim();
     const parsed = ModelSettingsSchema.safeParse({
+      ...settings,
       textProvider: data.get("textProvider"),
-      textModel,
-      codexModel: String(data.get("codexModel") ?? "").trim() || null,
-      scriptProvider,
-      ...(scriptProvider === "same" ? {} : { scriptModel }),
-      imageModel,
-      imageQuality: quality,
+      textModel: text("textModel", settings.textModel),
+      codexModel: text("codexModel", settings.codexModel ?? "") || null,
+      claudeCodeModel: text("claudeCodeModel", settings.claudeCodeModel ?? "") || null,
+      scriptProvider: data.get("scriptProvider"),
+      scriptModel:
+        data.get("scriptProvider") === "same"
+          ? undefined
+          : text("scriptModel", settings.scriptModel ?? ""),
+      imageProvider: data.get("imageProvider"),
+      imageModel: text("imageModel", settings.imageModel),
+      imageQuality: text("imageQuality", settings.imageQuality),
       ttsProvider: "typecast",
       ttsSelection,
       ttsVoiceId: ttsSelection === "manual" ? ttsVoiceId : null,
       ttsTempo: Number(data.get("ttsTempo")),
     });
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "모델 설정을 확인해 주세요.");
+      setError(parsed.error.issues[0]?.message ?? "모델 설정을 확인하세요.");
       return;
     }
     setPending(true);
@@ -78,7 +51,7 @@ export function ModelSettingsForm({
     setMessage(null);
     try {
       ConfigStatusSchema.parse(await api.post("model-settings", { json: parsed.data }).json());
-      setMessage("모델 설정을 저장했습니다. 새로 시작하는 작업부터 적용됩니다.");
+      setMessage("설정을 저장했습니다. 새로 시작하는 작업부터 적용됩니다.");
       onSaved();
     } catch (cause) {
       setError(await errorMessage(cause));
@@ -94,167 +67,14 @@ export function ModelSettingsForm({
       }}
     >
       <div>
-        <h3>AI 모델 설정</h3>
+        <h3>AI 연결 및 제작 방식</h3>
         <p className="muted small-copy">
-          공통 텍스트·영상 대본·이미지 모델을 따로 선택합니다. 저장한 설정은 새 작업부터 적용되며
-          재시작 후에도 유지됩니다.
+          글쓰기 AI와 이미지 제작 방식을 각각 선택하세요. 진행 중인 작업은 시작할 때 고정한 설정을
+          사용합니다.
         </p>
       </div>
-      <Field label="공통 텍스트 공급자">
-        <select name="textProvider" defaultValue={settings.textProvider}>
-          <option value="auto">자동 선택 · OpenAI 우선</option>
-          <option value="openai">OpenAI API</option>
-          <option value="codex">Codex CLI</option>
-          <option value="none">사용 안 함</option>
-        </select>
-      </Field>
-      <Field label="공통 OpenAI 텍스트 모델">
-        <select
-          value={customTextModel ? "custom" : textModel}
-          onChange={(event) => {
-            const custom = event.target.value === "custom";
-            setCustomTextModel(custom);
-            if (!custom) setTextModel(event.target.value);
-          }}
-        >
-          {textModelPresets.map((model) => (
-            <option key={model} value={model}>
-              {model}
-            </option>
-          ))}
-          <option value="custom">직접 입력</option>
-        </select>
-      </Field>
-      {customTextModel && (
-        <Field label="공통 OpenAI 모델 ID" help="사용 권한이 있는 정확한 API 모델 ID를 입력하세요.">
-          <input
-            name="textModel"
-            required
-            value={textModel}
-            onChange={(event) => setTextModel(event.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </Field>
-      )}
-      <Field
-        label="Codex 텍스트 모델 (선택)"
-        help="자동 운영에는 모델 ID가 필요합니다. 비워두면 수동 실행에만 CLI 기본 모델을 씁니다."
-      >
-        <input
-          name="codexModel"
-          defaultValue={settings.codexModel ?? ""}
-          placeholder="CLI 기본 모델"
-          autoComplete="off"
-          spellCheck={false}
-        />
-      </Field>
-      <Field
-        label="영상 대본 단계 공급자"
-        help="영상 콘셉트·대본·대본 검토에만 적용합니다. 나머지 기획과 검토는 공통 텍스트 설정을 사용합니다. 별도 공급자를 쓰려면 해당 API 키가 필요합니다."
-      >
-        <select
-          name="scriptProvider"
-          value={scriptProvider}
-          onChange={(event) => {
-            const provider = ScriptProviderSchema.parse(event.target.value);
-            setScriptProvider(provider);
-            const model = defaultScriptModel(provider, textModel);
-            setScriptModel(model);
-            setCustomScriptModel(!textModelPresets.some((preset) => preset === model));
-          }}
-        >
-          {SCRIPT_PROVIDERS.map((provider) => (
-            <option key={provider} value={provider}>
-              {scriptProviderLabels[provider]}
-            </option>
-          ))}
-        </select>
-      </Field>
-      {scriptProvider === "openai" && (
-        <Field label="대본 OpenAI 모델">
-          <select
-            value={customScriptModel ? "custom" : scriptModel}
-            onChange={(event) => {
-              const custom = event.target.value === "custom";
-              setCustomScriptModel(custom);
-              if (!custom) setScriptModel(event.target.value);
-            }}
-          >
-            {textModelPresets.map((model) => (
-              <option key={model} value={model}>
-                {model}
-              </option>
-            ))}
-            <option value="custom">직접 입력</option>
-          </select>
-        </Field>
-      )}
-      {(scriptProvider === "anthropic" || (scriptProvider === "openai" && customScriptModel)) && (
-        <Field
-          label={scriptProvider === "openai" ? "대본 OpenAI 모델 ID" : "대본 Claude 모델 ID"}
-          help="사용 권한이 있는 정확한 API 모델 ID를 입력하세요. 공급자를 바꾸면 해당 공급자에 맞는 기본 모델로 바뀝니다."
-        >
-          <input
-            name="scriptModel"
-            required
-            value={scriptModel}
-            onChange={(event) => setScriptModel(event.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </Field>
-      )}
-      <Field label="이미지 모델 프리셋">
-        <select
-          value={imageModelPresets.some((model) => model === imageModel) ? imageModel : "custom"}
-          onChange={(event) => {
-            if (event.target.value === "custom") chooseImageModel("");
-            else chooseImageModel(event.target.value);
-          }}
-        >
-          {imageModelPresets.map((model) => (
-            <option key={model} value={model}>
-              {model}
-            </option>
-          ))}
-          <option value="custom">직접 입력</option>
-        </select>
-      </Field>
-      <div className="form-grid">
-        <Field label="이미지 모델 ID" help="프리셋 선택 또는 직접 입력이 가능합니다.">
-          <input
-            name="imageModel"
-            required
-            value={imageModel}
-            onChange={(event) => chooseImageModel(event.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </Field>
-        <Field label="이미지 품질">
-          <select
-            name="imageQuality"
-            value={quality}
-            onChange={(event) => setQuality(event.target.value)}
-          >
-            <option value="auto">자동</option>
-            <option value="low">낮음 · low</option>
-            <option value="medium">중간 · medium</option>
-            <option value="high">높음 · high</option>
-            {extendedQuality && (
-              <>
-                <option value="xhigh">매우 높음 · xhigh</option>
-                <option value="max">최대 · max</option>
-              </>
-            )}
-          </select>
-        </Field>
-      </div>
-      <p className="muted small-copy">
-        GPT Image 2.5 프리셋에서 xhigh·max를 선택할 수 있습니다. 모델 사용 가능 여부는 실제 API
-        응답으로 확인됩니다. 진행 중인 작업의 모델은 바뀌지 않습니다.
-      </p>
+      <TextModelSettings settings={settings} />
+      <ImageModelSettings settings={settings} />
       <div>
         <h3>영상 TTS 설정</h3>
         <p className="muted small-copy">

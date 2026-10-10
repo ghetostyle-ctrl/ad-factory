@@ -28,7 +28,9 @@ function statusOf(automation: AutomationState): readonly [string, string] {
     return statuses[automation.status];
   return automation.phase === "script"
     ? ["영상 대본 승인 대기", "warning"]
-    : ["Flow 클립 업로드 대기", "warning"];
+    : ["image", "stills", "startImages"].includes(automation.phase)
+      ? ["Flow 이미지 업로드 대기", "warning"]
+      : ["Flow 클립 업로드 대기", "warning"];
 }
 export function AutomationPanel({
   job,
@@ -51,10 +53,17 @@ export function AutomationPanel({
   const automation = job.automation;
   const flowMode = clipModeOf(job) === "flow";
   const legacy = Boolean(job.staged) || job.artifacts.length > 0;
-  const needsCodexModel = config.textProvider === "codex" && !config.modelSettings.codexModel;
+  const needsCliModel =
+    (config.textProvider === "codex" && !config.modelSettings.codexModel) ||
+    (config.textProvider === "claudeCode" && !config.modelSettings.claudeCodeModel);
   const missingTools = [
-    !config.openai && "OpenAI API 키",
+    !config.openai &&
+      (config.modelSettings.imageProvider !== "flow" || config.textProvider === "openai") &&
+      "OpenAI API 키",
+    config.textProvider === "codex" && !config.codex && "Codex 설치",
+    config.textProvider === "claudeCode" && !config.claudeCode && "Claude Code 설치",
     config.textProvider === "none" && "텍스트 공급자",
+    config.modelSettings.imageProvider === "flow" && !config.ffmpeg && "ffmpeg(Flow 이미지 검사)",
   ].filter(Boolean);
   // 영상(완성본)을 만들려면 추가로 필요한 연결·도구. 영상 0개면 없어도 된다.
   const missingVideoTools = [
@@ -214,23 +223,23 @@ export function AutomationPanel({
                 작업에서 자동 운영을 설정하세요.
               </Notice>
             )}
-            {needsCodexModel && (
+            {needsCliModel && (
               <Notice tone="warning">
-                Codex 자동 운영에는 고정할 텍스트 모델 ID가 필요합니다. 연결 설정에서 Codex 모델을
+                선택한 AI의 자동 운영에는 고정할 모델 ID가 필요합니다. 연결 설정에서 모델을
                 입력하세요.
               </Notice>
             )}
             <div className="cluster operation-actions">
               <Button
                 variant="primary"
-                disabled={legacy || needsCodexModel || job.status === "running"}
+                disabled={legacy || needsCliModel || job.status === "running"}
                 onClick={() => setSetup(true)}
               >
                 <Play size={15} />
                 소재 자동 제작 설정
               </Button>
               {legacy && <Button onClick={onCreate}>새 작업 만들기</Button>}
-              {(missingTools.length > 0 || needsCodexModel) && (
+              {(missingTools.length > 0 || needsCliModel) && (
                 <Button variant="ghost" onClick={onSettings}>
                   연결 설정
                 </Button>
@@ -250,6 +259,7 @@ export function AutomationPanel({
         <Suspense fallback={<Notice>운영 설정을 불러오고 있습니다…</Notice>}>
           <AutomationSetup
             job={job}
+            imageProvider={config.modelSettings.imageProvider ?? "openai"}
             geminiConnected={config.gemini}
             typecastConnected={config.typecast}
             ffmpegReady={config.ffmpeg && config.captionFont}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ConfigStatus } from "../shared/schema";
 import { ConfigStatusSchema } from "../shared/schema";
 import { api, errorMessage } from "./api";
+import { CliConnectionsCard } from "./CliConnectionsCard";
 import { InstructionsCard } from "./InstructionsCard";
 import { ModelSettingsForm } from "./ModelSettingsForm";
 import { Button, Dialog, Field, Notice } from "./primitives";
@@ -66,7 +67,18 @@ export function SettingsDialog({
       available: config.openai,
       icon: KeyRound,
     },
-    { name: "Codex CLI", detail: "로컬 텍스트 작업 대안", available: config.codex, icon: Terminal },
+    {
+      name: "Codex CLI",
+      detail: "기획·대본·프롬프트 작성",
+      available: config.codex,
+      icon: Terminal,
+    },
+    {
+      name: "Claude Code",
+      detail: "기획·대본·프롬프트 작성",
+      available: config.claudeCode,
+      icon: Terminal,
+    },
     { name: "Gemini Veo", detail: "영상 소재 생성", available: config.gemini, icon: KeyRound },
     { name: "Typecast", detail: "영상 나레이션 TTS", available: config.typecast, icon: KeyRound },
     {
@@ -101,72 +113,79 @@ export function SettingsDialog({
           ))}
         </div>
         <Notice>
-          키 또는 실행 파일의 존재를 표시합니다. 로그인·권한·잔액은 실제 실행 전까지 확인되지
-          않습니다.
+          키 또는 실행 파일의 존재를 표시합니다. CLI 로그인은 아래 확인 버튼으로 확인할 수 있습니다.
+          모델 권한·잔액은 실제 실행 전까지 미검증입니다.
         </Notice>
-        <form
-          onSubmit={(event) => {
-            void submit(event);
-          }}
-          className="stack"
-        >
-          <h3>현재 세션에 연결 정보 추가</h3>
-          <Field label="OpenAI API 키" help="이미지 제작과 텍스트 작업에 사용합니다.">
-            <input
-              name="openaiApiKey"
-              type="password"
-              placeholder="sk-…"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </Field>
-          <Field label="Anthropic API 키" help="영상 대본 단계를 Claude 로 돌릴 때 사용합니다.">
-            <input
-              name="anthropicApiKey"
-              type="password"
-              placeholder="sk-ant-…"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </Field>
-          <Field label="Gemini API 키" help="Veo 영상 생성에 사용합니다.">
-            <input
-              name="geminiApiKey"
-              type="password"
-              placeholder="Gemini API 키"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </Field>
-          <Field label="Typecast API 키" help="영상 나레이션 음성 생성에 사용합니다.">
-            <input
-              name="typecastApiKey"
-              type="password"
-              placeholder="Typecast API 키"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </Field>
-          <Field label="Meta 액세스 토큰">
-            <input
-              name="metaAccessToken"
-              type="password"
-              placeholder="Meta 액세스 토큰"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </Field>
-          <p className="muted small-copy">
-            입력한 키는 이 컴퓨터의 .env 파일에 저장되며 서버 재시작 후에도 다시 불러옵니다.
-            브라우저 상태나 실행 기록에는 키를 저장하지 않습니다.
-          </p>
-          {error && <Notice tone="error">{error}</Notice>}
-          {message && <Notice>{message}</Notice>}
-          <Button type="submit" variant="primary" pending={pending}>
-            세션에 저장
-          </Button>
-        </form>
         <ModelSettingsForm settings={config.modelSettings} onSaved={onSaved} />
+        <CliConnectionsCard />
+        <details className="settings-details">
+          <summary>API 키 연결 (선택한 제작 방식에 따라 필요)</summary>
+          <form
+            onSubmit={(event) => {
+              void submit(event);
+            }}
+            className="stack"
+          >
+            <h3>현재 세션에 연결 정보 추가</h3>
+            <Field label="OpenAI API 키" help="이미지 제작과 텍스트 작업에 사용합니다.">
+              <input
+                name="openaiApiKey"
+                type="password"
+                placeholder="sk-…"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </Field>
+            <Field
+              label="Anthropic API 키"
+              help="Anthropic API 방식의 대본 작성에 사용합니다. Claude Code 로그인과는 별도입니다."
+            >
+              <input
+                name="anthropicApiKey"
+                type="password"
+                placeholder="sk-ant-…"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </Field>
+            <Field label="Gemini API 키" help="Veo 영상 생성에 사용합니다.">
+              <input
+                name="geminiApiKey"
+                type="password"
+                placeholder="Gemini API 키"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </Field>
+            <Field label="Typecast API 키" help="영상 나레이션 음성 생성에 사용합니다.">
+              <input
+                name="typecastApiKey"
+                type="password"
+                placeholder="Typecast API 키"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </Field>
+            <Field label="Meta 액세스 토큰">
+              <input
+                name="metaAccessToken"
+                type="password"
+                placeholder="Meta 액세스 토큰"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </Field>
+            <p className="muted small-copy">
+              입력한 키는 이 컴퓨터의 .env 파일에 저장되며 서버 재시작 후에도 다시 불러옵니다.
+              브라우저 상태나 실행 기록에는 키를 저장하지 않습니다.
+            </p>
+            {error && <Notice tone="error">{error}</Notice>}
+            {message && <Notice>{message}</Notice>}
+            <Button type="submit" variant="primary" pending={pending}>
+              세션에 저장
+            </Button>
+          </form>
+        </details>
         <InstructionsCard />
         <details className="settings-details">
           <summary>실행 환경 자세히 보기</summary>
@@ -177,11 +196,21 @@ export function SettingsDialog({
             </div>
             <div>
               <dt>텍스트 모델</dt>
-              <dd>{config.textProvider === "codex" ? "Codex CLI 기본 모델" : config.textModel}</dd>
+              <dd>
+                {config.textProvider === "codex"
+                  ? (config.modelSettings.codexModel ?? "CLI 기본 모델")
+                  : config.textProvider === "claudeCode"
+                    ? (config.modelSettings.claudeCodeModel ?? "CLI 기본 모델")
+                    : config.textModel}
+              </dd>
             </div>
             <div>
               <dt>이미지 모델</dt>
-              <dd>{config.imageModel}</dd>
+              <dd>
+                {config.modelSettings.imageProvider === "flow"
+                  ? "Google Flow · 직접 제작 후 업로드"
+                  : config.imageModel}
+              </dd>
             </div>
             <div>
               <dt>TTS</dt>

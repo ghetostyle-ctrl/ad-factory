@@ -174,13 +174,14 @@ export class VoiceProduction {
     const voice = state?.voice;
     if (!voice) throw new BlockedError(`영상 ${number}의 저장된 내레이션 기록이 없습니다.`);
     const timelineName = renderNames.timeline(number);
-    const saved = RenderTimelineSchema.parse(
-      await (await this.assets.read(job.id, timelineName)).json(),
-    );
-    if (timelineDigest(saved) !== voice.timelineDigest)
+    const stored: unknown = await (await this.assets.read(job.id, timelineName)).json();
+    // 스키마 파싱이 자막 필드 순서를 정규화하므로 저장 당시 JSON을 먼저 검증한다.
+    const serialized = JSON.stringify(stored);
+    if (!serialized || sha256Hex(serialized) !== voice.timelineDigest)
       throw new BlockedError(
         `영상 ${script.number} 타임라인 파일이 변경되었습니다. 조립을 중단합니다.`,
       );
+    const saved = RenderTimelineSchema.parse(stored);
     const manifest = VoiceManifestSchema.parse(
       await (await this.assets.read(job.id, voice.manifestName)).json(),
     );

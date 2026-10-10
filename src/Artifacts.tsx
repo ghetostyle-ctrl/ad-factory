@@ -93,7 +93,7 @@ export function Artifacts({
           </h2>
           <p>전략 문서, 광고 이미지, 내레이션 음성, Veo 클립과 완성 영상까지.</p>
         </div>
-        {job && !job.sourceSnapshot && (
+        {job && !job.sourceSnapshot && !job.automation && (
           <label className={`button button-secondary upload-button ${pending ? "pending" : ""}`}>
             <Upload size={15} />
             <span>{pending ? "업로드 중" : "이미지 업로드 (선택)"}</span>

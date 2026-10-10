@@ -17,6 +17,7 @@ export function getModelSettings(root: string): ModelSettings {
           textProvider: env.TEXT_PROVIDER,
           textModel: env.OPENAI_TEXT_MODEL,
           codexModel: env.CODEX_MODEL || null,
+          claudeCodeModel: env.CLAUDE_CODE_MODEL || null,
           imageModel: env.OPENAI_IMAGE_MODEL,
           imageQuality: env.OPENAI_IMAGE_QUALITY,
           ttsProvider: "typecast",
@@ -44,6 +45,8 @@ export function resolveTextProvider(
       return "openai";
     case "codex":
       return "codex";
+    case "claudeCode":
+      return "claudeCode";
     case "none":
       return "none";
     default:
@@ -55,6 +58,9 @@ export function snapshotModels(root: string): ExecutionModels {
   return ExecutionModelsSchema.parse({
     ...settings,
     textProvider: resolveTextProvider(settings.textProvider),
+    ...(["codex", "claudeCode"].includes(settings.textProvider)
+      ? { scriptProvider: "same", scriptModel: undefined }
+      : {}),
     capturedAt: new Date().toISOString(),
   });
 }

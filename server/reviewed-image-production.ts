@@ -126,7 +126,12 @@ export class ReviewedImageEngine {
     while (started >= 1 && !hasArtifact(this.store.get(id), savedName(started))) started--;
     if (started !== attemptsOf()) this.setAttempts(id, number, item.key, started);
     // 이전 실행이 생성 뒤 기록 전에 끊겼고 한도에 도달했으면 남은 파일로 확정해 추가 과금을 막는다.
+    const flow = this.store.get(id).executionModels?.imageProvider === "flow";
     if (attemptsOf() >= REVIEWED_IMAGE_MAX_ATTEMPTS) {
+      if (flow)
+        throw new BlockedError(
+          `${label}: Flow 이미지 검토 한도에 도달했습니다. 검토 결과를 확인하세요.`,
+        );
       const existing = [REVIEWED_IMAGE_MAX_ATTEMPTS, 1]
         .map((attempt) => savedName(attempt))
         .find((name) => hasArtifact(this.store.get(id), name));
@@ -161,6 +166,10 @@ export class ReviewedImageEngine {
             prompt,
             signal,
             referenceImages: input.referenceImages,
+            target: {
+              key: `${spec.phase}-${number}-${item.key}-${attempt}`,
+              label: `영상 ${number} · ${label} · ${attempt}차`,
+            },
           })
           .catch((error) => {
             // 이미지를 받지 못한 실패(키 부재·HTTP 오류·타임아웃·중단)는 시도로 세지 않는다.
@@ -197,6 +206,7 @@ export class ReviewedImageEngine {
         return;
       }
       if (attempt >= REVIEWED_IMAGE_MAX_ATTEMPTS) {
+        if (flow) throw new BlockedError(`${label}: ${review.issues.join("; ")}`);
         // 강제 통과라도 digest 는 반드시 저장한다(뒤 단계가 파일 변조를 재검증한다).
         this.record(id, number, item.key, name, digest, attempt, "forced");
         return;

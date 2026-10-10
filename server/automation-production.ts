@@ -12,8 +12,9 @@ import { Artifacts } from "./artifacts";
 import { AutomationGuard, contentDigest } from "./automation-guard";
 import type { VideoProvider } from "./clip-production";
 import type { VideoCopyProvider } from "./copy-writer";
-import { BlockedError, MissingConnectionError, StudioError } from "./errors";
-import { generateImageResult, type ImageSize } from "./image-provider";
+import { BlockedError, MissingConnectionError, StudioError, WaitingError } from "./errors";
+import { FlowImageProduction } from "./flow-image-production";
+import type { ImageOptions } from "./image-provider";
 import { type ClipFrameReviewTask, Intelligence, type StartImageReviewTask } from "./intelligence";
 import { Planner } from "./planning";
 import { type PlanProvider, SourceProduction } from "./source-production";
@@ -41,7 +42,7 @@ export type ProductionProviders = {
     job: Job,
     prompt: string,
     signal: AbortSignal,
-    options?: { readonly size?: ImageSize },
+    options?: ImageOptions,
   ) => Promise<ModelResult<Uint8Array>>;
   readonly review: (input: {
     readonly job: Job;
@@ -72,11 +73,11 @@ export class AutomaticProduction {
       creative: planner.creativeResult.bind(planner),
       image: (job, prompt, signal, options) => {
         if (!job.executionModels) throw new BlockedError("실행 모델 스냅샷이 없습니다.");
-        return generateImageResult({
+        return new FlowImageProduction(store).image({
+          job,
           prompt,
           signal,
-          models: job.executionModels,
-          ...(options?.size ? { size: options.size } : {}),
+          ...(options ? { options } : {}),
         });
       },
       review: intelligence.review.bind(intelligence),
@@ -160,6 +161,8 @@ export class AutomaticProduction {
       }
       if (reviewedImage && review?.status === "revise") {
         if ((job.automation?.imageAttempts ?? 0) >= 2) {
+          if (job.executionModels?.imageProvider === "flow")
+            throw new BlockedError(`Flow 이미지 검토에 실패했습니다: ${review.issues.join("; ")}`);
           this.store.agent(id, "production", {
             status: "completed",
             action: "검토 보류로 확정 · 다음 소재 제작으로 진행",
@@ -186,19 +189,26 @@ export class AutomaticProduction {
               throw new BlockedError("이미지 생성 한도에 도달했습니다.");
             this.store.agent(id, "production", {
               status: "running",
-              action: "OpenAI 이미지 자동 생성 중",
+              action:
+                current.executionModels?.imageProvider === "flow"
+                  ? "Flow 이미지 업로드 준비 중"
+                  : "OpenAI 이미지 자동 생성 중",
             });
             const attempt = (current.automation?.imageAttempts ?? 0) + 1;
             this.store.change(id, (draft) => {
               if (draft.automation) draft.automation.imageAttempts = attempt;
             });
-            const result = await this.providers.image(current, prompt, signal).catch((error) => {
-              if (error instanceof MissingConnectionError)
-                this.store.change(id, (draft) => {
-                  if (draft.automation) draft.automation.imageAttempts = attempt - 1;
-                });
-              throw error;
-            });
+            const result = await this.providers
+              .image(current, prompt, signal, {
+                target: { key: `image-auto-${attempt}`, label: `대표 이미지 · ${attempt}차` },
+              })
+              .catch((error) => {
+                if (error instanceof MissingConnectionError || error instanceof WaitingError)
+                  this.store.change(id, (draft) => {
+                    if (draft.automation) draft.automation.imageAttempts = attempt - 1;
+                  });
+                throw error;
+              });
             await this.assets.save(id, {
               name: `image-auto-${attempt}.png`,
               kind: "image",

@@ -20,9 +20,11 @@ export function ModelProvenance({ job }: { readonly job: Job }) {
           <dd className="mono">
             {models.textProvider === "codex"
               ? (models.codexModel ?? "CLI 기본 모델 · ID 미확인")
-              : models.textProvider === "none"
-                ? "사용 안 함"
-                : models.textModel}
+              : models.textProvider === "claudeCode"
+                ? (models.claudeCodeModel ?? "CLI 기본 모델 · ID 미확인")
+                : models.textProvider === "none"
+                  ? "사용 안 함"
+                  : models.textModel}
           </dd>
         </div>
         {models.scriptProvider && models.scriptProvider !== "same" && (
@@ -40,12 +42,16 @@ export function ModelProvenance({ job }: { readonly job: Job }) {
           </>
         )}
         <div>
-          <dt>이미지 모델</dt>
-          <dd className="mono">{models.imageModel}</dd>
+          <dt>이미지 제작 방식</dt>
+          <dd>
+            {models.imageProvider === "flow"
+              ? "Google Flow · 직접 제작 후 업로드"
+              : `OpenAI · ${models.imageModel}`}
+          </dd>
         </div>
         <div>
           <dt>이미지 품질</dt>
-          <dd>{models.imageQuality}</dd>
+          <dd>{models.imageProvider === "flow" ? "Flow에서 선택" : models.imageQuality}</dd>
         </div>
         <div>
           <dt>설정 고정 시각</dt>
@@ -59,6 +65,7 @@ export function ModelProvenance({ job }: { readonly job: Job }) {
 const providerLabels = {
   openai: "OpenAI",
   codex: "Codex CLI",
+  claudeCode: "Claude Code",
   anthropic: "Claude (Anthropic)",
   gemini: "Gemini(Veo)",
   typecast: "Typecast",

@@ -120,7 +120,12 @@ export class SourcePlanner {
           digest: source.digest,
           mediaAnalyses,
           provider: models.textProvider,
-          model: models.textProvider === "codex" ? models.codexModel : models.textModel,
+          model:
+            models.textProvider === "codex"
+              ? models.codexModel
+              : models.textProvider === "claudeCode"
+                ? models.claudeCodeModel
+                : models.textModel,
         }),
       );
       const cached = this.store.db

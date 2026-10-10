@@ -46,11 +46,13 @@ export function defaultScriptModel(provider: ScriptProvider, openAIModel: string
   }
 }
 const settingsFields = {
-  textProvider: z.enum(["auto", "openai", "codex", "none"]),
+  textProvider: z.enum(["auto", "openai", "codex", "claudeCode", "none"]),
   textModel: ModelIdSchema,
   codexModel: ModelIdSchema.nullable(),
+  claudeCodeModel: ModelIdSchema.nullable().optional(),
   scriptProvider: ScriptProviderSchema.optional(),
   scriptModel: ModelIdSchema.optional(),
+  imageProvider: z.enum(["openai", "flow"]).optional(),
   imageModel: ModelIdSchema,
   imageQuality: ImageQualitySchema,
   ttsProvider: z.literal("typecast"),
@@ -111,7 +113,7 @@ export type ModelSettings = Readonly<z.infer<typeof ModelSettingsSchema>>;
 export const ExecutionModelsSchema = z
   .object({
     ...settingsFields,
-    textProvider: z.enum(["openai", "codex", "none"]),
+    textProvider: z.enum(["openai", "codex", "claudeCode", "none"]),
     capturedAt: z.iso.datetime(),
   })
   .strict()
@@ -125,7 +127,16 @@ export type ExecutionModels = z.infer<typeof ExecutionModelsSchema>;
 export const ArtifactModelSchema = z
   .object({
     // typecast: 내레이션 합성, ffmpeg: 로컬 렌더(모션그래픽·최종 조립), flow: 사용자가 Google Flow 웹에서 만든 클립
-    provider: z.enum(["openai", "codex", "anthropic", "gemini", "typecast", "ffmpeg", "flow"]),
+    provider: z.enum([
+      "openai",
+      "codex",
+      "claudeCode",
+      "anthropic",
+      "gemini",
+      "typecast",
+      "ffmpeg",
+      "flow",
+    ]),
     requestedModel: ModelIdSchema.nullable(),
     effectiveModel: ModelIdSchema.nullable(),
     quality: ImageQualitySchema.nullable(),

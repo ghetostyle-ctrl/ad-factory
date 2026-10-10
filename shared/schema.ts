@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AutomationStateSchema, EngineStateSchema } from "./automation";
 import { CreativePlanSchema, CreativeVariantSchema, StagedVariantSchema } from "./creative-plan";
+import { FlowImageRequestSchema } from "./flow-images";
 import { ArtifactModelSchema, ExecutionModelsSchema, ModelSettingsSchema } from "./models";
 import { CreativeSchema } from "./planning";
 import { ProductionSourceSnapshotSchema } from "./production-manifest";
@@ -159,6 +160,7 @@ export const JobSchema = CreateJobSchema.safeExtend({
   automation: AutomationStateSchema.nullable().default(null),
   sourceSnapshot: ProjectSourceSnapshotSchema.nullable().default(null),
   productionSourceSnapshot: ProductionSourceSnapshotSchema.nullable().default(null),
+  flowImageRequests: z.array(FlowImageRequestSchema).optional(),
   creativePlan: CreativePlanSchema.nullable().default(null),
   videoScripts: z.array(VideoScriptSchema).max(10).default([]),
   creativeVariants: z.array(CreativeVariantSchema).max(10).default([]),
@@ -180,13 +182,14 @@ export const ConfigStatusSchema = z.object({
   openai: z.boolean(),
   gemini: z.boolean(),
   codex: z.boolean(),
+  claudeCode: z.boolean().default(false),
   anthropic: z.boolean().default(false),
   meta: z.boolean(),
   typecast: z.boolean(),
   // 로컬 렌더 도구 상태: ffmpeg 실행 가능 여부, 자막용 한글 폰트 존재 여부
   ffmpeg: z.boolean().default(false),
   captionFont: z.boolean().default(false),
-  textProvider: z.enum(["openai", "codex", "none"]),
+  textProvider: z.enum(["openai", "codex", "claudeCode", "none"]),
   imageModel: z.string(),
   textModel: z.string(),
   metaVersion: z.string(),

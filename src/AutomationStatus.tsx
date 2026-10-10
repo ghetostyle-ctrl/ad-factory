@@ -40,7 +40,9 @@ function nextAction(automation: AutomationState): string {
         : "자동 실행이 중지되었습니다. 광고 상태는 아래에서 확인하세요.";
     case "completed":
       return automation.policy.mode === "creative"
-        ? "영상 대본·컷 설계, 이미지 검토, 내레이션·Veo 클립·모션그래픽 조립까지 마쳤습니다. 완성 영상은 대본 카드에서 확인하세요."
+        ? (automation.policy.videoCount ?? 0) === 0
+          ? "광고 이미지 제작과 검토를 마쳤습니다. 작업 결과물에서 확인하세요."
+          : "영상 대본·컷 설계, 이미지 검토, 내레이션·Veo 클립·모션그래픽 조립까지 마쳤습니다. 완성 영상은 대본 카드에서 확인하세요."
         : automation.policy.mode === "prepare"
           ? "광고 준비를 마쳤습니다."
           : "운영이 종료되었습니다.";
@@ -49,7 +51,9 @@ function nextAction(automation: AutomationState): string {
         ? "예약 시각에 실제 성과를 조회하고 AI가 분석합니다."
         : automation.phase === "script"
           ? "영상 대본을 대본 카드에서 확인·수정하고 승인하면 이미지 제작·검토부터 자동으로 이어서 제작합니다. 실패가 아니라 사용자 확인을 기다리는 중입니다."
-          : "Google Flow에서 만든 클립을 대본 카드에서 업로드하면 자동으로 이어서 제작합니다. 실패가 아니라 사용자 작업을 기다리는 중입니다.";
+          : ["image", "stills", "startImages"].includes(automation.phase)
+            ? "Flow 이미지 제작 항목의 프롬프트로 이미지를 만든 뒤 확인하고 업로드하세요. 이미지 검토를 마치면 다음 단계가 이어집니다."
+            : "Google Flow에서 만든 클립을 대본 카드에서 업로드하면 자동으로 이어서 제작합니다. 실패가 아니라 사용자 작업을 기다리는 중입니다.";
     case "queued":
       return `다음 단계: ${phases[automation.phase]}`;
     case "running":

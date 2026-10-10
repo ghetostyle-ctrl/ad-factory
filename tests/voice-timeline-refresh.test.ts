@@ -189,3 +189,42 @@ test.each(["legacy", "final state", "final artifact"])(
     expect(f.store.get(id)).toEqual(state);
   },
 );
+
+test("saved caption key order does not falsely report timeline tampering", async () => {
+  const { id, stale } = await savedVoice();
+  if (!stale.captions?.length) throw new TypeError("caption fixture missing");
+  const stored = {
+    ...stale,
+    captions: stale.captions.map((caption) =>
+      Object.fromEntries(Object.entries(caption).reverse()),
+    ),
+  };
+  const content = JSON.stringify(stored);
+  await saveArtifactOnce(f.production.assets, id, {
+    name: renderNames.timeline(1),
+    kind: "json",
+    agentId: "production",
+    content,
+  });
+  f.store.change(id, (draft) => {
+    const voice = renderStateOf(draft, 1).voice;
+    if (!voice) throw new TypeError("voice fixture missing");
+    voice.timelineDigest = sha256Hex(content);
+  });
+  const manifest = await readText(id, renderNames.voiceManifest(1));
+  await noVoiceCalls().run(id, 1, signal());
+  expect(f.store.get(id).renders[0]?.voice?.timelineDigest).toBe(
+    timelineDigest(await readTimeline(id)),
+  );
+  expect(await readText(id, renderNames.voiceManifest(1))).toBe(manifest);
+});
+test("modified timeline values remain blocked before cached narration is reused", async () => {
+  const { id, stale } = await savedVoice();
+  await saveArtifactOnce(f.production.assets, id, {
+    name: renderNames.timeline(1),
+    kind: "json",
+    agentId: "production",
+    content: JSON.stringify({ ...stale, durationMs: stale.durationMs + 1 }),
+  });
+  await expect(noVoiceCalls().run(id, 1, signal())).rejects.toThrow("타임라인 파일이 변경");
+});

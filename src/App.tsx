@@ -2,16 +2,15 @@ import { ChevronRight, Plus, RefreshCw, Settings2 } from "lucide-react";
 import { lazy, Suspense, useDeferredValue, useEffect, useRef, useState } from "react";
 import type { AgentId, Job } from "../shared/schema";
 import type { ProjectId } from "../shared/sources";
-
 import { ActivityRail } from "./ActivityRail";
 import { AgentBoard } from "./AgentBoard";
-
 import { Artifacts } from "./Artifacts";
 import { AutomationPanel } from "./AutomationPanel";
 import type { View } from "./agentMeta";
 import { errorMessage, postJob, useStudio } from "./api";
 import { CreativeEvidence } from "./CreativeEvidence";
 import { DeleteJobDialog } from "./DeleteJobDialog";
+import { FlowImagesPanel } from "./FlowImagesPanel";
 import { JobOverview } from "./JobOverview";
 import { Button, Notice } from "./primitives";
 import { Sidebar } from "./Sidebar";
@@ -222,6 +221,7 @@ export function App() {
                         onCreate={() => setModal("create")}
                       />
                     )}
+                    {job && <FlowImagesPanel job={job} onRefresh={refreshed} />}
                     {job && (
                       <SourceScope
                         job={job}

@@ -14,6 +14,7 @@ const ImagesSchema = z.object({
 // 1024x1536 은 Veo 시작 이미지용 세로 프레임(공급자 지원 여부 미검증 — 400이면 호출자가 정사각으로 폴백).
 export type ImageSize = "1024x1024" | "1024x1536";
 export type ImageOptions = {
+  readonly target?: { readonly key: string; readonly label: string };
   readonly size?: ImageSize;
   readonly referenceImages?: readonly Uint8Array[];
 };
@@ -30,6 +31,8 @@ export async function generateImageResult(
   connection: OpenAIConnection = openAIConnection(),
 ): Promise<ModelResult<Uint8Array>> {
   task.signal.throwIfAborted();
+  if (task.models.imageProvider === "flow")
+    throw new BlockedError("Flow 이미지 제작을 선택했습니다. 이미지 업로드 경로를 사용하세요.");
   if (!connection.apiKey)
     throw new MissingConnectionError(
       "자동 이미지 생성에 OpenAI API 키가 필요합니다. 연결 설정에서 키를 입력하면 재개할 수 있습니다.",

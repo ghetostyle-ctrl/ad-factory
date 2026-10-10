@@ -1,6 +1,3 @@
-import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import ky from "ky";
@@ -12,11 +9,14 @@ import {
   ModelIdSchema,
   type ModelResult,
 } from "../shared/models";
-import { codexBin, credentials, dataDir } from "./config";
-import { BlockedError, MissingConnectionError, StudioError } from "./errors";
+import { cliText } from "./cli-text-provider";
+import { credentials, dataDir } from "./config";
+import { MissingConnectionError, StudioError } from "./errors";
 import { snapshotModels } from "./model-settings";
 import { imageInput } from "./provider-image-input";
 import { type OpenAIConnection, openAIConnection } from "./provider-transport";
+
+export { codexArguments } from "./cli-text-provider";
 
 const ResponseSchema = z.object({
   model: ModelIdSchema.optional(),
@@ -81,10 +81,11 @@ export async function generateTextResult<T>(
     case "openai":
       return openaiText({ ...task, models }, connection);
     case "codex":
-      return codexText({ ...task, models });
+    case "claudeCode":
+      return cliText({ ...task, models });
     case "none":
       throw new MissingConnectionError(
-        "텍스트 공급자가 없습니다. OpenAI API 키 또는 Codex CLI 로그인을 설정하세요.",
+        "텍스트 공급자가 없습니다. OpenAI API 키 또는 Codex·Claude Code 로그인을 설정하세요.",
       );
     default:
       return models.textProvider satisfies never;
@@ -214,97 +215,6 @@ async function anthropicText<T>(
       provider: "anthropic",
       requestedModel: model,
       effectiveModel: response.model,
-      quality: null,
-    },
-  };
-}
-export function codexArguments(input: {
-  readonly schemaPath: string;
-  readonly resultPath: string;
-  readonly model: string | null;
-  readonly imagePath: string | null;
-}): string[] {
-  return [
-    "exec",
-    "--ignore-user-config",
-    "--sandbox",
-    "read-only",
-    "--disable",
-    "shell_tool",
-    "-c",
-    "hide_agent_reasoning=true",
-    "-c",
-    'web_search="disabled"',
-    "--json",
-    "--skip-git-repo-check",
-    "--ephemeral",
-    "--output-schema",
-    input.schemaPath,
-    "--output-last-message",
-    input.resultPath,
-    ...(input.model ? ["--model", input.model] : []),
-    ...(input.imagePath ? ["--image", input.imagePath] : []),
-    "-",
-  ];
-}
-async function codexText<T>(
-  task: TextTask<T> & { readonly models: ExecutionModels },
-): Promise<ModelResult<T>> {
-  if (!codexBin) throw new MissingConnectionError("Codex CLI 실행 파일을 찾을 수 없습니다.");
-  const binary = codexBin;
-  await mkdir(task.directory, { recursive: true });
-  const invocation = crypto.randomUUID();
-  const schemaPath = join(task.directory, `${invocation}.schema.json`);
-  const resultPath = join(task.directory, `${invocation}.result.json`);
-  // 제한: Codex CLI 경로는 --image 한 장만 넘긴다(첫 장). 참조 이미지 비교 검토는 OpenAI 경로에서만 완전하다.
-  const [firstImage] = attachedImages(task);
-  const imagePath = firstImage
-    ? join(task.directory, `${invocation}.${imageInput(firstImage).extension}`)
-    : null;
-  if (firstImage && imagePath) await Bun.write(imagePath, firstImage);
-  await Bun.write(schemaPath, JSON.stringify(z.toJSONSchema(task.schema)));
-  const args = codexArguments({ schemaPath, resultPath, model: task.models.codexModel, imagePath });
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(binary, args, {
-      cwd: task.directory,
-      windowsHide: true,
-      shell: false,
-      env: { ...process.env, OPENAI_API_KEY: undefined, META_ACCESS_TOKEN: undefined },
-      stdio: ["pipe", "ignore", "ignore"],
-    });
-    const abort = () => {
-      child.kill();
-    };
-    task.signal.addEventListener("abort", abort, { once: true });
-    const timer = setTimeout(() => child.kill(), 240000);
-    child.once("error", () => {
-      clearTimeout(timer);
-      task.signal.removeEventListener("abort", abort);
-      reject(new BlockedError("Codex CLI를 시작하지 못했습니다. 설치 경로와 로그인을 확인하세요."));
-    });
-    child.once("close", (code) => {
-      clearTimeout(timer);
-      task.signal.removeEventListener("abort", abort);
-      if (task.signal.aborted) reject(new DOMException("Cancelled", "AbortError"));
-      else if (code !== 0)
-        reject(
-          new StudioError(
-            "codex_exit",
-            "Codex CLI가 완료되지 않았습니다. codex login status와 CLI 실행 상태를 확인하세요.",
-          ),
-        );
-      else resolve();
-    });
-    child.stdin.end(task.prompt);
-    if (task.signal.aborted) abort();
-  });
-  task.signal.throwIfAborted();
-  return {
-    value: task.schema.parse(JSON.parse(await Bun.file(resultPath).text())),
-    model: {
-      provider: "codex",
-      requestedModel: task.models.codexModel,
-      effectiveModel: null,
       quality: null,
     },
   };

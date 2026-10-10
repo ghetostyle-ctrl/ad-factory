@@ -38,7 +38,8 @@ export class AutomationEnrollment {
     const models = job.executionModels ?? snapshotModels(this.store.root);
     if (
       models.textProvider === "none" ||
-      (models.textProvider === "codex" && models.codexModel === null)
+      (models.textProvider === "codex" && models.codexModel === null) ||
+      (models.textProvider === "claudeCode" && !models.claudeCodeModel)
     )
       throw new StudioError(
         "model",
@@ -184,6 +185,7 @@ export class AutomationEnrollment {
       draft.status = "queued";
       draft.automation = null;
       draft.executionModels = null;
+      delete draft.flowImageRequests;
       draft.creativePlan = null;
       draft.videoScripts = [];
       draft.renders = [];

@@ -16,6 +16,7 @@ import { BlockedError, MissingConnectionError, StudioError, WaitingError } from 
 import { instructionsEventMessage } from "./instructions";
 import { renderStateOf } from "./render-state-helpers";
 import { SCRIPT_MAX_GENERATIONS, writeVideoScript } from "./script-writer";
+import { produceSourceCards } from "./source-card-production";
 import { validatePlanEvidence } from "./source-evidence";
 import { sourceImagePrompt } from "./source-image-style";
 import { SourcePlanner } from "./source-planning";
@@ -181,86 +182,16 @@ export class SourceProduction {
     }
     for (const variant of job.creativeVariants) {
       await this.produce({ id, variantId: variant.id, signal });
-      await this.produceCards({ id, variantId: variant.id, signal });
+      await produceSourceCards(this.store, {
+        id,
+        variantId: variant.id,
+        signal,
+        providers: this.providers,
+      });
     }
     const first = this.store.get(id).creativeVariants[0];
     if (!first) throw new BlockedError("제작할 가설이 없습니다.");
     return first.creative;
-  }
-  // 메커니즘 설명형 카드뉴스: 표지(대표 이미지)가 확정된 뒤 2~5번째 장을 장마다 생성·검토한다.
-  // 장마다 검토는 1회, 수정 요청이 오면 한 번만 다시 만들고 그 결과로 확정해 비용을 제한한다.
-  private async produceCards(task: {
-    readonly id: string;
-    readonly variantId: string;
-    readonly signal: AbortSignal;
-  }): Promise<void> {
-    const { id, variantId, signal } = task;
-    const slides =
-      this.store.get(id).creativePlan?.hypotheses.find((item) => item.id === variantId)
-        ?.cardSlides ?? [];
-    for (const [index, slide] of slides.entries()) {
-      if (this.variant(this.store.get(id), variantId).cardImageIds[index]) continue;
-      const cardNumber = index + 2;
-      await this.guard.operation(id, {
-        phase: "image",
-        signal,
-        run: async () => {
-          const base = this.variant(this.store.get(id), variantId).creative;
-          const creative = {
-            ...base,
-            headline: slide.headline,
-            primaryText: slide.body || slide.headline,
-            imagePrompt: slide.imagePrompt,
-          };
-          let prompt = slide.imagePrompt;
-          let saved: { id: string } | null = null;
-          for (let attempt = 1; attempt <= 2; attempt++) {
-            this.store.agent(id, "production", {
-              status: "running",
-              action: `${variantId} · 카드뉴스 ${cardNumber}/${slides.length + 1}장 ${attempt === 1 ? "생성" : "수정"} 중`,
-            });
-            const result = await this.providers.image(
-              this.store.get(id),
-              sourceImagePrompt(this.store.get(id), variantId, prompt),
-              signal,
-            );
-            saved = await this.assets.save(id, {
-              name: `card-${variantId}-${cardNumber}-${attempt}.png`,
-              kind: "image",
-              agentId: "production",
-              content: result.value,
-              model: result.model,
-            });
-            if (attempt === 2) break;
-            const review = await this.providers.review({
-              job: this.store.get(id),
-              creative,
-              image: result.value,
-              signal,
-            });
-            await this.assets.save(id, {
-              name: `card-review-${variantId}-${cardNumber}.json`,
-              kind: "json",
-              agentId: "production",
-              content: JSON.stringify(review.value),
-              model: review.model,
-            });
-            if (review.value.status === "pass" || !review.value.revisionPrompt) break;
-            prompt = review.value.revisionPrompt;
-          }
-          if (!saved) throw new BlockedError("카드뉴스 이미지를 만들지 못했습니다.");
-          const savedId = saved.id;
-          this.store.change(id, (draft) => {
-            this.variant(draft, variantId).cardImageIds[index] = savedId;
-          });
-        },
-      });
-    }
-    if (slides.length)
-      this.store.agent(id, "production", {
-        status: "completed",
-        action: `${variantId} · 카드뉴스 ${slides.length + 1}장 완성`,
-      });
   }
   private variant(job: Job, variantId: string): CreativeVariant {
     const variant = job.creativeVariants.find((item) => item.id === variantId);
@@ -307,6 +238,10 @@ export class SourceProduction {
       }
       if (!imageAsset || variant.reviewStatus === "revise") {
         if (variant.imageAttempts >= 2) {
+          if (job.executionModels?.imageProvider === "flow")
+            throw new BlockedError(
+              "Flow 대표 이미지가 두 차례 검토를 통과하지 못했습니다. 검토 결과를 확인하세요.",
+            );
           this.store.change(id, (draft) => {
             const current = this.variant(draft, variantId);
             current.reviewStatus = "pass";
@@ -336,9 +271,15 @@ export class SourceProduction {
                 this.store.get(id),
                 sourceImagePrompt(this.store.get(id), variantId, prompt),
                 signal,
+                {
+                  target: {
+                    key: `image-${variantId}-${attempt}`,
+                    label: `${variantId} · 대표 이미지 · ${attempt}차`,
+                  },
+                },
               )
               .catch((error) => {
-                if (error instanceof MissingConnectionError)
+                if (error instanceof MissingConnectionError || error instanceof WaitingError)
                   this.store.change(id, (draft) => {
                     this.variant(draft, variantId).imageAttempts = attempt - 1;
                   });
