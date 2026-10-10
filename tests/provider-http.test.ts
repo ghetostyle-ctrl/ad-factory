@@ -1,7 +1,6 @@
-import { afterEach, expect, spyOn, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { rmSync } from "node:fs";
-import ky from "ky";
 import { z } from "zod";
 import { generateImageResult } from "../server/image-provider";
 import { Intelligence } from "../server/intelligence";
@@ -229,33 +228,6 @@ test("makes no paid request when all observed metrics are zero", async () => {
   // Then
   await expect(analysis).rejects.toThrow();
   expect(requests).toBe(0);
-});
-
-test("structured text requests allow a bounded ten-minute response without automatic paid retries", async () => {
-  // Given: inspect the real adapter request while the local fixture answers immediately.
-  const fixture = setup(() => response({ message: "valid" }));
-  const signal = new AbortController().signal;
-  const request = spyOn(ky, "post");
-  try {
-    // When
-    const result = await generateTextResult(
-      {
-        name: "fixture",
-        prompt: "fixture",
-        directory: fixture.store.root,
-        signal,
-        models: fixture.models,
-        schema: z.object({ message: z.string() }).strict(),
-      },
-      fixture.connection,
-    );
-    // Then
-    expect(result.value).toEqual({ message: "valid" });
-    expect(request).toHaveBeenCalledTimes(1);
-    expect(request.mock.calls[0]?.[1]).toMatchObject({ timeout: 600_000, retry: 0, signal });
-  } finally {
-    request.mockRestore();
-  }
 });
 
 test("a caller can cancel a pending structured response without waiting for its generous deadline", async () => {

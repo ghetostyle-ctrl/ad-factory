@@ -113,14 +113,16 @@ async function openaiText<T>(
           },
         ]
       : task.prompt;
+  const signal = AbortSignal.any([task.signal, AbortSignal.timeout(10 * 60 * 1000)]);
   const result = ResponseSchema.parse(
     await ky
       .post(new URL("responses", connection.baseUrl), {
         headers: { Authorization: `Bearer ${connection.apiKey}` },
-        // 큰 기획 JSON은 3분을 넘길 수 있다. 사용자 취소와 재시도 0회는 그대로 유지한다.
-        timeout: 10 * 60 * 1000,
+        // Bun의 별도 유휴 제한을 해제하고 헤더·본문 전체를 위의 10분 신호로 제한한다.
+        fetch: (input, options) => fetch(input, { ...options, timeout: false }),
+        timeout: false,
         retry: 0,
-        signal: task.signal,
+        signal,
         json: {
           model: task.models.textModel,
           input,

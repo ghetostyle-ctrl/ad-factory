@@ -39,7 +39,7 @@ export function publicError(error: unknown): string {
   if (error instanceof StudioError) return error.message;
   if (error instanceof HTTPError)
     return `공급자 요청 실패 (HTTP ${error.response.status}). 서버 설정과 공급자 권한을 확인하세요.`;
-  if (error instanceof TimeoutError)
+  if (error instanceof TimeoutError || (error instanceof Error && error.name === "TimeoutError"))
     return "공급자 응답 시간이 초과되었습니다. 외부 결과를 확인한 후 다시 시도하세요.";
   if (error instanceof ZodError) return "입력 또는 공급자 응답이 지원 형식과 일치하지 않습니다.";
   if (error instanceof Error && error.name === "AbortError") return "작업이 취소되었습니다.";
