@@ -1,5 +1,5 @@
 export const AD_EDIT_STYLE = {
-  version: 1,
+  version: 2,
   label: {
     fontSize: 68,
     minFontSize: 64,
@@ -26,6 +26,7 @@ export const AD_EDIT_STYLE = {
     normalPx: 64,
     pointPx: 86,
     centerY: 1464,
+    chestY: 1228,
     widthRatio: 0.8,
     white: "FFFDF5",
     accent: "FFF8CC",

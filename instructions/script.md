@@ -166,3 +166,10 @@ USER FEEDBACK (must be applied): {{feedback}}
 ## SCRIPT_SHAPE_EXAMPLE_NOTE
 
 EXAMPLE SENTENCE (shape only; every number and product word must come from FACTS):
+
+
+## AD_CAPTION_DIRECTION_RULES
+
+For each sentence provide captionDirection {tone, keyword, icon}; this changes only caption presentation, never the narration, its wording or the persuasion order. Choose tone from plain (clear factual information), handwritten (personal experience, empathy or an aside; real Nanum Pen handwriting), impact (a decisive reversal or action; Black Han Sans), warm (friendly, relaxed speech; Jua), elegant (calm, refined satisfaction; Gowun Batang Bold). Choose a coherent base and one or two contrasting expressive voices for the video; do not rotate through fonts or default every sentence to plain. Typography must fit what the speaker means. Use plain, empty keyword and none icon for sentences with INFO/explainer cuts so the 03 labels remain the focal point.
+keyword is one exact contiguous word or short phrase already present in that sentence, usually 2–8 Korean characters; empty when no emphasis is needed. Choose the useful meaning-bearing word, not automatically the first word. Only the keyword receives the accent color and modest size emphasis; never invent visible text. icon is none, leaf, drop, capsule, bottle, store, clock or coin. Use an icon only when keyword literally names its object/concept (for example a capsule, oil, a shop, a time or a price); otherwise none. Icons must not imply efficacy, certification or income evidence. Keep most cues icon-free and reserve forceful impact for key beats.
+Live captions sit under the face around chest level; explainer captions keep their lower safe area. Use complete phrase fades/pops, not per-letter wipes. Do not add text or icons to Veo/CLEAN/INFO images. Actual mobile fit and source occlusion are checked after local composition, not assumed from the plan.

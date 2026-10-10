@@ -26,7 +26,7 @@ iwr https://raw.githubusercontent.com/ghetostyle-ctrl/ad-factory/main/install-su
 2. Bun이 없으면 **Bun 1.3.14 자동 설치 → 의존성 설치 → 화면 빌드 → 서버 시작**을 진행합니다. 첫 실행에는 인터넷 연결과 몇 분의 시간이 필요합니다.
 3. 자동으로 열린 브라우저에서 **연결 설정**에 본인의 API 키를 저장합니다. 직접 접속할 주소는 `http://127.0.0.1:4317/`입니다.
 
-영상 기능에는 별도로 [FFmpeg](https://ffmpeg.org/download.html) 8.x full 빌드(libass·libx264 포함)의 `ffmpeg`와 `ffprobe`를 설치하고 PATH에 추가해야 합니다. 자막 폰트(Pretendard, OFL)는 저장소에 들어 있습니다.
+영상 기능에는 별도로 [FFmpeg](https://ffmpeg.org/download.html) 8.x full 빌드(libass·libx264 포함)의 `ffmpeg`와 `ffprobe`를 설치하고 PATH에 추가해야 합니다. 자막 폰트 5종(Pretendard·Nanum Pen·Black Han Sans·Jua·Gowun Batang, OFL)은 라이선스와 함께 저장소에 들어 있습니다.
 
 자동 설치한 Bun은 앱 폴더의 `.runtime/bun`에만 저장됩니다. 기존 Bun이 PATH에 있으면 그대로 사용하며, 관리자 권한이나 시스템 PATH 변경은 필요하지 않습니다. 자동 설치 실패 시 오류 창을 확인하고 다시 실행하세요. 설치 방식: [Bun 공식 안내](https://bun.sh/docs/installation).
 
@@ -87,3 +87,7 @@ Gemini/Veo 결제 준비: [Gemini API 결제 설명서](docs/GEMINI-BILLING.md)
 카피 먼저 흐름의 설명 장면은 Veo 3.1 Lite로 글자 없는 원본을 만들고, 앱이 03 올리브 배지·연결선·골드 앵커를 HyperFrames로 합성합니다. 자막은 위로 올린 위치에서 핵심 구절만 강조하고, 실제 발화 앞뒤 공백과 컷 시간을 함께 조정합니다. 원문·원본 WAV·이미 저장된 완성본은 보존합니다.
 
 Node.js 22 이상과 `bun install --frozen-lockfile`이 필요합니다. [설치·스타일·검수 범위](docs/HYPERFRAMES-EDITING.md)를 확인하세요. 자동 합성은 대상 자동 추적을 뜻하지 않으며, 실제 생성 원본의 앵커 정합과 모바일 가독성은 완성 영상에서 확인합니다. 유료 생성은 기존 승인 범위에서만 진행합니다.
+
+## 상황에 맞는 광고 자막
+
+대본의 문장과 흐름을 유지하면서 장면 기획이 기본 고딕·후기 손글씨·강한 강조·친근한 둥근체·차분한 바탕체를 선택합니다. 핵심어 색/크기와 말에 직접 관련된 아이콘을 합성하며, 설명 컷은 기존 03 라벨 아래에 기본 자막을 둡니다. [서체·배치·적용 범위](docs/AD-CAPTION-STYLES.md)를 참고하세요. 새 제작/재조립부터 적용되며 기존 완성 MP4는 자동 변경하지 않습니다.

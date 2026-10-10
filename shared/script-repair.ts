@@ -273,6 +273,7 @@ export function flattenSentences(response: ScriptResponseInput, ctx: ScriptConte
       start = Math.round((start + cut.len) * 1000) / 1000;
     }
     voiceover.push({
+      captionDirection: sentence.captionDirection,
       fromCut,
       toCut: Math.max(fromCut, cuts.length - 1),
       purpose: sentence.purpose,

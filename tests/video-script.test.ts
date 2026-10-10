@@ -510,6 +510,7 @@ test("the nested script response schema is strict, shallow and rejects the field
   ]);
   const sentence = schema.properties?.["sentences"]?.items;
   expect(sentence?.required).toEqual([
+    "captionDirection",
     "purpose",
     "chainStep",
     "text",

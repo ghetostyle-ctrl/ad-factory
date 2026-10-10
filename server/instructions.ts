@@ -432,6 +432,12 @@ export const INSTRUCTION_SECTIONS: readonly InstructionSection[] = [
   section("script.md", "SCRIPT_OFFER_ALLOWED", `${SCRIPT} offerAllowed 참`, "오퍼 문장 허용 조건"),
   section("script.md", "SCRIPT_OFFER_NONE", `${SCRIPT} offerAllowed 거짓`, "오퍼 지어내기 금지"),
   section("script.md", "SCRIPT_VOICE", `${SCRIPT} VOICE`, "내레이션 말투·영문 금지·인물 금지·CTA"),
+  section(
+    "script.md",
+    "AD_CAPTION_DIRECTION_RULES",
+    "영상 장면 기획",
+    "상황별 서체·핵심어·아이콘 연출",
+  ),
   section("script.md", "SCRIPT_CAPTIONS", `${SCRIPT} CAPTIONS`, "자막 길이·끊기 규칙"),
   section(
     "script.md",

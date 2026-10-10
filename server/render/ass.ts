@@ -9,6 +9,7 @@ import type {
 import { type GraphicKindSchema, isInfoClipId } from "../../shared/video-script";
 import { motionCalloutEvents } from "./ass-motion";
 import { assColor, assDialogue, assEscape, assLines } from "./ass-primitives";
+import { directedCaptionEvents } from "./caption-ass";
 import type { FontSet } from "./fonts";
 import { effectiveGraphicKind, graphicCaptionSpans } from "./graphic-captions";
 import { fitLines, fitText, lineEm, type TextFit } from "./text-fit";
@@ -170,6 +171,7 @@ export function captionsAss(
   );
   const events = captions.flatMap((caption) => {
     if (!caption.text.trim()) return [];
+    if (caption.tone) return directedCaptionEvents(caption, profile, font);
     const base = baseOf(caption.style === "pop" ? "Pop" : "Caption");
     const fitted = fitText(caption.text, {
       font,

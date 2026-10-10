@@ -30,6 +30,7 @@ function scenicResponse(chars = 26): VideoScriptResponse {
       purpose: "proof",
       chainStep: "bridge",
       text: fixtureSentence(index, chars),
+      captionDirection: { tone: "plain", keyword: "", icon: "none" },
       callouts: [],
       actionSync: null,
       cuts: [

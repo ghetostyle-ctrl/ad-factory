@@ -9,6 +9,7 @@ import type { RenderEncoder } from "../provider-environment";
 import { probeAudioIntegrity } from "./audio-integrity";
 import { MIX } from "./audio-mix";
 import { renderAudioMix } from "./audio-render";
+import { copyCaptionFonts } from "./caption-fonts";
 import {
   type FfmpegRunner,
   ffmpegCapabilities,
@@ -144,6 +145,7 @@ export async function assembleVideo(input: AssembleInput): Promise<RenderReport>
   const args = ["-i", visual, "-i", audio];
   // fontsdir 는 폰트만 담은 폴더(라이선스 텍스트가 섞이면 libass 가 컷마다 경고한다).
   const fontsDir = await fontOnlyDir(input.font, input.scratch);
+  await copyCaptionFonts(fontsDir);
   // setsar=1: 세그먼트 SAR 가 어긋나 있어도 최종 mp4 는 항상 정사각 픽셀로 낸다.
   const graph = `[0:v]ass=${ffPath(input.captionsAss)}:fontsdir=${ffPath(fontsDir)},setsar=1[vout]`;
   const graphPath = await writeFilterGraph(input.scratch, graph);

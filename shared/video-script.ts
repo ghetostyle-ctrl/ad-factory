@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CaptionDirectionSchema } from "./caption-direction";
 import {
   EXPLAINER_ACTIONS_MAX,
   EXPLAINER_EMPHASIS_MAX,
@@ -328,6 +329,7 @@ export const VideoCutSchema = VideoCutResponseSchema.extend({
 // 내레이션과 화면이 따로 놀던 문제(사용자 불만 2026-10-04: "600밀리그램" 문장 아래에 다른 그림)를 구조로 막는다.
 // 시간은 videoScriptFromFlat 이 컷 시간에서 유도한다.
 export const VoiceLineResponseSchema = z.strictObject({
+  captionDirection: CaptionDirectionSchema.optional(),
   fromCut: z
     .number()
     .int()
@@ -351,6 +353,7 @@ export const VoiceLineResponseSchema = z.strictObject({
 // 컷 범위가 없던 예전 대본은 fromCut/toCut -1·purpose "" 로 읽히고, 범위는 시간에서 유도한다(voiceCutRange).
 export const VoicePurposeSchema = z.enum(["", ...PurposeSchema.options]);
 export const VoiceLineSchema = z.strictObject({
+  captionDirection: CaptionDirectionSchema.optional(),
   startSec: z
     .number()
     .min(0)
@@ -560,6 +563,7 @@ export const SentenceCutResponseSchema = z.strictObject({
   phase: CutPhaseSchema,
 });
 export const SentenceResponseSchema = z.strictObject({
+  captionDirection: CaptionDirectionSchema,
   // 문장의 목적. 아래 컷들은 이 목적을 상속한다.
   purpose: ResponsePurposeSchema,
   // 이 문장이 말하는 설득 사슬 칸: pain → believed_cause → real_cause → requirement → product_fact → reason_why → outcome → cta.

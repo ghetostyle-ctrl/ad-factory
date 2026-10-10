@@ -77,7 +77,7 @@ export function videoScriptInstructions(
       : "";
   // 응답 칸 이름(스키마와 묶임, 코드 고정) + 예시 안내(script.md SCRIPT_SHAPE_EXAMPLE_NOTE) + 장면 계획 예시 문장(examples.md):
   // 콜아웃 word 는 문장의 어절 그대로, text 의 숫자는 문장이 말하고 그 숫자가 컷 화면(자막)에 보인다.
-  const shape = `JSON SHAPE: {title, fixedTitle, disclaimer, voicePersona, openLoop, payoffSec, styleAnchor, ${hybrid ? "explainerAnchor, " : ""}subjects[{id, traits}], veoClips[{id, startImagePrompt, prompt, plan{early{camera, action}, mid{…}, late{…}}}], stills[{id, prompt}], ${hybrid ? "infoClips[{id, stage, cleanPrompt, infoPrompt, infoLines[], plan, sceneType, objects[{subjectId, color}], actions[], emphasis[{kind, target, afterAction}]}]" : "infoClips[{id, stage, explanation, cleanPrompt, infoPrompt, graphicOrder[], plan}]"}, sentences[{purpose, chainStep, text, actionSync, callouts[{word, text, kind, anchor, targetId}], cuts[{len, source, screenComposition, onScreenText, effect, veoClip, stillId, graphicKind, graphicLines, goal, phase}]}], flowPrompt, editInstructions}. ${text("SCRIPT_SHAPE_EXAMPLE_NOTE")} ${JSON.stringify(sectionJson(snapshot, "SCENE_PLAN_EXAMPLE_SENTENCE"))}`;
+  const shape = `JSON SHAPE: {title, fixedTitle, disclaimer, voicePersona, openLoop, payoffSec, styleAnchor, ${hybrid ? "explainerAnchor, " : ""}subjects[{id, traits}], veoClips[{id, startImagePrompt, prompt, plan{early{camera, action}, mid{…}, late{…}}}], stills[{id, prompt}], ${hybrid ? "infoClips[{id, stage, cleanPrompt, infoPrompt, infoLines[], plan, sceneType, objects[{subjectId, color}], actions[], emphasis[{kind, target, afterAction}]}]" : "infoClips[{id, stage, explanation, cleanPrompt, infoPrompt, graphicOrder[], plan}]"}, sentences[{purpose, chainStep, text, captionDirection{tone, keyword, icon}, actionSync, callouts[{word, text, kind, anchor, targetId}], cuts[{len, source, screenComposition, onScreenText, effect, veoClip, stillId, graphicKind, graphicLines, goal, phase}]}], flowPrompt, editInstructions}. ${text("SCRIPT_SHAPE_EXAMPLE_NOTE")} ${JSON.stringify(sectionJson(snapshot, "SCENE_PLAN_EXAMPLE_SENTENCE"))}`;
   return [
     fillSection(text("SCRIPT_OPENING"), { seconds }),
     text("SCRIPT_SHAPE"),
@@ -105,6 +105,7 @@ export function videoScriptInstructions(
     offerRule,
     text("SCRIPT_VOICE"),
     text("SCRIPT_CAPTIONS"),
+    text("AD_CAPTION_DIRECTION_RULES"),
     fillSection(text("SCRIPT_CALLOUTS"), {
       calloutsHybridNote: hybrid ? ` ${text("HYBRID_CALLOUTS_NOTE")}` : "",
     }),

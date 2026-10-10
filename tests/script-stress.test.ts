@@ -44,6 +44,7 @@ const sentence = (
   purpose,
   chainStep: "bridge",
   text,
+  captionDirection: { tone: "plain", keyword: "", icon: "none" },
   callouts: [],
   actionSync: null,
   cuts,

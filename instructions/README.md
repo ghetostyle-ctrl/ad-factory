@@ -198,6 +198,7 @@
 | `SCRIPT_OFFER_ALLOWED` | server/script-instructions.ts videoScriptInstructions offerAllowed 참 | 오퍼 문장 허용 조건 | — |
 | `SCRIPT_OFFER_NONE` | server/script-instructions.ts videoScriptInstructions offerAllowed 거짓 | 오퍼 지어내기 금지 | — |
 | `SCRIPT_VOICE` | server/script-instructions.ts videoScriptInstructions VOICE | 내레이션 말투·영문 금지·인물 금지·CTA | — |
+| `AD_CAPTION_DIRECTION_RULES` | server/script-instructions.ts · server/video-scripts.ts sceneFromCopyInstructions | 상황별 실제 서체·핵심어·아이콘 선택 | 대본 원문·순서 보존, 별도 유료 호출 없음 |
 | `SCRIPT_CAPTIONS` | server/script-instructions.ts videoScriptInstructions CAPTIONS | 자막 길이·끊기 규칙 | 임계값 토큰: {{CAPTION_MIN_CHARS}} {{CAPTION_LINE_MAX_CHARS}} {{CAPTION_MIN_SEC}} {{CAPTION_MAX_SEC}}(ms/1000) — 구절 자막 끊기 코드와 같은 값 |
 | `SCRIPT_CALLOUTS` | server/script-instructions.ts videoScriptInstructions CALLOUTS | 콜아웃 개수·word·text·kind·anchor 규칙. **콜아웃 문구 금지어는 여기(생성)와 `REVIEW_RULE_14`(검토)에 프롬프트 지시로 적는다** | 호출 시점 토큰: {{calloutsHybridNote}} · 코드 검사(shared/script-rules.ts)는 word 가 문장 어절인지·영문·숫자만 본다 — 금지어 목록은 코드에 없다(프롬프트 지시만). |
 | `SCRIPT_SNAP_ZOOM` | server/script-instructions.ts videoScriptInstructions SNAP ZOOM | zoom_punch 간격 규칙 | — |

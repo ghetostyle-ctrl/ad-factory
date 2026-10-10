@@ -8,6 +8,7 @@ import { credentials, type RenderEncoder, renderEncoder } from "../provider-envi
 import { hasArtifact, renderNames, scriptOf } from "../render-state-helpers";
 import { getSubscription, type SubscriptionProvider } from "../tts-provider";
 import { verifyVideoScript } from "../video-scripts";
+import { assertCaptionFonts } from "./caption-fonts";
 import { type FfmpegCapabilities, ffmpegCapabilities } from "./ffmpeg";
 import { type FontSet, resolveFont } from "./fonts";
 
@@ -93,6 +94,7 @@ export async function renderPreflight(
       "자막용 한글 폰트를 찾을 수 없습니다. 저장소 assets/fonts 의 Pretendard 또는 FONT_DIR 을 확인하세요.",
       503,
     );
+  assertCaptionFonts();
   const script = scriptOf(job, number);
   verifyVideoScript(script, number, script.hypothesisId);
   const policy = job.automation?.policy;

@@ -9,6 +9,7 @@
   "purpose": "mechanism",
   "chainStep": "reason_why",
   "text": "한 캡슐에 600밀리그램을 담아서요.",
+  "captionDirection": { "tone": "plain", "keyword": "600밀리그램", "icon": "none" },
   "actionSync": null,
   "callouts": [
     {

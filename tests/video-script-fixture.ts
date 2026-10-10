@@ -76,6 +76,7 @@ export function nestedScriptResponse(flat: FlatScript): VideoScriptResponse {
       purpose: voice.purpose,
       chainStep: voice.chainStep || "bridge",
       text: voice.text,
+      captionDirection: voice.captionDirection ?? { tone: "plain", keyword: "", icon: "none" },
       callouts: voice.callouts.map((callout) => ({
         ...callout,
         targetId: callout.targetId ?? null,
@@ -356,7 +357,15 @@ function hybridSentence(
   cuts: HybridCut[],
   callouts: HybridSentence["callouts"] = [],
 ): HybridSentence {
-  return { purpose, chainStep, text, callouts, actionSync: null, cuts };
+  return {
+    purpose,
+    chainStep,
+    text,
+    callouts,
+    captionDirection: { tone: "plain", keyword: "", icon: "none" },
+    actionSync: null,
+    cuts,
+  };
 }
 export function hybridScriptResponse(): HybridVideoScriptResponse {
   return HybridVideoScriptResponseSchema.parse({

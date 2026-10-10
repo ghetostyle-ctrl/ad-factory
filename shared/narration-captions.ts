@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CaptionIconSchema, CaptionToneSchema } from "./caption-direction";
 import type { TimelineVoice } from "./render-timeline";
 import { DEFAULT_THRESHOLDS, thresholds } from "./thresholds";
 
@@ -11,6 +12,9 @@ export const CaptionSchema = z.object({
   style: z.enum(["bottom", "pop"]),
   // One literal span, never ASS markup. Absent on previously saved timelines.
   keyword: z.string().optional(),
+  tone: CaptionToneSchema.optional(),
+  icon: CaptionIconSchema.optional(),
+  placement: z.enum(["chest", "lower"]).optional(),
 });
 export type Caption = z.infer<typeof CaptionSchema>;
 // 구절 자막 길이·표시 시간 한도(임계값 CAPTION_MIN_CHARS·CAPTION_LINE_MAX_CHARS·CAPTION_MIN_MS·CAPTION_MAX_MS). 호출 때 읽는다.

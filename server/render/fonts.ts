@@ -6,6 +6,12 @@ import { sha256Hex } from "../../shared/sha256";
 // 자막·모션그래픽 한글 폰트. fontconfig 이름 조회는 쓰지 않고(이 PC ffmpeg 빌드에 fonts.conf 없음·세그폴트 실측)
 // 파일 경로(fontsdir)만 쓴다. 순서: env FONT_DIR → 저장소 assets/fonts(Pretendard, OFL) → Windows 맑은 고딕 → 없음.
 export type FontSet = {
+  readonly metrics?: {
+    readonly unitsPerEm: number;
+    readonly ascent: number;
+    readonly descent: number;
+    readonly advances: Readonly<Record<string, number>>;
+  };
   readonly dir: string;
   readonly family: string;
   readonly bold: string;

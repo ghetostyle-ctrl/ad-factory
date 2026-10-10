@@ -36,6 +36,14 @@ function advance(char: string): number {
 }
 // 한 줄의 폭을 ASS 글꼴 크기(fs) 배수로: 폭(px) = 반환값 × fs
 export function lineEm(line: string, font: FontSet): number {
+  if (font.metrics) {
+    const { advances, unitsPerEm, ascent, descent } = font.metrics;
+    const width = [...line].reduce(
+      (sum, char) => sum + (advances[String(char.codePointAt(0))] ?? unitsPerEm),
+      0,
+    );
+    return width / (ascent + descent);
+  }
   let total = 0;
   for (const char of line) total += advance(char);
   return (total / 1000) * (font.family === "Pretendard" ? PRETENDARD_CELL : FALLBACK_CELL);

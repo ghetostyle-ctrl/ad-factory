@@ -47,6 +47,7 @@ function actionResponse(): VideoScriptResponse {
       purpose,
       chainStep: "bridge" as const,
       text,
+      captionDirection: { tone: "plain", keyword: "", icon: "none" },
       callouts: [],
       actionSync: null,
       cuts: lengths.map((len) => ({

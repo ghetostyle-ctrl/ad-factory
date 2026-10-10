@@ -1,6 +1,6 @@
 import type { VisualPolicyId } from "../../shared/video-planning";
 // 모션그래픽·자막의 색·크기·세이프존 토큰. 바꾸면 THEME_VERSION 을 올려 세그먼트 캐시를 무효화한다.
-export const THEME_VERSION = 5;
+export const THEME_VERSION = 6;
 export const THEME = {
   colors: {
     // ffmpeg color 표기(0xRRGGBB) 와 ASS 표기(&HBBGGRR&) 양쪽에서 쓰도록 RGB 16진만 둔다.
