@@ -45,6 +45,8 @@ bun run start
 - [현재 제한 사항](docs/KNOWN-ISSUES.md)
 - [공개본 검증 기록](docs/VALIDATION.md)
 - [기여 방법](CONTRIBUTING.md)
+- [연결된 에이전트 작업 안내(AGENTS.md)](AGENTS.md) — Claude Code·Codex 를 앱 폴더에서 켜 두면 Flow 클립 제작을 이어가는 규칙
+- [Flow 제작 에이전트 실행 지시서](FLOW-AGENT-RUN-BRIEF.md) · [Veo 3.1 Lite + HyperFrames 분담](FLOW-AGENT-BRIEF-VEO-HYPERFRAMES.md)
 
 ## 기능과 연결
 
@@ -99,6 +101,10 @@ Node.js 22 이상과 `bun install --frozen-lockfile`이 필요합니다. [설치
 Flow 이미지는 작업 화면의 프롬프트와 참조 이미지로 직접 제작하고, 미리보기와 확인 체크 후 업로드합니다. 대표·카드는 1:1, 정지·시작 이미지는 9:16 PNG/JPEG(15MB 이하)이며 ffmpeg가 필요합니다. 설명 CLEAN/INFO는 기존 영상 카드에서 올립니다. 실패 시 수정 업로드를 요청하며 두 차례 검토 후에도 실패하면 보고하고 멈춥니다. 앱이 Flow 브라우저를 자동 조작하지 않습니다. CLI/Flow 사용량과 영상·음성 비용은 각 계정에 적용됩니다.
 
 설정은 새 작업부터 적용되며 기존 작업·대본·승인은 보존됩니다. Claude Code는 safe-mode·구조화 응답 지원 버전이 필요합니다(로컬 확인 2.1.227). 표준 Windows npm 설치와 네이티브 설치를 지원하며, 실행 파일을 찾지 못할 때는 CODEX_BIN / CLAUDE_CODE_BIN을 지정하세요. 실제 CLI 생성 품질은 개발 검증에 포함하지 않았습니다.
+
+## Flow 모드를 사람 없이 이어가기
+
+Google Flow 로 영상 클립을 만드는 Flow 모드는 앱이 프롬프트·시작 이미지를 내보낸 뒤 "Flow 클립 업로드 대기"에서 멈춥니다(Flow 에는 API 가 없습니다). 이 구간을 사람 대신 이어가게 하려면 **앱 폴더에서 Claude Code 또는 Codex 를 켜 두세요.** 에이전트가 [AGENTS.md](AGENTS.md) 를 읽고, 대기 상태를 보면 묻지 않고 브라우저(Claude in Chrome 확장 / Codex 브라우저 도구)로 Flow 를 조작해 클립을 만들어 올리고, 앱이 조립을 마치면 다음 영상도 이어갑니다. 멈추는 경우는 영상당 크레딧 상한 초과, Flow 잔액 60 미만, 앱이 멈춤(attention)뿐이며 그때 보고합니다. 필요한 것: AI Pro 구독 계정으로 로그인된 Chrome, 브라우저 도구가 연결된 에이전트 세션, 떠 있는 앱 서버. 에이전트가 없으면 [FLOW-MODE.md](FLOW-MODE.md) 대로 직접 올리면 됩니다.
 
 ## 실행 시 최신 버전 확인
 
