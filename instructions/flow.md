@@ -350,12 +350,12 @@ This INFO image is a text-free target for the base video. Do not draw letters, w
 
 ## VEO_HF_MOTION
 
-Start on the supplied CLEAN frame and finish in the supplied text-free INFO state. Create one continuous eight-second vertical 9:16 shot in the same clay-white 3D space.
+Start exactly on the first attached frame and finish exactly in the second attached frame's text-free state. Create one continuous eight-second vertical 9:16 shot in the same clay-white 3D space.
 Explanation and objects: {{scene}}
 Planned object actions and final state: {{actions}}
 Camera start, target, connected spatial route and final composition: {{camera}}
 Planned 3D explanatory graphics: {{veoGraphics}}
-Reveal the planned cutaways, contours, structural guide lines, flow paths and direction arrows in step with the object actions, and preserve the complete explanatory state in INFO. Keep the structure, difference and flow understandable without text. These guides and arrows explain the objects independently of labels and must not be removed with label connectors.
+Reveal the planned cutaways, contours, structural guide lines, flow paths and direction arrows in step with the object actions, and preserve the complete explanatory state of the second attached frame. Keep the structure, difference and flow understandable without text. These guides and arrows explain the objects independently of labels and must not be removed with label connectors.
 Preserve object identity, materials, colors and lighting. Move only to reveal the planned structure, difference, flow or scope. Use two or three connected viewpoints through the same physical space with coherent parallax, never an orbit just to keep moving. Use fast approaches or retreats selectively, not as a repeated pattern across adjacent scenes. Do not invent ingredients, quantities, anatomy or effects, and do not present a diagram as proof of an unsupported claim. Allow a stable, readable viewpoint when the later annotation will be read; no unplanned rotation, morphing, extra objects, scene cuts or slideshow zoom. Keep the planned annotation area clear throughout the shot.
 No text, letters, numbers, labels, label plates, empty label boxes, or leader lines, arrows, endpoint dots and highlights that directly connect a written label to its target at any moment, including the final frame. Do not generate temporary or invented lettering. The app adds each complete annotation group after the base video is made. No speech, dialogue, lip sync, music or added logos. Do not add graphics that are absent from the object-level effects above.
 

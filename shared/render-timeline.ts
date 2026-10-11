@@ -510,6 +510,21 @@ export function timelineDigest(timeline: RenderTimeline): string {
   return sha256Hex(JSON.stringify(timeline));
 }
 
+// 저장된 타임라인 JSON(파일에서 읽은 값)이 기록된 다이제스트와 맞는지 본다.
+// 스키마 파싱이 자막 등 객체의 키 순서를 선언 순서로 바꾸므로, 저장 당시 직렬화(원본 순서)와
+// 파싱 뒤 직렬화 중 하나가 맞으면 변조가 아니다. 2026-10-11 실측: 음성 단계가 쓴 파일은 원본 순서로만 맞았고
+// 조립 단계가 파싱 뒤 값으로만 비교해 "타임라인 파일이 변경되었습니다"로 멈췄다.
+export function storedTimelineMatches(stored: unknown, digest: string): boolean {
+  if (!digest) return false;
+  try {
+    const serialized = JSON.stringify(stored);
+    if (serialized && sha256Hex(serialized) === digest) return true;
+    return timelineDigest(RenderTimelineSchema.parse(stored)) === digest;
+  } catch {
+    return false;
+  }
+}
+
 // 기존 대본 규칙: 컷 시간 고정 → 문장 start = max(그 문장이 묶인 첫 컷의 시작(예전 대본은 적힌 startSec), 이전 끝+gap)
 // → 창(묶인 마지막 컷의 끝, +slack) 초과 문장은 overflow 반환(호출자가 템포 재합성 후 재호출) → 재합성 뒤에도
 // 남는 초과는 그 문장이 묶인 컷들(마지막 컷부터 거꾸로)에 먼저, 그다음 뒤따르는 컷들에 maxSpreadMs 씩 분산

@@ -4,10 +4,11 @@ import { type ExecutionModels, ttsVoicePresets } from "../shared/models";
 import { type VoiceLineRecord, VoiceLineRecordSchema } from "../shared/render-state";
 import {
   buildTimeline,
-  type RenderTimeline,
   RenderTimelineSchema,
+  storedTimelineMatches,
   timelineDefaults,
   timelineDigest,
+  type RenderTimeline,
   type VoiceMeasurement,
 } from "../shared/render-timeline";
 import type { Job } from "../shared/schema";
@@ -176,8 +177,7 @@ export class VoiceProduction {
     const timelineName = renderNames.timeline(number);
     const stored: unknown = await (await this.assets.read(job.id, timelineName)).json();
     // 스키마 파싱이 자막 필드 순서를 정규화하므로 저장 당시 JSON을 먼저 검증한다.
-    const serialized = JSON.stringify(stored);
-    if (!serialized || sha256Hex(serialized) !== voice.timelineDigest)
+    if (!storedTimelineMatches(stored, voice.timelineDigest))
       throw new BlockedError(
         `영상 ${script.number} 타임라인 파일이 변경되었습니다. 조립을 중단합니다.`,
       );

@@ -5,10 +5,10 @@ import { z } from "zod";
 import { FLOW_CLIP_TOLERANCE_MS } from "../shared/flow-mode";
 import { ClipIdSchema } from "../shared/render-state";
 import {
-  type RenderTimeline,
   RenderTimelineSchema,
+  storedTimelineMatches,
+  type RenderTimeline,
   type TimelineCut,
-  timelineDigest,
 } from "../shared/render-timeline";
 import type { Job } from "../shared/schema";
 import { sha256Hex } from "../shared/sha256";
@@ -487,12 +487,11 @@ export class RenderProduction {
     const render = job.renders.find((item) => item.number === number);
     if (!render?.voice || !hasArtifact(job, name))
       throw new BlockedError(`영상 ${number} 의 타임라인이 없어 조립할 수 없습니다.`);
-    const timeline = RenderTimelineSchema.parse(
-      await (await this.assets.read(job.id, name)).json(),
-    );
-    if (timelineDigest(timeline) !== render.voice.timelineDigest)
+    const stored: unknown = await (await this.assets.read(job.id, name)).json();
+    // 음성 단계(prepareSavedTimeline)와 같은 기준: 저장 당시 직렬화 또는 파싱 뒤 직렬화가 기록과 맞아야 한다.
+    if (!storedTimelineMatches(stored, render.voice.timelineDigest))
       throw new BlockedError(`영상 ${number} 타임라인 파일이 변경되었습니다. 조립을 중단합니다.`);
-    return timeline;
+    return RenderTimelineSchema.parse(stored);
   }
   // 모든 입력 파일을 다시 읽어 renders 기록과 재대조한다(operation 밖: 불일치는 blocked).
   private async resolveInputs(job: Job, number: number, timeline: RenderTimeline) {
