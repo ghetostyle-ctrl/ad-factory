@@ -291,7 +291,8 @@ export function flattenSentences(response: ScriptResponseInput, ctx: ScriptConte
     hypothesisId: ctx.hypothesisId,
     title: response.title,
     fixedTitle: response.fixedTitle,
-    disclaimer: response.disclaimer,
+    // 면책 문구는 영상에 쓰지 않는다(사용자 결정 2026-10-12). 모델이 적어도 비운다.
+    disclaimer: "",
     voicePersona: response.voicePersona,
     durationSec: start,
     openLoop: response.openLoop,

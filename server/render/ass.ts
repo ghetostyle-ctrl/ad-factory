@@ -199,16 +199,9 @@ export function captionsAss(
       }),
     ];
   });
-  const disclaimerText = (timeline.disclaimer ?? "").replace(/\s+/g, " ").trim();
-  for (const slot of [
-    { name: "FixedTitle", lines: timeline.fixedTitle ?? [] },
-    {
-      name: "Disclaimer",
-      lines: disclaimerText
-        ? assLines(disclaimerText, Math.max(28, Math.ceil([...disclaimerText].length / 4)))
-        : [],
-    },
-  ]) {
+  // 면책 문구(timeline.disclaimer)는 영상에 굽지 않는다(사용자 결정 2026-10-12: 얼굴 위에 찍히는 작은 글자 제거).
+  // 문구 자체는 타임라인·보고서에 남아 있고, 법적 표시가 필요하면 게시 문구로 다룬다.
+  for (const slot of [{ name: "FixedTitle", lines: timeline.fixedTitle ?? [] }]) {
     if (!slot.lines.length) continue;
     const lines = slot.lines.map((line) => assEscape(line, Number.POSITIVE_INFINITY));
     const base = baseOf(slot.name);
@@ -897,8 +890,8 @@ export function calloutEvents(
   const blur = px(profile, 8);
   const glowBorder = px(profile, 6);
   const labelBase = themePx(profile, THEME.callout.label);
-  // 면책 문구(법적 표시, 높이 23.5%~)가 있으면 콜아웃은 그 아래에서만 움직인다.
-  const top = timeline.disclaimer?.trim() ? THEME.artwork.top : THEME.safe.top;
+  // 면책 문구는 더 이상 굽지 않으므로 콜아웃은 안전 영역 위쪽부터 쓴다(2026-10-12).
+  const top = THEME.safe.top;
   for (const callout of timeline.callouts ?? []) {
     const cut = timeline.cuts.find((item) => item.index === callout.cutIndex);
     if (policy && (cut?.sourceRef.kind === "graphic" || cut?.effect === "text_pop")) continue;

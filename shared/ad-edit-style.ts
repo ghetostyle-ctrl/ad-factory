@@ -19,6 +19,9 @@ export const AD_EDIT_STYLE = {
     lineBorderPx: 2,
     anchorRadiusPx: 13,
     anchorBorderPx: 4,
+    // 배지 윗변과 앵커 점 사이(대상 아래 여유), 배지 아랫변과 자막 띠 사이 여유. 자리가 없으면 레이아웃이 최소 간격으로 물러선다.
+    anchorGapPx: 72,
+    captionGapPx: 64,
     maxLeaderReachRatio: 0.15,
     growSec: 0.4,
   },

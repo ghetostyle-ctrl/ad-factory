@@ -362,7 +362,7 @@ test("arrows point from the anchor zone to the subject box edge, and boxes are c
   const topPos = posOf(topShape);
   expect((topPos?.y ?? 0) + topBox.h / 2).toBeLessThanOrEqual(0.38 * 1920 + 1);
   expect((topPos?.y ?? 0) - topBox.h / 2).toBeGreaterThanOrEqual(1920 * THEME.safe.top);
-  // 면책 문구가 있으면 위쪽 한계가 그 아래(30%)로 내려온다
+  // 면책 문구는 더 이상 굽지 않으므로(2026-10-12) 타임라인에 있어도 위쪽 한계는 안전 영역 그대로다
   const withDisclaimer = calloutEvents(
     {
       ...base,
@@ -384,6 +384,9 @@ test("arrows point from the anchor zone to the subject box edge, and boxes are c
   );
   const checkShape = withDisclaimer[1] ?? "";
   expect((posOf(checkShape)?.y ?? 0) - boxOf(drawingOf(checkShape)).h / 2).toBeGreaterThanOrEqual(
+    1920 * THEME.safe.top,
+  );
+  expect((posOf(checkShape)?.y ?? 0) - boxOf(drawingOf(checkShape)).h / 2).toBeLessThan(
     1920 * THEME.artwork.top,
   );
   // 클램프: 모서리 밖 중심은 안으로, 세이프 폭보다 넓은 상자는 가운데

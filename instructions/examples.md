@@ -180,7 +180,7 @@
       "{자료로_확인된_제목}",
       "{제품명}"
     ],
-    "disclaimer": "{실제_필요한_고지_없으면_빈문자열}",
+    "disclaimer": "",
     "sentences": [
       {
         "purpose": "story",

@@ -39,16 +39,12 @@ export class VideoReassembly {
     if (original.staged)
       throw new StudioError("reassemble_staged", "광고 게시가 준비된 작업은 재조립할 수 없습니다.");
     const render = original.renders.find((item) => item.number === number);
-    if (
-      automation?.policy.mode !== "creative" ||
-      automation.status !== "completed" ||
-      original.status !== "completed" ||
-      automation.operation ||
-      !render?.final
-    )
+    // 작업 전체가 끝나지 않았어도(예: 다음 영상이 Flow 클립 대기) 완성본이 있는 영상은 저장된 입력으로 다시 조립할 수 있다.
+    // 엔진은 완성본이 있는 영상을 건너뛰므로 실행 중(위에서 거부)만 아니면 충돌하지 않는다(2026-10-12, 면책 문구·라벨 간격 재조립).
+    if (automation?.policy.mode !== "creative" || automation.operation || !render?.final)
       throw new StudioError(
         "reassemble_unfinished",
-        "완성된 소재 제작 영상만 저장된 입력으로 재조립할 수 있습니다.",
+        "완성본이 있는 소재 제작 영상만 저장된 입력으로 재조립할 수 있습니다(작업이 실행 중이 아닐 때).",
       );
     if (automation.scopeDigest !== scopeDigest(original, automation.policy))
       throw new StudioError("scope_changed", "승인한 제작 범위가 변경되어 재조립할 수 없습니다.");

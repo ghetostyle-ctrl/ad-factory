@@ -52,7 +52,7 @@ export function artworkTopRatio(header: {
   readonly fixedTitle?: readonly string[] | undefined;
   readonly disclaimer?: string | undefined;
 }): number {
-  if (header.disclaimer?.trim()) return THEME.artwork.top;
+  // 면책 문구는 더 이상 영상에 굽지 않으므로 배치에 영향을 주지 않는다(2026-10-12).
   return header.fixedTitle?.some((line) => line.trim()) ? 0.22 : THEME.safe.side;
 }
 // 마스터 1080x1920/30fps. 테스트는 108x192/10fps 를 주입해 수 초 안에 끝낸다.

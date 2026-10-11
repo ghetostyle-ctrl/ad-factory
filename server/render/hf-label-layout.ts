@@ -82,17 +82,33 @@ export function layoutHfLabels(
       );
     const center = Math.max(minimum, Math.min(maximum, (label.box.x + label.box.width / 2) * 1080));
     const x = center - w / 2;
-    const lower = Math.max(
-      1920 * style.safeTop,
-      ...label.anchors.map((anchor) => anchor.y * 1920 + style.anchorRadiusPx + 12),
-    );
-    const upper = 1920 * style.bottomRatio - h;
+    // 사용자 피드백(2026-10-12): 라벨이 대상·자막에 너무 붙어 보인다 → 앵커 아래 anchorGapPx, 자막 띠 위 captionGapPx 를 먼저 확보하고,
+    // 그 여유로는 자리가 없을 때만 예전 최소 간격(앵커 반지름 + 12px, 자막 띠 바로 위)으로 물러선다.
+    const lowerWith = (gap: number) =>
+      Math.max(
+        1920 * style.safeTop,
+        ...label.anchors.map((anchor) => anchor.y * 1920 + style.anchorRadiusPx + gap),
+      );
+    const upperWith = (gap: number) => 1920 * style.bottomRatio - h - gap;
+    let lower = lowerWith(style.anchorGapPx);
+    let upper = upperWith(style.captionGapPx);
+    if (lower > upper) {
+      lower = lowerWith(12);
+      upper = upperWith(0);
+    }
     if (lower > upper)
       throw new StudioError(
         "hf_label_layout",
         "대상 아래에 배지와 자막의 안전 여백이 부족합니다. 장면 배치를 수정하세요.",
       );
-    const y = Math.max(lower, Math.min(upper, label.box.y * 1920));
+    // 같은 시간에 다른 라벨이 없으면 띠의 가장 아래(자막 여유 바로 위)에 둬 대상과 최대한 떨어뜨린다(사용자 피드백: 대상에 붙어 보임).
+    // 동시에 보이는 라벨이 있으면 겹침 검사가 깨지지 않도록 계획 위치를 유지한다.
+    const concurrent = plan.labels.some(
+      (other) => other !== label && other.startSec < label.endSec && label.startSec < other.endSec,
+    );
+    const y = concurrent
+      ? Math.max(lower, Math.min(upper, label.box.y * 1920))
+      : Math.max(lower, upper);
     return { label, text, lines, x, y, width: w, height: h, size, supporting };
   });
   const aligned = placed.map((item) => {

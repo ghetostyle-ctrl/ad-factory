@@ -308,7 +308,7 @@ test.skipIf(!hasFfmpeg || !realFont)(
   180_000,
 );
 
-test("measured phrase captions override legacy cuts and keep title and disclaimer in separate slots", () => {
+test("measured phrase captions override legacy cuts, keep the title slot and never burn the disclaimer", () => {
   // Given
   const timeline: RenderTimeline = {
     number: 1,
@@ -334,13 +334,12 @@ test("measured phrase captions override legacy cuts and keep title and disclaime
   const ass = captionsAss(timeline, DEFAULT_PROFILE, font);
   // Then
   const lines = ass.split("\n").filter((line) => line.startsWith("Dialogue:"));
-  expect(lines).toHaveLength(3);
+  expect(lines).toHaveLength(2);
   expect(lines.find((line) => line.includes(",FixedTitle,"))).toContain(
     "바쁜 하루에도\\N가볍게 시작해요",
   );
-  expect(lines.find((line) => line.includes(",Disclaimer,"))).toContain(
-    "개인마다 차이가 있습니다.",
-  );
+  // 면책 문구는 타임라인에 있어도 영상에 굽지 않는다(2026-10-12).
+  expect(lines.find((line) => line.includes(",Disclaimer,"))).toBeUndefined();
   const caption = lines.find((line) => line.includes(",Caption,")) ?? "";
   expect(caption).toContain("0:00:00.20,0:00:01.60");
   expect(caption).not.toContain("\\N");
@@ -367,7 +366,7 @@ test("an explicitly empty phrase track suppresses legacy cut captions", () => {
 });
 
 test.skipIf(!hasFfmpeg || !realFont)(
-  "synthetic render keeps fixed title, disclaimer and spoken caption in disjoint safe slots",
+  "synthetic render keeps fixed title and spoken caption in disjoint safe slots",
   async () => {
     if (!realFont) return;
     const base: RenderTimeline = {
@@ -389,19 +388,6 @@ test.skipIf(!hasFfmpeg || !realFont)(
       "fixed-title",
       1.5,
     );
-    const disclaimer = await inkBounds(
-      captionsAss(
-        {
-          ...base,
-          disclaimer:
-            "원료에 관한 설명입니다. 개인마다 차이가 있습니다. 구매 전 제품 표시사항을 확인해 주세요.",
-        },
-        DEFAULT_PROFILE,
-        realFont,
-      ),
-      "disclaimer",
-      1.5,
-    );
     const caption = await inkBounds(
       captionsAss(
         {
@@ -417,16 +403,15 @@ test.skipIf(!hasFfmpeg || !realFont)(
       1.5,
     );
     expect(title.y1).toBeGreaterThanOrEqual(1920 * 0.115);
-    expect(title.y2).toBeLessThan(disclaimer.y1);
     const graphic = await inkBounds(
       graphicAss("number", ["600mg", "하루 한 번"], 1500, DEFAULT_PROFILE, realFont),
       "graphic-between-header-and-caption",
       1.5,
     );
-    expect(disclaimer.y2).toBeLessThan(graphic.y1);
+    expect(title.y2).toBeLessThan(graphic.y1);
     expect(graphic.y2).toBeLessThan(caption.y1);
     expect(caption.y2).toBeLessThanOrEqual(1920 * 0.77);
-    for (const bounds of [title, disclaimer, caption]) {
+    for (const bounds of [title, caption]) {
       expect(bounds.x1).toBeGreaterThanOrEqual(72);
       expect(bounds.x2).toBeLessThanOrEqual(1008);
     }

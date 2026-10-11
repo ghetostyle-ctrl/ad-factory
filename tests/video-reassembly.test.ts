@@ -347,10 +347,16 @@ test.each(["busy", "unfinished", "missing voice", "changed timeline"])(
   async (mode) => {
     // Given
     const id = await completed();
-    if (mode === "busy" || mode === "unfinished")
+    if (mode === "busy")
       f.store.change(id, (draft) => {
-        if (draft.automation) draft.automation.status = mode === "busy" ? "running" : "waiting";
-        if (mode === "busy") draft.status = "running";
+        if (draft.automation) draft.automation.status = "running";
+        draft.status = "running";
+      });
+    if (mode === "unfinished")
+      // 완성본이 없는 영상은 작업 상태와 무관하게 재조립할 수 없다(완성본이 있으면 대기 중인 작업이라도 허용, 아래 테스트).
+      f.store.change(id, (draft) => {
+        if (draft.automation) draft.automation.status = "waiting";
+        renderStateOf(draft, 1).final = null;
       });
     if (mode === "missing voice")
       f.store.change(id, (draft) => {
@@ -371,6 +377,22 @@ test.each(["busy", "unfinished", "missing voice", "changed timeline"])(
     expect(f.store.get(id).artifacts).toEqual(before.artifacts);
   },
 );
+
+test("a finished video can be reassembled while the job waits for a later video", async () => {
+  // Given: 영상 1 완성본은 있고 작업은 다음 영상의 Flow 클립 대기 상태(2026-10-12 면책 문구·라벨 간격 재조립 사례)
+  const id = await completed();
+  f.store.change(id, (draft) => {
+    if (draft.automation) draft.automation.status = "waiting";
+    draft.status = "review";
+  });
+  const counts = { ...f.counts };
+  // When
+  const response = await post(app(new VideoReassembly(f.store, renderer())), id);
+  // Then
+  expect(response.status).toBe(200);
+  expect(f.counts).toEqual(counts);
+  expect(f.store.get(id).automation?.status).toBe("waiting");
+}, 60_000);
 
 test("duplicate requests and the scheduler cannot start work during local reassembly", async () => {
   // Given

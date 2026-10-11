@@ -97,7 +97,7 @@ SNAP ZOOM: effect zoom_punch at most once in any three consecutive cuts and neve
 
 ## SCRIPT_LAYOUT
 
-LAYOUT: fixedTitle = up to2 short fixed top-title lines or[]. disclaimer = an actual required small-print disclosure, otherwise "". No invented certifications, source claims or legal wording.
+LAYOUT: fixedTitle = up to2 short fixed top-title lines or[]. disclaimer = "" always (the app never burns a disclaimer into the video; legal notices belong to the ad post text). No invented certifications, source claims or legal wording.
 
 ## SCRIPT_SOURCES
 
