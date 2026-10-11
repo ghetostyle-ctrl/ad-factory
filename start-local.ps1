@@ -1,6 +1,8 @@
-param(
+﻿param(
   [switch]$NoBrowser,
   [switch]$SkipBuild,
+  [switch]$NoUpdate,
+  [switch]$NotifyUpdate,
   [ValidateRange(1, 120)][int]$ReadyTimeoutSeconds = 30
 )
 $ErrorActionPreference = 'Stop'
@@ -41,6 +43,33 @@ try {
   try { $studioMutexHeld = $studioMutex.WaitOne(60000) }
   catch [Threading.AbandonedMutexException] { $studioMutexHeld = $true }
   if (-not $studioMutexHeld) { throw 'Another launcher is still starting this installation. Try again after it finishes.' }
+  if (-not $NoUpdate) {
+    $studioDataOutput = & $studioBun --print 'process.env.DATA_DIR'
+    if ($LASTEXITCODE -ne 0) { throw 'Could not determine the data directory safely.' }
+    $studioData = ($studioDataOutput | Out-String).Trim()
+    if (-not $studioData -or $studioData -eq 'undefined') { $studioData = 'data' }
+    & $studioNode.Source (Join-Path $PSScriptRoot 'scripts/launcher-update.mjs') --root $PSScriptRoot --bun $studioBun --port $studioPort --data $studioData
+    if ($LASTEXITCODE -eq 2) { throw 'Update recovery needs attention. Read .runtime/update-status.json before restarting.' }
+    if ($LASTEXITCODE -ne 0) { Write-Warning 'Update check failed. Continuing with the existing installation.' }
+  }
+  if (Test-Path -LiteralPath (Join-Path $PSScriptRoot '.runtime/pending-update.json')) {
+    throw 'An incomplete update is pending. Run without -NoUpdate to recover, or inspect .runtime/updates.'
+  }
+  if ((-not $NoBrowser -or $NotifyUpdate) -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot '.runtime/update-status.json'))) {
+    try {
+      $updateState = Get-Content -LiteralPath (Join-Path $PSScriptRoot '.runtime/update-status.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+      if (-not $NoUpdate -and $updateState.kind -in @('fallback', 'rollback', 'busy', 'skipped')) {
+        $notice = switch ($updateState.kind) {
+          'fallback' { '업데이트를 확인하거나 설치하지 못했습니다. 기존 버전으로 실행합니다.' }
+          'rollback' { '업데이트에 실패하여 이전 버전으로 복구했습니다.' }
+          'busy' { '광고 제작 중이므로 업데이트를 보류하고 현재 앱을 엽니다.' }
+          'skipped' { '수정한 코드 또는 개발용 설치를 보호하기 위해 자동 업데이트를 건너뜁니다.' }
+        }
+        $shellNotice = New-Object -ComObject WScript.Shell
+        [void]$shellNotice.Popup($notice, 5, 'AD FACTORY 업데이트', 64)
+      }
+    } catch { Write-Warning 'Update status is available in .runtime/update-status.json.' }
+  }
   $studioExisting = Get-StudioHealth
   if ($studioExisting -and $studioExisting.app -eq 'meta-ad-studio' -and $studioExisting.installationId -eq $studioInstallation -and $studioExisting.pid -gt 0) {
     Show-StudioReady $studioExisting

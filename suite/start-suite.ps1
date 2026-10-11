@@ -20,11 +20,11 @@ function Write-Log([string]$msg) {
 
 # AD FACTORY (4317): 자체 실행 스크립트가 서버를 백그라운드로 띄운 뒤 끝납니다.
 $ad = Join-Path $suite 'ad-factory'
-if ((Test-Path (Join-Path $ad 'start-local.ps1')) -and -not (Test-Port 4317)) {
+if (Test-Path (Join-Path $ad 'start-local.ps1')) {
   Write-Log 'AD FACTORY 시작'
   # 출력 리디렉션을 쓰면 백그라운드 서버가 파이프를 붙잡아 여기서 멈추므로, 별도 프로세스로 띄우고 그 프로세스만 기다린다 (서버 로그는 ad-factory\data\server-*.log)
-  $adStart = Start-Process -FilePath $ps -WindowStyle Hidden -PassThru -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$(Join-Path $ad 'start-local.ps1')`"", '-SkipBuild', '-NoBrowser')
-  [void]$adStart.WaitForExit(60000)
+  $adStart = Start-Process -FilePath $ps -WindowStyle Hidden -PassThru -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$(Join-Path $ad 'start-local.ps1')`"", '-SkipBuild', '-NoBrowser', '-NotifyUpdate')
+  $adStart.WaitForExit()
 }
 
 # 키워드와처 (3000): 설치본의 Windows 실행 스크립트를 창 없이 실행합니다.
