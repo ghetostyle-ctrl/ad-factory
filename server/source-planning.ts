@@ -215,7 +215,9 @@ export class SourcePlanner {
           directory,
           signal,
           models,
-          maxOutputTokens: 22000,
+          // 최대 10개 광고안의 근거·타겟·카피를 한 응답에 담으므로 요청별 여유를 둔다.
+          maxOutputTokens: 100_000,
+          timeoutMs: 30 * 60 * 1000,
           prompt: `${guardOf(instructions)}\n${fillSection(sectionOf(instructions, "SOURCE_CREATIVE_PLAN"), { imageCount })}\nDATA:\n${context}\nREVISION FEEDBACK:\n${JSON.stringify(feedback)}`,
         },
         this.connection,

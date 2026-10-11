@@ -122,9 +122,14 @@ test("reports the runtime socket timeout instead of a generic processing failure
   expect(message).toBe("공급자 응답 시간이 초과되었습니다. 외부 결과를 확인한 후 다시 시도하세요.");
 });
 
-test.each(["deadline", "user"] as const)(
-  "stops a pending response body on %s cancellation without retrying the paid request",
-  async (source) => {
+test.each([
+  ["deadline", 600_000],
+  ["user", 600_000],
+  ["deadline", 1_800_000],
+  ["user", 1_800_000],
+] as const)(
+  "stops a pending response body on %s cancellation with a %i ms deadline without retrying",
+  async (source, timeoutMs) => {
     // Given: headers arrive, but the JSON body is still incomplete.
     const headersReceived = Promise.withResolvers<void>();
     let requests = 0;
@@ -161,12 +166,13 @@ test.each(["deadline", "user"] as const)(
         directory: input.directory,
         schema: z.object({ ok: z.boolean() }),
         signal: caller.signal,
+        ...(timeoutMs === 600_000 ? {} : { timeoutMs }),
       },
       { ...input.connection, apiKey: "fixture-key" },
     ).catch((error: unknown) => error);
     try {
       await headersReceived.promise;
-      expect(deadlineFactory).toHaveBeenCalledWith(600_000);
+      expect(deadlineFactory).toHaveBeenCalledWith(timeoutMs);
       // When
       const reason = new DOMException(
         "Fixture cancellation",

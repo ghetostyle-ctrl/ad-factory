@@ -42,6 +42,7 @@ export type TextTask<T> = {
   readonly image?: Uint8Array;
   readonly images?: readonly Uint8Array[];
   readonly maxOutputTokens?: number;
+  readonly timeoutMs?: number;
   // 영상 콘셉트·대본·검토는 scriptProvider 의 별도 공급자·모델 설정을 따른다.
   readonly stage?: "script";
 };
@@ -113,12 +114,15 @@ async function openaiText<T>(
           },
         ]
       : task.prompt;
-  const signal = AbortSignal.any([task.signal, AbortSignal.timeout(10 * 60 * 1000)]);
+  const signal = AbortSignal.any([
+    task.signal,
+    AbortSignal.timeout(task.timeoutMs ?? 10 * 60 * 1000),
+  ]);
   const result = ResponseSchema.parse(
     await ky
       .post(new URL("responses", connection.baseUrl), {
         headers: { Authorization: `Bearer ${connection.apiKey}` },
-        // Bun의 별도 유휴 제한을 해제하고 헤더·본문 전체를 위의 10분 신호로 제한한다.
+        // Bun의 별도 유휴 제한을 해제하고 헤더·본문 전체를 위의 요청별 신호로 제한한다.
         fetch: (input, options) => fetch(input, { ...options, timeout: false }),
         timeout: false,
         retry: 0,
