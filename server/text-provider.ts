@@ -15,6 +15,7 @@ import { MissingConnectionError, StudioError } from "./errors";
 import { snapshotModels } from "./model-settings";
 import { imageInput } from "./provider-image-input";
 import { type OpenAIConnection, openAIConnection } from "./provider-transport";
+import { parseTextResponse, type TextResponseParser } from "./text-response";
 
 export { codexArguments } from "./cli-text-provider";
 
@@ -33,6 +34,7 @@ const ResponseSchema = z.object({
 });
 export type TextTask<T> = {
   readonly prompt: string;
+  readonly parseResponse?: TextResponseParser<T>;
   readonly schema: z.ZodType<T>;
   readonly name: string;
   readonly directory: string;
@@ -154,15 +156,19 @@ async function openaiText<T>(
     .filter((item) => item.type === "output_text")
     .map((item) => item.text ?? "")
     .join("");
-  return {
-    value: task.schema.parse(JSON.parse(text)),
-    model: {
-      provider: "openai",
-      requestedModel: task.models.textModel,
-      effectiveModel: result.model ?? null,
-      quality: null,
+  return parseTextResponse(
+    task.schema,
+    {
+      text,
+      model: {
+        provider: "openai",
+        requestedModel: task.models.textModel,
+        effectiveModel: result.model ?? null,
+        quality: null,
+      },
     },
-  };
+    task.parseResponse,
+  );
 }
 // Claude(Anthropic) 구조화 응답: 공식 SDK 의 messages.parse + zodOutputFormat. 생각은 모델 기본(adaptive)·effort medium.
 // 이미지는 base64 블록으로 붙인다. 키는 .env 의 ANTHROPIC_API_KEY(또는 연결 화면)에서만 읽는다.
@@ -190,7 +196,7 @@ async function anthropicText<T>(
     }),
     { type: "text", text: task.prompt },
   ];
-  const response = await client.messages.parse(
+  const response = await client.messages.create(
     {
       model,
       max_tokens: Math.max(4096, task.maxOutputTokens ?? 22000),
@@ -210,18 +216,26 @@ async function anthropicText<T>(
       "response_incomplete",
       "AI 응답이 토큰 한도에서 끊겼습니다. 응답을 검토하세요.",
     );
-  if (response.parsed_output === null || response.parsed_output === undefined)
+  const text = response.content
+    .filter((item) => item.type === "text")
+    .map((item) => item.text)
+    .join("");
+  if (!text)
     throw new StudioError(
       "response_incomplete",
       "Claude 응답을 구조화된 형식으로 읽지 못했습니다.",
     );
-  return {
-    value: task.schema.parse(response.parsed_output),
-    model: {
-      provider: "anthropic",
-      requestedModel: model,
-      effectiveModel: response.model,
-      quality: null,
+  return parseTextResponse(
+    task.schema,
+    {
+      text,
+      model: {
+        provider: "anthropic",
+        requestedModel: model,
+        effectiveModel: response.model,
+        quality: null,
+      },
     },
-  };
+    task.parseResponse,
+  );
 }

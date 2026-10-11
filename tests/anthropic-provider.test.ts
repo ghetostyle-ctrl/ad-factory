@@ -201,3 +201,23 @@ test("a missing OpenAI key blocks the script override before an HTTP request", a
   expect(f.openaiModels).toEqual([]);
   expect(f.seen).toEqual([]);
 });
+
+test("script response capture runs before local Claude schema rejection", async () => {
+  const f = setup();
+  let captured = "";
+  const result = await generateTextResult(
+    {
+      ...f.task("script"),
+      models: f.models,
+      schema: z.object({ title: z.number() }),
+      parseResponse: async (response) => {
+        captured = response.text;
+        return { title: 1 };
+      },
+    },
+    f.connection,
+  );
+  expect(captured).toContain("클로드 대본");
+  expect(result.value).toEqual({ title: 1 });
+  expect(f.seen).toHaveLength(1);
+});

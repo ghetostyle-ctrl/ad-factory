@@ -1,8 +1,10 @@
 import { join } from "node:path";
 import { clipModeOf } from "../shared/flow-mode";
+import { repairHfLabelResponse } from "../shared/hf-label-repair";
 import { explainerGrammar, hybridReviewRules } from "./hybrid-script-instructions";
 import { explanationScriptRules, immersiveScriptRules } from "./immersive-script-instructions";
 import { videoScriptInstructions } from "./script-instructions";
+import type { TextResponse } from "./text-response";
 
 export { videoScriptInstructions } from "./script-instructions";
 
@@ -34,7 +36,7 @@ import {
 import { dataDir } from "./config";
 import { copyRhythmInstruction, koreanCopyPolishRules } from "./copy-instructions";
 import { pinToCopy } from "./copy-writer";
-import { BlockedError } from "./errors";
+import { BlockedError, StudioError } from "./errors";
 import {
   fillSection,
   type InstructionsSnapshot,
@@ -238,7 +240,10 @@ export type VideoScriptWritten = ModelResult<VideoScript> & {
   readonly instructions?: InstructionsStamp;
 };
 // 카피 먼저 흐름(2026-10-08): copyLines 가 있으면 편지 2 — 확정 문장을 고정 입력으로 주고 장면만 받는다(혼합형 정책에서만).
-export type VideoScriptOptions = { readonly copyLines?: readonly CopyLine[] };
+export type VideoScriptOptions = {
+  readonly copyLines?: readonly CopyLine[];
+  readonly onResponse?: (response: TextResponse) => Promise<void>;
+};
 export type VideoScriptProvider = (
   job: Job,
   hypothesis: CreativePlan["hypotheses"][number],
@@ -340,13 +345,33 @@ export const generateVideoScript: VideoScriptProvider = (
         planning: planning ?? null,
         productionClips,
       };
+  const schema = copyLines
+    ? HfVideoScriptResponseSchema
+    : videoScriptResponseSchemaFor(planning?.visualPolicy);
+  const labelRepairs: string[] = [];
   const written = generateTextResult(
     {
       name: "video_script",
       // 혼합형은 explainerAnchor 와 장면 필드(sceneType·objects·actions·emphasis)를 받는 별도 응답 스키마를 쓴다.
-      schema: copyLines
-        ? HfVideoScriptResponseSchema
-        : videoScriptResponseSchemaFor(planning?.visualPolicy),
+      schema,
+      parseResponse: async (response) => {
+        await options?.onResponse?.(response);
+        const repaired = repairHfLabelResponse(JSON.parse(response.text));
+        labelRepairs.push(...repaired.repairs);
+        const parsed = schema.parse(repaired.value);
+        const font = resolveFont();
+        for (const clip of parsed.infoClips) {
+          if (!("labelLayer" in clip) || !clip.labelLayer) continue;
+          if (!font) throw new BlockedError("HyperFrames 라벨용 한글 글꼴이 없습니다.");
+          try {
+            layoutHfLabels(clip.labelLayer, clip.infoLines, font);
+          } catch (error) {
+            if (!(error instanceof StudioError) || error.code !== "hf_label_layout") throw error;
+            throw new StudioError("hf_label_layout", "설명 컷 " + clip.id + ": " + error.message);
+          }
+        }
+        return parsed;
+      },
       directory: join(dataDir, "cli", job.id, `video-${number}`),
       signal,
       models: job.executionModels,
@@ -383,7 +408,7 @@ ${JSON.stringify(data)}`,
         ...(planning ? { planning } : {}),
         ...(copyLines ? { flow: "copy_first" as const } : {}),
       },
-      repairs: [...(pinned?.repairs ?? []), ...converted.repairs],
+      repairs: [...labelRepairs, ...(pinned?.repairs ?? []), ...converted.repairs],
       warnings: converted.warnings,
       ...(pinned && pinned.hard.length > 0 ? { hard: pinned.hard } : {}),
       instructions: instructionsStamp(snapshot),

@@ -1,6 +1,7 @@
 import type { AutomationState } from "../shared/automation";
 import { canReviewPlan } from "../shared/plan-recovery";
 import type { Job } from "../shared/schema";
+import { pendingScriptDraft } from "../shared/script-drafts";
 import { moneyLabel } from "./api";
 import { Notice } from "./primitives";
 
@@ -68,17 +69,44 @@ export function AutomationStatus({
   readonly job: Job;
   readonly automation: AutomationState;
 }) {
+  const draft = pendingScriptDraft(job);
   return (
     <>
       <div className="operation-current">
         <span className="eyebrow">현재 단계</span>
         <h3>{phases[automation.phase]}</h3>
         <p>
-          {canReviewPlan(job)
-            ? "저장된 광고안을 확인하고 현재 기획 사용 또는 다시 기획하기를 선택하세요."
-            : nextAction(automation)}
+          {draft
+            ? "대본 형식 문제로 초안을 보관했습니다. 오류와 원문을 확인한 뒤 다시 생성할 수 있습니다."
+            : canReviewPlan(job)
+              ? "저장된 광고안을 확인하고 현재 기획 사용 또는 다시 기획하기를 선택하세요."
+              : nextAction(automation)}
         </p>
       </div>
+      {draft && (
+        <section className="plan-choice stack" aria-label="대본 초안 수정">
+          <h3>영상 {draft.number} 대본 초안 수정 대기</h3>
+          <Notice tone="warning">{job.result}</Notice>
+          <div className="cluster operation-actions">
+            {draft.response && (
+              <a className="button button-secondary" href={draft.response.url} download>
+                응답 원문 받기
+              </a>
+            )}
+            {draft.previous && (
+              <a className="button button-secondary" href={draft.previous.url} download>
+                이전 대본 초안 받기
+              </a>
+            )}
+            <a className="button button-secondary" href={draft.issue.url} download>
+              오류 상세 받기
+            </a>
+          </div>
+          <p className="muted">
+            다시 생성하면 오류 내용을 전달해 대본을 다시 작성하며 기존 설정의 API 비용이 발생합니다.
+          </p>
+        </section>
+      )}
       {automation.lastError && !canReviewPlan(job) && (
         <Notice tone="warning">{automation.lastError}</Notice>
       )}

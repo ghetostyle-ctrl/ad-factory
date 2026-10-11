@@ -19,6 +19,7 @@ import { BlockedError, StudioError } from "./errors";
 import { fillSection, type InstructionsStamp, loadInstructions, sectionOf } from "./instructions";
 import { isTestRuntime, TEST_PROVIDER_BLOCKED } from "./render-pipeline";
 import { hasArtifact } from "./render-state-helpers";
+import { ScriptDrafts, scriptDraftFeedback } from "./script-drafts";
 import type { JobStore } from "./store";
 import { prepareVideoPlanning } from "./video-planning";
 import {
@@ -204,7 +205,7 @@ export async function writeVideoScript(input: WriteScriptInput): Promise<WriteSc
   }
   const finish = (result: WriteScriptResult): WriteScriptResult =>
     copy ? withCopyOutcome(result, copy) : result;
-  let violations: string | null = null;
+  let violations: string | null = await scriptDraftFeedback(store, id, number);
   // hard 규칙에 걸린 시도 중 hard 가 가장 적은 것(동수면 최신). 3회 뒤에도 남으면 needsFix 초안으로 저장한다.
   let draft: Draft | null = null;
   // 규칙은 통과했지만 AI 검토가 revise 한 시도: 마지막 생성이 규칙에 걸리면 이쪽을 강제 수용(forced)한다.
@@ -222,15 +223,18 @@ export async function writeVideoScript(input: WriteScriptInput): Promise<WriteSc
     ]
       .filter((item): item is string => Boolean(item))
       .join("\n");
-    const written = await write(
-      store.get(id),
-      hypothesis,
-      number,
-      signal,
-      feedback.length > 0 ? feedback : undefined,
-      undefined,
-      planning,
-      copy ? { copyLines: copy.lines } : undefined,
+    const drafts = new ScriptDrafts(store, id, number);
+    const written = await drafts.write(() =>
+      write(
+        store.get(id),
+        hypothesis,
+        number,
+        signal,
+        feedback.length > 0 ? feedback : undefined,
+        undefined,
+        planning,
+        { ...(copy ? { copyLines: copy.lines } : {}), onResponse: drafts.capture },
+      ),
     );
     let script = { ...written.value, ...(planning ? { planning } : {}) };
     const repairs = [...(written.repairs ?? [])];
@@ -256,6 +260,7 @@ export async function writeVideoScript(input: WriteScriptInput): Promise<WriteSc
         .join(" / ")}`;
       continue;
     }
+    await drafts.save(stored.data, written.model);
     // 문장 수가 카피와 달라 고정할 수 없으면 장면 규칙은 건너뛰고(어긋난 대본이라 소음이 된다) 그 문제만 알려 다시 쓰게 한다.
     const rules =
       copyHard.length > 0

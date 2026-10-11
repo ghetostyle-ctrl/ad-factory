@@ -4,6 +4,7 @@ import type { AutomationState } from "../shared/automation";
 import { clipModeOf } from "../shared/flow-mode";
 import { canReviewPlan } from "../shared/plan-recovery";
 import type { ConfigStatus, Job, StudioState } from "../shared/schema";
+import { pendingScriptDraft } from "../shared/script-drafts";
 import { AutomationStatus, operationDate } from "./AutomationStatus";
 import { errorMessage, postJob } from "./api";
 import { confirmDialog } from "./confirm-dialog";
@@ -56,6 +57,7 @@ export function AutomationPanel({
   const [error, setError] = useState<string | null>(null);
   const automation = job.automation;
   const planReview = canReviewPlan(job);
+  const scriptDraft = pendingScriptDraft(job);
   const flowMode = clipModeOf(job) === "flow";
   const legacy = Boolean(job.staged) || job.artifacts.length > 0;
   const needsCliModel =
@@ -122,7 +124,13 @@ export function AutomationPanel({
           ) : (
             <CirclePause size={12} />
           )}
-          {planReview ? "기획 선택 대기" : automation ? statusOf(automation)[0] : "시작 전"}
+          {planReview
+            ? "기획 선택 대기"
+            : scriptDraft
+              ? "대본 수정 대기"
+              : automation
+                ? statusOf(automation)[0]
+                : "시작 전"}
         </span>
       </header>
       <div className="panel-body stack">
@@ -167,15 +175,17 @@ export function AutomationPanel({
                     }}
                   >
                     <Play size={14} />
-                    {automation.status === "waiting"
-                      ? automation.phase === "script"
-                        ? "승인 상태 다시 확인"
-                        : "업로드 상태 다시 확인"
-                      : automation.status === "attention" && automation.policy.mode === "creative"
-                        ? "검토 결과 확인 후 계속 진행"
-                        : automation.status === "attention"
-                          ? "기존 Veo 작업 재확인"
-                          : "중지된 작업 재개"}
+                    {scriptDraft
+                      ? "대본 다시 생성"
+                      : automation.status === "waiting"
+                        ? automation.phase === "script"
+                          ? "승인 상태 다시 확인"
+                          : "업로드 상태 다시 확인"
+                        : automation.status === "attention" && automation.policy.mode === "creative"
+                          ? "검토 결과 확인 후 계속 진행"
+                          : automation.status === "attention"
+                            ? "기존 Veo 작업 재확인"
+                            : "중지된 작업 재개"}
                   </Button>
                 )}
               {(automation.status === "stopped" || automation.status === "blocked") && (

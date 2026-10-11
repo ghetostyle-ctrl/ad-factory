@@ -212,3 +212,39 @@ test("standard Windows npm wrappers launch through Node without a shell", async 
   expect(result.code).toBe(0);
   expect(result.stdout.trim()).toBe("wrapper 한글 $(literal)");
 });
+
+for (const provider of ["codex", "claudeCode"] as const) {
+  test("captures " + provider + " output before schema rejection", async () => {
+    const input = task(provider);
+    let captured = "";
+    const run: CliRunner = async (call) => {
+      if (provider === "codex") {
+        const destination = call.args[call.args.indexOf("--output-last-message") + 1];
+        if (!destination) throw new TypeError("Missing path");
+        await Bun.write(destination, ' { "title": 9 } ');
+      }
+      return {
+        code: 0,
+        stderr: "",
+        stdout: JSON.stringify({
+          type: "result",
+          subtype: "success",
+          structured_output: { title: 9 },
+        }),
+      };
+    };
+    const result = await cliText(
+      {
+        ...input,
+        parseResponse: async (response) => {
+          captured = response.text;
+          return { title: "수정됨" };
+        },
+      },
+      { run, binary: "fixture" },
+    );
+    expect(JSON.parse(captured)).toEqual({ title: 9 });
+    expect(result.value.title).toBe("수정됨");
+    if (provider === "codex") expect(captured).toBe(' { "title": 9 } ');
+  });
+}

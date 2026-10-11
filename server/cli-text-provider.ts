@@ -7,6 +7,7 @@ import { MissingConnectionError, StudioError } from "./errors";
 import { claudeCodeBin, codexBin } from "./provider-environment";
 import { imageInput } from "./provider-image-input";
 import type { TextTask } from "./text-provider";
+import { parseTextResponse } from "./text-response";
 
 export function codexArguments(input: {
   readonly schemaPath: string;
@@ -108,7 +109,7 @@ export async function cliText<T>(
   const model =
     provider === "codex" ? task.models.codexModel : (task.models.claudeCodeModel ?? null);
   const schema = JSON.stringify(z.toJSONSchema(task.schema));
-  let value: unknown;
+  let text: string;
   if (provider === "codex") {
     const schemaPath = join(directory, "schema.json");
     const resultPath = join(directory, "result.json");
@@ -128,7 +129,7 @@ export async function cliText<T>(
       signal: task.signal,
     });
     requireCliSuccess(result, label);
-    value = JSON.parse(await Bun.file(resultPath).text());
+    text = await Bun.file(resultPath).text();
   } else {
     const result = await run({
       binary,
@@ -148,11 +149,15 @@ export async function cliText<T>(
         "claude_code_result",
         "Claude Code가 구조화된 결과를 완료하지 못했습니다. 로그인·사용 한도·모델을 확인한 뒤 재개하세요.",
       );
-    value = response.structured_output;
+    text = JSON.stringify(response.structured_output);
   }
   task.signal.throwIfAborted();
-  return {
-    value: task.schema.parse(value),
-    model: { provider, requestedModel: model, effectiveModel: null, quality: null },
-  };
+  return parseTextResponse(
+    task.schema,
+    {
+      text,
+      model: { provider, requestedModel: model, effectiveModel: null, quality: null },
+    },
+    task.parseResponse,
+  );
 }
