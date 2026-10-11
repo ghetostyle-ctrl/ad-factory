@@ -112,3 +112,22 @@ test("final batch approval wakes production through the real route", async () =>
   expect(f.counts.voice).toBeGreaterThan(0);
   expect(f.store.get(id).automation?.status).toBe("completed");
 }, 60_000);
+test("missing numbered script cannot approve a different stored script", async () => {
+  f.store.change(id, (job) => {
+    const script = job.videoScripts[0];
+    if (!script || job.automation?.policy.mode !== "creative")
+      throw new TypeError("Fixture required");
+    job.videoScripts.push({ ...structuredClone(script), number: 3 });
+    job.automation.policy.videoCount = 3;
+  });
+  const script = f.store.get(id).videoScripts[1];
+  if (!script) throw new TypeError("Fixture required");
+  const response = await post({
+    confirmation: true,
+    scripts: [{ number: 2, digest: scriptDigestOf(script) }],
+  });
+  expect(response.status).toBe(409);
+  expect(
+    f.store.get(id).renders.find((render) => render.number === 2)?.scriptApproval,
+  ).toBeUndefined();
+});

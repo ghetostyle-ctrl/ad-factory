@@ -82,6 +82,15 @@ Expand-Archive -LiteralPath $Archive -DestinationPath $Destination
     return inside(unpack, roots[0].name);
   },
 };
+async function cleanGit(root) {
+  try {
+    await run("git", ["diff", "--no-ext-diff", "--quiet"], root);
+    await run("git", ["diff", "--cached", "--no-ext-diff", "--quiet"], root);
+    return (await run("git", ["ls-files", "--others", "--exclude-standard"], root)) === "";
+  } catch {
+    return false;
+  }
+}
 async function json(file) {
   return JSON.parse(await fs.readFile(file, "utf8"));
 }
@@ -215,7 +224,7 @@ export async function updateInstallation({
         };
       if (
         (await run("git", ["branch", "--show-current"], root)) !== "main" ||
-        (await run("git", ["status", "--porcelain"], root))
+        !(await cleanGit(root))
       )
         return {
           kind: "skipped",
@@ -255,8 +264,7 @@ export async function updateInstallation({
     if (gitHead) {
       await run("git", ["fetch", "origin", sha], root);
       await run("git", ["merge-base", "--is-ancestor", gitHead, sha], root);
-      if (await run("git", ["status", "--porcelain"], root))
-        throw new Error("Local files changed during download");
+      if (!(await cleanGit(root))) throw new Error("Local files changed during download");
     }
     const finalState = await safeState(root, port, bun, dataDir);
     if (finalState.busy)
@@ -297,7 +305,7 @@ export async function updateInstallation({
       for (const rel of Object.keys(installed.hashes))
         if (!files.includes(rel) && (await exists(inside(root, rel))))
           await fs.unlink(inside(root, rel));
-    await copyFiles(stage, root, files);
+    if (!gitHead) await copyFiles(stage, root, files);
     for (const name of ["node_modules", "dist"]) {
       if (await exists(inside(root, name)))
         await fs.rename(inside(root, name), inside(tx, "old-" + name));

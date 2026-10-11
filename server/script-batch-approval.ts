@@ -6,7 +6,6 @@ import {
   scriptApproved,
   scriptDigestOf,
   scriptNeedsFix,
-  videoScriptOf,
 } from "../shared/script-approval";
 import type {
   ScriptApprovalSummary,
@@ -29,7 +28,7 @@ export function scriptApprovalSummary(
       ["running", "queued"].includes(job.automation?.status ?? ""),
     items: Array.from({ length: total }, (_, index) => {
       const number = index + 1;
-      const script = videoScriptOf(job, number);
+      const script = job.videoScripts.find((item) => item.number === number);
       if (!script) return { number, digest: null, state: "missing", problems: [] };
       const digest = scriptDigestOf(script);
       if (scriptApproved(job, number)) return { number, digest, state: "approved", problems: [] };
