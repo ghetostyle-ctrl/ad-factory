@@ -12,6 +12,7 @@ import { FLOW_CLIP_MAX_BYTES, videoScriptFor } from "../shared/flow-mode";
 import { buildProductionManifest } from "../shared/production-manifest";
 import { ClipIdSchema } from "../shared/render-state";
 import { AccountSelectionSchema, CreateJobSchema, PublishSchema } from "../shared/schema";
+import { ScriptBatchRequestSchema } from "../shared/script-batch-approval";
 import { INFO_CLIP_IDS } from "../shared/video-script";
 import type { AutomationEngine } from "./automation";
 import { AutomationEnrollment } from "./automation-enrollment";
@@ -31,6 +32,7 @@ import { installPlanRecoveryRoutes } from "./plan-recovery-routes";
 import { captureProductionSources } from "./production-snapshot";
 import { ProjectStore } from "./project-store";
 import { RenderProduction } from "./render-production";
+import { approveScriptBatch, scriptApprovalSummary } from "./script-batch-approval";
 import { ScriptEditSchema, ScriptRewriteSchema } from "./script-service";
 import type { JobStore } from "./store";
 import { VideoReassembly } from "./video-reassembly";
@@ -232,6 +234,15 @@ export function jobRoutes(
     if (pipeline.active.has(id) || engine.active.has(id))
       throw new StudioError("reassemble_busy", "실행 중인 작업은 재조립할 수 없습니다.");
     return c.json(await reassembly.run(id, videoNumber(c.req.param("number")), c.req.raw.signal));
+  });
+  routes.get("/:id/scripts/approval-summary", (c) =>
+    c.json(scriptApprovalSummary(store.get(c.req.param("id")), engine.services.scripts)),
+  );
+  routes.post("/:id/scripts/approve", validator("json", ScriptBatchRequestSchema), (c) => {
+    const id = c.req.param("id");
+    const result = approveScriptBatch(engine.services.scripts, id, c.req.valid("json"));
+    if (result.approved.length > 0) engine.wakeScripts(id);
+    return c.json(result);
   });
   routes.get("/:id/videos/:number/script", (c) =>
     c.json(engine.services.scripts.view(c.req.param("id"), videoNumber(c.req.param("number")))),

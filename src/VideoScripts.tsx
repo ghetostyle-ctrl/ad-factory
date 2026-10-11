@@ -32,7 +32,7 @@ export function VideoScripts({ job }: { readonly job: Job }) {
   const waitingForApproval =
     pending.length > 0 && job.automation?.status === "waiting" && job.automation.phase === "script";
   return (
-    <section className="panel">
+    <section className="panel" id="video-scripts" tabIndex={-1}>
       <header className="panel-header">
         <div className="cluster">
           <Clapperboard size={18} aria-hidden="true" />
@@ -82,7 +82,12 @@ export function VideoScripts({ job }: { readonly job: Job }) {
           const policy = visualPolicyLabel(script.planning?.visualPolicy);
           const hybrid = isHybrid(script);
           return (
-            <article className="hypothesis-card stack" key={script.number}>
+            <article
+              className="hypothesis-card stack"
+              key={script.number}
+              id={`video-script-${script.number}`}
+              tabIndex={-1}
+            >
               <div className="hypothesis-heading">
                 <span className="hypothesis-number">{script.number}</span>
                 <div>

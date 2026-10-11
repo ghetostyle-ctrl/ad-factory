@@ -10,6 +10,7 @@ import { errorMessage, postJob } from "./api";
 import { confirmDialog } from "./confirm-dialog";
 import { ModelProvenance } from "./ModelProvenance";
 import { Button, Notice } from "./primitives";
+import { ScriptBatchApproval } from "./ScriptBatchApproval";
 
 const AutomationSetup = lazy(() =>
   import("./AutomationSetup").then((module) => ({ default: module.AutomationSetup })),
@@ -137,6 +138,11 @@ export function AutomationPanel({
         {automation ? (
           <>
             <AutomationStatus job={job} automation={automation} />
+            {automation.policy.mode === "creative" &&
+              (automation.policy.videoCount ?? 0) > 0 &&
+              automation.phase === "script" && (
+                <ScriptBatchApproval key={job.id} job={job} onRefresh={onRefresh} />
+              )}
             {planReview && (
               <Suspense fallback={<p role="status">기획 선택 화면을 불러오는 중입니다.</p>}>
                 <PlanRecoveryPanel job={job} onRefresh={onRefresh} />
