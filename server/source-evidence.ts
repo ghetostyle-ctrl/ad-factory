@@ -10,6 +10,7 @@ import {
 import type { ProjectSource, ProjectSourceSnapshot } from "../shared/sources";
 import { StudioError } from "./errors";
 import { evidencePack } from "./evidence-pack";
+import { planCompositionWarnings } from "./plan-composition";
 
 export function factualSources(snapshot: ProjectSourceSnapshot): ProjectSource[] {
   return snapshot.sources.filter(
@@ -265,12 +266,11 @@ const formatStages: Record<CreativeFormat, readonly string[]> = {
   benefit_offer: ["final_decision"],
   risk_reversal: ["final_decision"],
 };
-const guaranteePattern =
-  /환불|보증|반품|무료\s*체험|체험\s*후|guarantee|refund|money[-\s]?back|trial/i;
 function validateFunnelSignals(
   plan: CreativePlan,
   pack: ReturnType<typeof evidencePack>,
   expectedCount: number,
+  allowCompositionGaps = false,
 ): void {
   // 신호 설계 이전에 저장된 기획은 재개할 때 그대로 인정한다. 새 기획은 응답 스키마가 신호를 강제한다.
   if (plan.hypotheses.every((item) => !item.signals)) return;
@@ -289,9 +289,6 @@ function validateFunnelSignals(
     pack.facts.filter((source) => source.kind === "offer").map((source) => source.id),
   );
   const hasVoices = pack.voices.length > 0;
-  const hasGuarantee = pack.facts.some(
-    (source) => source.kind === "offer" && guaranteePattern.test(source.content),
-  );
   for (const hypothesis of plan.hypotheses) {
     const signals = hypothesis.signals;
     if (!signals || !hypothesis.decisionRole)
@@ -344,34 +341,9 @@ function validateFunnelSignals(
         "사용자 리뷰·비포애프터 소재는 실제 고객 후기 자료가 있을 때만 만들 수 있습니다.",
       );
   }
-  if (expectedCount < 3) return;
-  const stages = new Set<string | undefined>(plan.hypotheses.map((item) => item.decisionRole));
-  const bofuPossible = offerIds.size > 0 || hasVoices;
-  const requiredStages = ["comparison"];
-  // 설득 사슬 기획: 조각에서 고객이 문제를 모르는 타겟이 하나도 없으면 TOFU 소재를 만들 수 없다.
-  const tofuPossible =
-    !plan.hypotheses.some((item) => item.chain) ||
-    (plan.targets ?? []).some((target) => !customerKnowsProblem(targetFragments(plan, target.id)));
-  if (tofuPossible) requiredStages.unshift("need_awareness");
-  if (bofuPossible) requiredStages.push("final_decision");
-  for (const stage of requiredStages)
-    if (!stages.has(stage))
-      throw new StudioError(
-        "funnel",
-        "한 세트 안에 TOFU·MOFU·BOFU 단계 소재가 모두 있어야 합니다. 같은 오디언스 안에도 인식 단계가 다른 사람이 섞여 있습니다.",
-      );
-  if (expectedCount < 5) return;
-  const feasible = new Set<CreativeFormat>(["problem_empathy", "mechanism_explainer"]);
-  if (hasVoices) feasible.add("review_proof");
-  if (offerIds.size > 0) feasible.add("benefit_offer");
-  if (hasGuarantee) feasible.add("risk_reversal");
-  const formats = new Set(plan.hypotheses.map((item) => item.signals?.format));
-  const missing = [...feasible].filter((format) => !formats.has(format));
-  if (missing.length)
-    throw new StudioError(
-      "funnel",
-      "광고안 5개 이상이면 문제 제기형·메커니즘 설명형·리뷰·혜택 강조·리스크 제거 소재를 자료가 허락하는 만큼 모두 편성해야 합니다.",
-    );
+  const warnings = planCompositionWarnings(plan, pack, expectedCount);
+  if (!allowCompositionGaps && warnings.length)
+    throw new StudioError("plan_composition", warnings.join(" "));
 }
 // 구조 검사 세 가지를 각각 돌려 걸린 오류를 모두 모은다(2026-10-06): 실제 호출에서 시도마다 다른 규칙 하나씩에 걸려
 // 재작성 4회를 다 썼다. 모델에는 한 번에 전부 알려 준다.
@@ -395,6 +367,7 @@ export function validatePlanEvidence(
   plan: CreativePlan,
   snapshot: ProjectSourceSnapshot,
   expectedCount = 3,
+  allowCompositionGaps = false,
 ): void {
   if (plan.sourceDigest !== snapshot.digest)
     throw new StudioError("source_digest", "기획의 자료 스냅샷이 일치하지 않습니다.");
@@ -447,7 +420,7 @@ export function validatePlanEvidence(
       );
   validateCustomerQuestions(plan, pack, expectedCount);
   validatePlanTargets(plan, pack, expectedCount);
-  validateFunnelSignals(plan, pack, expectedCount);
+  validateFunnelSignals(plan, pack, expectedCount, allowCompositionGaps);
   for (const hypothesis of plan.hypotheses) {
     if (pack.references.length > 0 && hypothesis.referenceSourceIds.length === 0)
       throw new StudioError(

@@ -27,6 +27,7 @@ import { analyzeJob } from "./meta-insights";
 import { publishJob } from "./meta-publish";
 import { MusicLibrary } from "./music-library";
 import type { Pipeline } from "./pipeline";
+import { installPlanRecoveryRoutes } from "./plan-recovery-routes";
 import { captureProductionSources } from "./production-snapshot";
 import { ProjectStore } from "./project-store";
 import { RenderProduction } from "./render-production";
@@ -56,6 +57,12 @@ export function jobRoutes(
     }
   });
   installFlowImageRoutes(routes, store, engine);
+  installPlanRecoveryRoutes(
+    routes,
+    store,
+    engine,
+    (id) => pipeline.active.has(id) || engine.active.has(id),
+  );
   installCalloutOverrideRoutes(
     routes,
     calloutOverrides ??

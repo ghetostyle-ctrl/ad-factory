@@ -1,4 +1,5 @@
 import type { AutomationState } from "../shared/automation";
+import { canReviewPlan } from "../shared/plan-recovery";
 import type { Job } from "../shared/schema";
 import { moneyLabel } from "./api";
 import { Notice } from "./primitives";
@@ -72,9 +73,20 @@ export function AutomationStatus({
       <div className="operation-current">
         <span className="eyebrow">현재 단계</span>
         <h3>{phases[automation.phase]}</h3>
-        <p>{nextAction(automation)}</p>
+        <p>
+          {canReviewPlan(job)
+            ? "저장된 광고안을 확인하고 현재 기획 사용 또는 다시 기획하기를 선택하세요."
+            : nextAction(automation)}
+        </p>
       </div>
-      {automation.lastError && <Notice tone="warning">{automation.lastError}</Notice>}
+      {automation.lastError && !canReviewPlan(job) && (
+        <Notice tone="warning">{automation.lastError}</Notice>
+      )}
+      {automation.planChoice?.action === "use" && automation.planChoice.issues.length > 0 && (
+        <Notice tone="warning">
+          사용자가 구성 경고를 확인한 기획으로 제작합니다. {automation.planChoice.issues.join(" ")}
+        </Notice>
+      )}
       <dl className="definition-list operation-definition">
         <div>
           <dt>실행 범위</dt>

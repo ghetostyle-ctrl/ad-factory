@@ -2,6 +2,7 @@ import { CirclePause, LoaderCircle, Play, Settings2, Square } from "lucide-react
 import { lazy, Suspense, useState } from "react";
 import type { AutomationState } from "../shared/automation";
 import { clipModeOf } from "../shared/flow-mode";
+import { canReviewPlan } from "../shared/plan-recovery";
 import type { ConfigStatus, Job, StudioState } from "../shared/schema";
 import { AutomationStatus, operationDate } from "./AutomationStatus";
 import { errorMessage, postJob } from "./api";
@@ -11,6 +12,9 @@ import { Button, Notice } from "./primitives";
 
 const AutomationSetup = lazy(() =>
   import("./AutomationSetup").then((module) => ({ default: module.AutomationSetup })),
+);
+const PlanRecoveryPanel = lazy(() =>
+  import("./PlanRecoveryPanel").then((module) => ({ default: module.PlanRecoveryPanel })),
 );
 const statuses = {
   queued: ["실행 대기", "neutral"],
@@ -51,6 +55,7 @@ export function AutomationPanel({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const automation = job.automation;
+  const planReview = canReviewPlan(job);
   const flowMode = clipModeOf(job) === "flow";
   const legacy = Boolean(job.staged) || job.artifacts.length > 0;
   const needsCliModel =
@@ -117,13 +122,18 @@ export function AutomationPanel({
           ) : (
             <CirclePause size={12} />
           )}
-          {automation ? statusOf(automation)[0] : "시작 전"}
+          {planReview ? "기획 선택 대기" : automation ? statusOf(automation)[0] : "시작 전"}
         </span>
       </header>
       <div className="panel-body stack">
         {automation ? (
           <>
             <AutomationStatus job={job} automation={automation} />
+            {planReview && (
+              <Suspense fallback={<p role="status">기획 선택 화면을 불러오는 중입니다.</p>}>
+                <PlanRecoveryPanel job={job} onRefresh={onRefresh} />
+              </Suspense>
+            )}
             {automation.status === "attention" && uncertainClips.length > 0 && (
               <Notice tone="warning">
                 {uncertainClips.join(", ")}의 Veo 요청 결과가 불확실합니다(중복 과금 가능성). 공급자
@@ -143,30 +153,31 @@ export function AutomationPanel({
                   자동 운영 중지
                 </Button>
               )}
-              {(automation.status === "blocked" ||
-                automation.status === "stopped" ||
-                (automation.status === "waiting" && automation.policy.mode === "creative") ||
-                (automation.status === "attention" &&
-                  (automation.videoOperation !== null ||
-                    automation.policy.mode === "creative"))) && (
-                <Button
-                  pending={pending}
-                  onClick={() => {
-                    void mutate("resume");
-                  }}
-                >
-                  <Play size={14} />
-                  {automation.status === "waiting"
-                    ? automation.phase === "script"
-                      ? "승인 상태 다시 확인"
-                      : "업로드 상태 다시 확인"
-                    : automation.status === "attention" && automation.policy.mode === "creative"
-                      ? "검토 결과 확인 후 계속 진행"
-                      : automation.status === "attention"
-                        ? "기존 Veo 작업 재확인"
-                        : "중지된 작업 재개"}
-                </Button>
-              )}
+              {!planReview &&
+                (automation.status === "blocked" ||
+                  automation.status === "stopped" ||
+                  (automation.status === "waiting" && automation.policy.mode === "creative") ||
+                  (automation.status === "attention" &&
+                    (automation.videoOperation !== null ||
+                      automation.policy.mode === "creative"))) && (
+                  <Button
+                    pending={pending}
+                    onClick={() => {
+                      void mutate("resume");
+                    }}
+                  >
+                    <Play size={14} />
+                    {automation.status === "waiting"
+                      ? automation.phase === "script"
+                        ? "승인 상태 다시 확인"
+                        : "업로드 상태 다시 확인"
+                      : automation.status === "attention" && automation.policy.mode === "creative"
+                        ? "검토 결과 확인 후 계속 진행"
+                        : automation.status === "attention"
+                          ? "기존 Veo 작업 재확인"
+                          : "중지된 작업 재개"}
+                  </Button>
+                )}
               {(automation.status === "stopped" || automation.status === "blocked") && (
                 <Button
                   variant="ghost"

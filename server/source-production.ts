@@ -14,6 +14,7 @@ import { AutomationGuard, contentDigest } from "./automation-guard";
 import type { ProductionProviders } from "./automation-production";
 import { BlockedError, MissingConnectionError, StudioError, WaitingError } from "./errors";
 import { instructionsEventMessage } from "./instructions";
+import { acceptsComposition } from "./plan-drafts";
 import { renderStateOf } from "./render-state-helpers";
 import { SCRIPT_MAX_GENERATIONS, writeVideoScript } from "./script-writer";
 import { produceSourceCards } from "./source-card-production";
@@ -86,7 +87,12 @@ export class SourceProduction {
     const job = this.store.get(id);
     if (!job.sourceSnapshot || !job.creativePlan)
       throw new BlockedError("자료 기반 기획이 없습니다.");
-    validatePlanEvidence(job.creativePlan, job.sourceSnapshot, imageCount);
+    validatePlanEvidence(
+      job.creativePlan,
+      job.sourceSnapshot,
+      imageCount,
+      acceptsComposition(job, job.creativePlan),
+    );
     const videoCount = policy?.mode === "creative" ? (policy.videoCount ?? 0) : 0;
     const videoOrder = videoHypotheses(job.creativePlan);
     for (let index = this.store.get(id).videoScripts.length; index < videoCount; index++) {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PlanChoiceSchema } from "./plan-recovery";
 
 const AdvertisingPolicySchema = z
   .object({
@@ -51,6 +52,7 @@ export type PolicyBgm = NonNullable<
 export type AutomationPolicy = z.infer<typeof AutomationPolicySchema>;
 export const AutomationStateSchema = z.object({
   policy: AutomationPolicySchema,
+  planChoice: PlanChoiceSchema.optional(),
   status: z.enum(["queued", "running", "waiting", "blocked", "attention", "stopped", "completed"]),
   phase: z.enum([
     "strategy",

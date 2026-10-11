@@ -9,7 +9,7 @@ import {
   ReferenceAnalysisResponseSchema,
 } from "../shared/creative-plan";
 import { MediaAnalysisStatusSchema } from "../shared/media-analysis";
-import { ArtifactModelSchema, type ModelResult } from "../shared/models";
+import { ArtifactModelSchema, type ExecutionModels, type ModelResult } from "../shared/models";
 import { normalizePlanTargets } from "../shared/persuasion-chain";
 import type { Strategy } from "../shared/planning";
 import type { Job } from "../shared/schema";
@@ -27,6 +27,7 @@ import {
   sectionOf,
 } from "./instructions";
 import { snapshotModels } from "./model-settings";
+import { nextPlanAttempt, planRevisionFeedback, savePlanDraft } from "./plan-drafts";
 import type { OpenAIConnection } from "./provider-transport";
 import { saveArtifactOnce } from "./render-state-helpers";
 import { planStructureProblems, validatePlanEvidence } from "./source-evidence";
@@ -113,24 +114,7 @@ export class SourcePlanner {
     });
     for (const source of references) {
       signal.throwIfAborted();
-      const mediaAnalyses = this.completedMediaAnalyses(source);
-      const key = contentDigest(
-        JSON.stringify({
-          version: 2,
-          digest: source.digest,
-          mediaAnalyses,
-          provider: models.textProvider,
-          model:
-            models.textProvider === "codex"
-              ? models.codexModel
-              : models.textProvider === "claudeCode"
-                ? models.claudeCodeModel
-                : models.textModel,
-        }),
-      );
-      const cached = this.store.db
-        .query("SELECT body FROM reference_analysis_cache WHERE key = ?")
-        .get(key);
+      const { mediaAnalyses, key, cached } = this.referenceContext(source, models);
       this.store.agent(job.id, "creative", {
         status: "running",
         action: `${source.title} · ${cached ? "저장된 구조 관찰 재사용" : "본문 구조 관찰 중"}`,
@@ -174,9 +158,6 @@ export class SourcePlanner {
             : "SOURCE_VOICE_ROLE_UNKNOWN",
       ),
     }));
-    const factIds = new Set(facts.map((source) => source.sourceId));
-    const voiceIds = new Set(voices.map((source) => source.sourceId));
-    const referenceIds = new Set(references.map((source) => source.id));
     const context = JSON.stringify({
       facts,
       voices,
@@ -195,7 +176,8 @@ export class SourcePlanner {
         mediaAnalyses: this.completedMediaAnalyses(source),
       })),
     });
-    let feedback: readonly string[] = [];
+    let feedback: readonly string[] = await planRevisionFeedback(this.store, job);
+    const firstAttempt = nextPlanAttempt(job);
     // 구조 오류(근거 ID·타겟·광고안 수·사슬·인식 단계) 재작성 최대 3회와 기획 검토 수정 1회를 따로 센다. 한쪽이 다른 쪽의 기회를 쓰지 않는다.
     // 실측(2026-10-06): 규칙이 많아져 시도마다 다른 오류에 걸렸고 2회로는 모자랐다(생성 1회 ≈ 1분, gpt-5-mini 기준 저렴).
     let structuralRetries = 0;
@@ -222,32 +204,20 @@ export class SourcePlanner {
         },
         this.connection,
       );
-      const plan: CreativePlan = normalizePlanTargets({
-        ...generated.value,
-        customerQuestions: normalizeCustomerQuestions(generated.value.customerQuestions, {
-          facts: factIds,
-          voices: voiceIds,
-          references: referenceIds,
-        }),
-        learningSignal: learningSignal(job, imageCount),
-        sourceDigest: snapshot.digest,
-        referenceAnalyses,
-        sourceCoverage: pack.coverage,
-      });
-      // 검증 전 초안을 남긴다: 거부된 기획도 무엇을 썼는지 볼 수 있어야 규칙을 고칠 수 있다(2026-10-06).
-      await new Artifacts(this.store).save(job.id, {
-        name: `plan-draft-${attempt + 1}.json`,
-        kind: "json",
-        agentId: "creative",
-        content: JSON.stringify(generated.value),
-        model: generated.model,
-      });
+      const plan = this.buildPlan(job, generated.value, referenceAnalyses);
+      await savePlanDraft(this.store, job, firstAttempt + attempt, generated, plan);
       try {
         validatePlanEvidence(plan, snapshot, imageCount);
       } catch (error) {
         if (
           !(error instanceof StudioError) ||
-          !["customer_questions", "plan_targets", "diversity", "funnel"].includes(error.code) ||
+          ![
+            "customer_questions",
+            "plan_targets",
+            "diversity",
+            "funnel",
+            "plan_composition",
+          ].includes(error.code) ||
           structuralRetries >= 3
         )
           throw error;
@@ -281,7 +251,7 @@ export class SourcePlanner {
                 "조각·타겟·해결 과정·설득 사슬을 위 문제에 맞게 고치세요. 출처 ID는 위 목록의 ID만 쓰고, mechanism·verification 단계와 사슬의 productFact·reasonWhy 는 FACTS 를 인용하세요. 사슬의 outcome 은 타겟 조각의 desire/pain 낱말을 그대로 되받으세요. exclusivity 가 any_product 로 끝나는 타겟이면 reasonWhy 를 한 칸 더 내려가 우리 상품만의 FACTS(원재료 100%·섞지 않음·냉압착·제조사)에 닿게 하거나, 점수가 높은 다른 타겟으로 바꾸세요.",
               ]
             : []),
-          ...(codes.has("funnel")
+          ...(codes.has("funnel") || codes.has("plan_composition")
             ? [
                 "인식 단계와 소재 유형을 고치세요: 타겟 조각에 failedAttempt·alternative·believedCause 가 있으면 decisionRole 은 comparison(MOFU) 또는 final_decision(BOFU)입니다(need_awareness 금지). format 은 단계에 맞춥니다 — comparison 은 mechanism_explainer(이때 cardSlides 2~4장 필수: 사슬의 진짜 원인·해결 조건·우리 상품의 사실·가능한 이유를 한 장씩) 또는 review_proof(우리 상품 후기 VOICES 가 있을 때만). final_decision 은 FACTS 에 오퍼 자료가 있을 때만 benefit_offer/risk_reversal 이고, 오퍼 자료가 없으면 final_decision 을 쓰지 마세요. 다른 format 은 cardSlides [].",
               ]
@@ -312,7 +282,7 @@ export class SourcePlanner {
         this.connection,
       );
       await new Artifacts(this.store).save(job.id, {
-        name: `plan-critique-${attempt + 1}.json`,
+        name: `plan-critique-${firstAttempt + attempt}.json`,
         kind: "json",
         agentId: "creative",
         content: JSON.stringify(critique.value),
@@ -352,6 +322,66 @@ export class SourcePlanner {
     );
   }
 
+  private referenceContext(source: ProjectSource, models: ExecutionModels) {
+    const mediaAnalyses = this.completedMediaAnalyses(source);
+    const key = contentDigest(
+      JSON.stringify({
+        version: 2,
+        digest: source.digest,
+        mediaAnalyses,
+        provider: models.textProvider,
+        model:
+          models.textProvider === "codex"
+            ? models.codexModel
+            : models.textProvider === "claudeCode"
+              ? models.claudeCodeModel
+              : models.textModel,
+      }),
+    );
+    const cached = this.store.db
+      .query("SELECT body FROM reference_analysis_cache WHERE key = ?")
+      .get(key);
+    return { mediaAnalyses, key, cached };
+  }
+  restoreDraft(job: Job, value: z.infer<typeof CreativePlanResponseSchema>): CreativePlan {
+    if (!job.sourceSnapshot) throw new StudioError("source_facts", "고정 자료가 없습니다.");
+    const models = job.executionModels ?? snapshotModels(this.store.root);
+    const analyses = evidencePack(job.sourceSnapshot).references.map((source) => {
+      const { cached } = this.referenceContext(source, models);
+      if (!cached)
+        throw new StudioError(
+          "plan_context",
+          "저장된 레퍼런스 분석이 없어 초안을 복원할 수 없습니다.",
+        );
+      const analysis = CachedSchema.parse(
+        JSON.parse(z.object({ body: z.string() }).parse(cached).body),
+      );
+      return { ...analysis.value, sourceId: source.id };
+    });
+    return this.buildPlan(job, value, analyses);
+  }
+  private buildPlan(
+    job: Job,
+    value: z.infer<typeof CreativePlanResponseSchema>,
+    referenceAnalyses: ReferenceAnalysis[],
+  ): CreativePlan {
+    if (!job.sourceSnapshot) throw new StudioError("source_facts", "고정 자료가 없습니다.");
+    const pack = evidencePack(job.sourceSnapshot);
+    const imageCount =
+      job.automation?.policy.mode === "creative" ? (job.automation.policy.imageCount ?? 3) : 3;
+    return normalizePlanTargets({
+      ...value,
+      customerQuestions: normalizeCustomerQuestions(value.customerQuestions, {
+        facts: new Set(pack.facts.map((source) => source.id)),
+        voices: new Set(pack.voices.map((source) => source.id)),
+        references: new Set(pack.references.map((source) => source.id)),
+      }),
+      learningSignal: learningSignal(job, imageCount),
+      sourceDigest: job.sourceSnapshot.digest,
+      referenceAnalyses,
+      sourceCoverage: pack.coverage,
+    });
+  }
   // 기획 산출물 옆에 그때 읽은 지시 파일 해시를 남긴다(D5). creativePlan 안에 넣으면 approvedPlanDigest 가 달라지므로 별도 산출물
   // instructions-plan.json 과 이벤트("지시 파일 xxxxxxxx 적용")에만 적는다. 같은 작업이 다시 기획하면 같은 이름을 덮어쓴다.
   private async stampInstructions(job: Job, instructions: InstructionsSnapshot): Promise<void> {

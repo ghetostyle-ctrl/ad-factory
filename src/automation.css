@@ -50,3 +50,40 @@
     padding: var(--s4) var(--s5);
   }
 }
+
+.plan-choice {
+  border: 1px solid var(--warning-line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--s5);
+  min-width: 0;
+}
+.plan-choice h3,
+.plan-choice h4,
+.plan-choice li {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.plan-choice ul {
+  margin-top: var(--s2);
+  padding-left: var(--s5);
+}
+.plan-choice .plan-stage-counts {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  gap: var(--s2) var(--s4);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.plan-stage-counts li {
+  white-space: nowrap;
+}
+.plan-choice .source-content {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .plan-choice {
+    padding: var(--s4);
+  }
+}
