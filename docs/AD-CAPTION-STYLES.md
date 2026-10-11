@@ -33,7 +33,7 @@
 ## 구현 파일
 
 - 역할/크기/색: shared/caption-direction.ts. 1080×1920 기준 일반64px, 손글씨104px, 강한 강조82px, 둥근체76px, 바탕체72px. 글꼴마다 실제 글자 높이가 달라 같은 숫자를 강제하지 않는다.
-- 실사 중심 y1228, 설명 중심 y1464. 얼굴/제품의 자동 위치 추적은 없으며 최종 가림 확인이 필요하다.
+- 실사 중심 y1228, 설명 중심 y1584. 얼굴/제품의 자동 위치 추적은 없으며 최종 가림 확인이 필요하다.
 - 기획 지침: instructions/script.md의 AD_CAPTION_DIRECTION_RULES.
 - 글꼴 원본·OFL 라이선스·출처·측정값: assets/fonts/captions/.
 - 합성: server/render/caption-ass.ts, caption-fonts.ts, caption-icons.ts. 글꼴 원본 해시와 글리프 지원 여부를 검사한다.

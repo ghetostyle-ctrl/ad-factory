@@ -11,7 +11,8 @@ export const AD_EDIT_STYLE = {
     maxWidthRatio: 0.8,
     safeSide: 0.04,
     safeTop: 0.1,
-    bottomRatio: 0.69,
+    // 라벨판 아래 한계. 2026-10-12 안1: 0.69 → 0.75(1440px). 자막 중심 1584 위에 captionGapPx 여유를 둔다.
+    bottomRatio: 0.75,
     olive: "#3E4A22",
     white: "#FFFDF5",
     gold: "#B09A60",
@@ -28,7 +29,8 @@ export const AD_EDIT_STYLE = {
   caption: {
     normalPx: 64,
     pointPx: 86,
-    centerY: 1464,
+    // 설명 컷 자막 중심. 2026-10-12 안1: 1464 → 1584 로 내려 라벨 배지와 물체 사이를 벌린다(안전 영역 1728 안).
+    centerY: 1584,
     chestY: 1228,
     widthRatio: 0.8,
     white: "FFFDF5",
