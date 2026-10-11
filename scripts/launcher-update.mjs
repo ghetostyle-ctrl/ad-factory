@@ -82,9 +82,11 @@ Expand-Archive -LiteralPath $Archive -DestinationPath $Destination
     return inside(unpack, roots[0].name);
   },
 };
-async function cleanGit(root) {
+export async function cleanGit(root) {
   try {
     await run("git", ["diff", "--no-ext-diff", "--quiet"], root);
+    await run("git", ["diff", "--cached", "--no-ext-diff", "--quiet"], root);
+    await run("git", ["add", "--renormalize", "--update"], root);
     await run("git", ["diff", "--cached", "--no-ext-diff", "--quiet"], root);
     return (await run("git", ["ls-files", "--others", "--exclude-standard"], root)) === "";
   } catch {
@@ -333,6 +335,7 @@ export async function updateInstallation({
         return {
           kind: "rollback",
           message: "Update failed; the previous version has been restored.",
+          error: String(error),
           backup: tx,
         };
       } catch (recoveryError) {

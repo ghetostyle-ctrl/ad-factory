@@ -5,7 +5,7 @@ import net from "node:net";
 import path from "node:path";
 import { afterEach, test } from "node:test";
 import { health, identity, inside } from "../scripts/launcher-files.mjs";
-import { updateInstallation } from "../scripts/launcher-update.mjs";
+import { cleanGit, updateInstallation } from "../scripts/launcher-update.mjs";
 
 const runs = [];
 const bun = spawnSync("where.exe", ["bun"], { encoding: "utf8" }).stdout.trim().split(/\r?\n/)[0];
@@ -259,4 +259,38 @@ test("failed startup restores the saved job database including WAL state", async
     'import{Database}from"bun:sqlite";const d=new Database(process.argv[1],{readonly:true});console.log(d.query("SELECT body FROM jobs").get().body);d.close();';
   const saved = spawnSync(bun, ["--no-env-file", "-e", query, db], { encoding: "utf8" });
   assert.deepEqual(JSON.parse(saved.stdout), { status: "completed", label: "original" });
+});
+test("Git installation updates when only Windows checkout line endings changed", async () => {
+  const f = await fixture();
+  const git = (...args) => {
+    const result = spawnSync("git", args, { cwd: f.root, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  await fs.writeFile(
+    path.join(f.root, ".gitignore"),
+    ".env\n.runtime/\ndata/\nnode_modules/\ndist/\n",
+  );
+  git("init", "-b", "main");
+  git("config", "user.name", "Updater QA");
+  git("config", "user.email", "qa@example.invalid");
+  git("config", "core.autocrlf", "true");
+  await fs.writeFile(path.join(f.root, "version.txt"), "old\r\n");
+  git("add", ".");
+  git("commit", "-m", "old fixture");
+  const old = git("rev-parse", "HEAD");
+  await fs.writeFile(path.join(f.root, "version.txt"), "new\r\n");
+  git("add", ".");
+  git("commit", "-m", "new fixture");
+  const next = git("rev-parse", "HEAD");
+  git("reset", "--hard", old);
+  await fs.writeFile(path.join(f.root, "version.txt"), "old\n");
+  assert.equal(await cleanGit(f.root), true);
+  git("merge", "--ff-only", next);
+  assert.equal(git("rev-parse", "HEAD"), next);
+  assert.equal(git("status", "--porcelain"), "");
+  await fs.writeFile(path.join(f.root, "version.txt"), "user edited content");
+  assert.equal(await cleanGit(f.root), false);
+  assert.equal(git("diff", "--cached", "--name-only"), "");
+  assert.equal(await fs.readFile(path.join(f.root, ".env"), "utf8"), "PRIVATE_MARKER=keep-me");
 });
