@@ -5,7 +5,7 @@
 
 **상태(2026-10-10): 규칙과 HyperFrames 자동 합성 연결 완료. 실제 유료 영상 제작은 별도 승인 범위다.** 최신 기준은 FLOW-MODE.md 13절과 instructions/flow.md의 VEO_HF_INFO_IMAGE·VEO_HF_MOTION·HF_LABEL_LAYER_RULES다. Omni 전환은 보류한다. 날짜가 붙은 기존 지시서들은 과거 작업 기록이며 작업 ID·재시도 권한을 새 작업에 복사하지 않는다.
 
-작업 폴더: C:/Users/a/Documents/Codex/2026-09-24/new-chat/outputs/meta-ad-studio. 제작 담당은 서버를 새로 띄우거나 재시작하지 않는다. 로그인된 사용자 브라우저와 현재 제공된 제어 API를 사용한다.
+작업 폴더: 이 앱이 설치된 폴더(AGENTS.md 가 있는 곳). 제작 담당은 서버를 새로 띄우거나 재시작하지 않는다. 로그인된 사용자 브라우저와 현재 제공된 제어 API를 사용한다.
 
 ## 1. 실행 전 범위 확인
 
