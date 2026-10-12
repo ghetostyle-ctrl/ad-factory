@@ -1,8 +1,6 @@
 @import "./document.css";
 @import "./welcome.css";
-@import "./agents.css";
 @import "./artifacts.css";
-@import "./brief.css";
 @import "./review.css";
 @import "./forms.css";
 @import "./automation.css";
@@ -16,61 +14,13 @@
   .welcome-panel {
     padding: var(--s6);
   }
-  .panel-header,
-  .agent-board .panel-header {
+  .panel-header {
     padding: var(--s4);
     flex-wrap: wrap;
-  }
-  .agent-board .panel-header .small-copy {
-    display: none;
-  }
-  .agent-rows {
-    padding: var(--s2);
-  }
-  .agent-row {
-    padding: var(--s3) var(--s2);
-    gap: var(--s3);
-  }
-  .agent-icon {
-    width: var(--s8);
-    height: var(--s8);
-  }
-  .agent-path {
-    padding-top: var(--s1);
-  }
-  .agent-main p {
-    font-size: var(--text-sm);
-  }
-  .path-arrow {
-    top: var(--s12);
-    left: 10px;
-  }
-  .board-caption {
-    padding: var(--s3) var(--s4);
   }
   .panel-body,
   .artifact-grid {
     padding: var(--s4);
-  }
-  .brief-top {
-    padding: var(--s5);
-  }
-  .brief-details {
-    padding: var(--s4) var(--s5);
-  }
-  .brief-actions {
-    padding: var(--s4) var(--s5);
-    flex-wrap: wrap;
-  }
-  .brief-actions > .button {
-    width: 100%;
-  }
-  .brief-alert {
-    padding: 0 var(--s5) var(--s5);
-  }
-  .next-step {
-    align-items: flex-start;
-    flex-wrap: wrap;
   }
   .definition-list > div {
     grid-template-columns: 100px minmax(0, 1fr);

@@ -1,6 +1,6 @@
 import { Library, LockKeyhole } from "lucide-react";
 import type { Job } from "../shared/schema";
-import { Button, Notice } from "./primitives";
+import { Button, Disclosure, Notice } from "./primitives";
 import { SourceRecord } from "./SourceRecord";
 import "./sources.css";
 
@@ -45,7 +45,7 @@ export function SourceScope({
         <div>
           <div className="cluster">
             <LockKeyhole size={16} />
-            <h2>이 작업에 고정된 자료</h2>
+            <h2>고정 자료</h2>
           </div>
           <p>
             {snapshot.projectName} · 프로젝트 버전 {snapshot.revision}
@@ -82,15 +82,16 @@ export function SourceScope({
             새 작업을 만드세요.
           </Notice>
         )}
-        <details className="evidence-details">
-          <summary>저장된 자료 {snapshot.sources.length}개와 식별값 확인</summary>
+        <Disclosure variant="plain" summary={`이 작업에 고정된 자료 ${snapshot.sources.length}개`}>
           <div className="stack">
-            <p className="mono digest">{snapshot.digest}</p>
             {snapshot.sources.map((source) => (
               <SourceRecord key={source.id} source={source} at={snapshot.capturedAt} />
             ))}
+            <Disclosure variant="plain" summary="고급 · 자료 식별값">
+              <p className="mono digest">{snapshot.digest}</p>
+            </Disclosure>
           </div>
-        </details>
+        </Disclosure>
       </div>
     </section>
   );

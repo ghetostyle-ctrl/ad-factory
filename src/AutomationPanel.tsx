@@ -1,66 +1,82 @@
-import { CirclePause, LoaderCircle, Play, Settings2, Square } from "lucide-react";
+import { Play, Square } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
-import type { AutomationState } from "../shared/automation";
 import { clipModeOf } from "../shared/flow-mode";
-import { canReviewPlan } from "../shared/plan-recovery";
 import type { ConfigStatus, Job, StudioState } from "../shared/schema";
-import { pendingScriptDraft } from "../shared/script-drafts";
-import { AutomationStatus, operationDate } from "./AutomationStatus";
+import { AutomationStatus, operationDate, planIssueText } from "./AutomationStatus";
 import { errorMessage, postJob } from "./api";
 import { confirmDialog } from "./confirm-dialog";
 import { ModelProvenance } from "./ModelProvenance";
 import { Button, Notice } from "./primitives";
-import { ScriptBatchApproval } from "./ScriptBatchApproval";
 
 const AutomationSetup = lazy(() =>
   import("./AutomationSetup").then((module) => ({ default: module.AutomationSetup })),
 );
-const PlanRecoveryPanel = lazy(() =>
-  import("./PlanRecoveryPanel").then((module) => ({ default: module.PlanRecoveryPanel })),
-);
-const statuses = {
-  queued: ["실행 대기", "neutral"],
-  running: ["자동 작업 중", "accent"],
-  waiting: ["다음 분석 대기", "neutral"],
-  blocked: ["설정 대기", "warning"],
-  attention: ["확인 필요", "warning"],
-  stopped: ["자동 운영 중지", "neutral"],
-  completed: ["운영 완료", "success"],
-} as const satisfies Record<AutomationState["status"], readonly [string, string]>;
 
-// 소재 제작의 waiting 은 분석 예약이 아니라 사용자 작업 대기다(실패가 아님): 대본 승인 또는 Google Flow 클립 업로드.
-function statusOf(automation: AutomationState): readonly [string, string] {
-  if (automation.status !== "waiting" || automation.policy.mode !== "creative")
-    return statuses[automation.status];
-  return automation.phase === "script"
-    ? ["영상 대본 승인 대기", "warning"]
-    : ["image", "stills", "startImages"].includes(automation.phase)
-      ? ["Flow 이미지 업로드 대기", "warning"]
-      : ["Flow 클립 업로드 대기", "warning"];
+type AutomationAction = "stop" | "resume" | "reset";
+export type AutomationActions = {
+  readonly pending: AutomationAction | null;
+  readonly resume: () => Promise<void>;
+  readonly stop: () => Promise<void>;
+  readonly reset: () => Promise<void>;
+};
+// 이어서 진행·중지·초기화. 유료 호출이나 되돌릴 수 없는 일이라 모두 확인 창을 거친다(docs 8-1절 a).
+export function useAutomationActions(
+  job: Job | null,
+  onRefresh: () => void,
+  onError: (message: string | null) => void,
+): AutomationActions {
+  const [pending, setPending] = useState<AutomationAction | null>(null);
+  const mutate = async (action: AutomationAction) => {
+    if (!job) return;
+    setPending(action);
+    onError(null);
+    try {
+      await postJob(
+        `jobs/${job.id}/automation/${action}`,
+        action === "stop" ? undefined : { confirmation: true },
+      );
+      onRefresh();
+    } catch (cause) {
+      onError(await errorMessage(cause));
+    } finally {
+      setPending(null);
+    }
+  };
+  return {
+    pending,
+    resume: async () => {
+      if (
+        await confirmDialog(
+          "저장된 결과는 그대로 두고 남은 단계부터 이어서 진행해요. 설정에 따라 API 비용이나 Flow 크레딧이 들 수 있어요. 이어서 진행할까요?",
+          { confirmLabel: "이어서 진행" },
+        )
+      )
+        await mutate("resume");
+    },
+    stop: async () => {
+      if (
+        await confirmDialog(
+          "자동 제작을 중지할까요? 이미 만든 결과는 그대로 남고, 이어서 진행으로 다시 시작할 수 있어요.",
+          { confirmLabel: "중지" },
+        )
+      )
+        await mutate("stop");
+    },
+    reset: async () => {
+      if (
+        await confirmDialog("자동 운영과 생성 결과물을 초기화할까요? 되돌릴 수 없습니다.", {
+          confirmLabel: "초기화",
+          danger: true,
+        })
+      )
+        await mutate("reset");
+    },
+  };
 }
-export function AutomationPanel({
-  job,
-  config,
-  engine,
-  onSettings,
-  onRefresh,
-  onCreate,
-}: {
-  readonly job: Job;
-  readonly config: ConfigStatus;
-  readonly engine: StudioState["engine"];
-  readonly onSettings: () => void;
-  readonly onRefresh: () => void;
-  readonly onCreate: () => void;
-}) {
-  const [setup, setSetup] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const automation = job.automation;
-  const planReview = canReviewPlan(job);
-  const scriptDraft = pendingScriptDraft(job);
+
+// 시작 전에 막힐 수 있는 연결·도구, 불확실한 클립 요청. 화면 곳곳(지금 할 일 카드 아래 안내·고급)이 같은 계산을 쓴다.
+export function automationNeeds(job: Job, config: ConfigStatus) {
   const flowMode = clipModeOf(job) === "flow";
-  const legacy = Boolean(job.staged) || job.artifacts.length > 0;
   const needsCliModel =
     (config.textProvider === "codex" && !config.modelSettings.codexModel) ||
     (config.textProvider === "claudeCode" && !config.modelSettings.claudeCodeModel);
@@ -72,15 +88,15 @@ export function AutomationPanel({
     config.textProvider === "claudeCode" && !config.claudeCode && "Claude Code 설치",
     config.textProvider === "none" && "텍스트 공급자",
     config.modelSettings.imageProvider === "flow" && !config.ffmpeg && "ffmpeg(Flow 이미지 검사)",
-  ].filter(Boolean);
+  ].filter((item): item is string => Boolean(item));
   // 영상(완성본)을 만들려면 추가로 필요한 연결·도구. 영상 0개면 없어도 된다.
   const missingVideoTools = [
     !config.gemini && !flowMode && "Gemini API 키(Veo)",
     !config.typecast && "Typecast API 키(내레이션)",
     !config.ffmpeg && "ffmpeg 8.x(libass·libx264)",
     !config.captionFont && "자막 폰트(assets/fonts 또는 FONT_DIR)",
-  ].filter(Boolean);
-  // 응답 수신과 핸들 저장 사이에 끊긴 Veo 클립: 재개하면 다시 생성하므로 중복 과금 가능성이 있다
+  ].filter((item): item is string => Boolean(item));
+  // 응답 수신과 핸들 저장 사이에 끊긴 Veo 클립: 이어서 진행하면 다시 생성하므로 중복 과금 가능성이 있다
   const uncertainClips = job.renders.flatMap((render) =>
     Object.entries(render.clips).flatMap(([clipId, clip]) =>
       clip?.pendingSince && !clip.operation && !clip.name
@@ -88,213 +104,134 @@ export function AutomationPanel({
         : [],
     ),
   );
-  const mutate = async (action: "stop" | "resume" | "reset") => {
-    setPending(true);
-    setError(null);
-    try {
-      await postJob(
-        `jobs/${job.id}/automation/${action}`,
-        action === "stop" ? undefined : { confirmation: true },
-      );
-      onRefresh();
-    } catch (cause) {
-      setError(await errorMessage(cause));
-    } finally {
-      setPending(false);
-    }
+  return {
+    needsCliModel,
+    missingTools,
+    missingVideoTools,
+    uncertainClips,
+    legacy: Boolean(job.staged) || job.artifacts.length > 0,
   };
-  const canStop = automation && !["stopped", "completed"].includes(automation.status);
+}
+
+// 시작 설정 창(자동 제작 정책 선택). 시작 버튼은 지금 할 일 카드가 가진다.
+export function AutomationSetupHost({
+  job,
+  config,
+  open,
+  onClose,
+  onSaved,
+}: {
+  readonly job: Job;
+  readonly config: ConfigStatus;
+  readonly open: boolean;
+  readonly onClose: () => void;
+  readonly onSaved: () => void;
+}) {
+  if (!open) return null;
   return (
-    <section className="panel operation-panel" aria-labelledby="operation-title">
-      <header className="panel-header spread">
-        <div>
-          <h2 id="operation-title">
-            {automation && automation.policy.mode !== "creative"
-              ? "광고 자동 운영"
-              : "소재 자동 제작"}
-          </h2>
-          <p>
-            {automation && automation.policy.mode !== "creative"
-              ? "기존 광고 운영의 진행 상황입니다."
-              : "상품 자료 분석과 영상 대본·컷 설계 후 이미지 제작·검토, 내레이션·Veo 클립·모션그래픽을 조립한 완성 영상 제작을 진행합니다."}
-          </p>
-        </div>
-        <span className={`badge badge-${automation ? statusOf(automation)[1] : "neutral"}`}>
-          {automation?.status === "running" ? (
-            <LoaderCircle size={12} className="spin" />
-          ) : (
-            <CirclePause size={12} />
-          )}
-          {planReview
-            ? "기획 선택 대기"
-            : scriptDraft
-              ? "대본 수정 대기"
-              : automation
-                ? statusOf(automation)[0]
-                : "시작 전"}
-        </span>
-      </header>
-      <div className="panel-body stack">
-        {automation ? (
-          <>
-            <AutomationStatus job={job} automation={automation} />
-            {automation.policy.mode === "creative" &&
-              (automation.policy.videoCount ?? 0) > 0 &&
-              automation.phase === "script" && (
-                <ScriptBatchApproval key={job.id} job={job} onRefresh={onRefresh} />
-              )}
-            {planReview && (
-              <Suspense fallback={<p role="status">기획 선택 화면을 불러오는 중입니다.</p>}>
-                <PlanRecoveryPanel job={job} onRefresh={onRefresh} />
-              </Suspense>
-            )}
-            {automation.status === "attention" && uncertainClips.length > 0 && (
-              <Notice tone="warning">
-                {uncertainClips.join(", ")}의 Veo 요청 결과가 불확실합니다(중복 과금 가능성). 공급자
-                사용량을 확인한 뒤 재개하면 해당 클립만 다시 생성합니다.
-              </Notice>
-            )}
-            <div className="cluster operation-actions">
-              {canStop && (
-                <Button
-                  variant="danger"
-                  pending={pending}
-                  onClick={() => {
-                    void mutate("stop");
-                  }}
-                >
-                  <Square size={14} />
-                  자동 운영 중지
-                </Button>
-              )}
-              {!planReview &&
-                (automation.status === "blocked" ||
-                  automation.status === "stopped" ||
-                  (automation.status === "waiting" && automation.policy.mode === "creative") ||
-                  (automation.status === "attention" &&
-                    (automation.videoOperation !== null ||
-                      automation.policy.mode === "creative"))) && (
-                  <Button
-                    pending={pending}
-                    onClick={() => {
-                      void mutate("resume");
-                    }}
-                  >
-                    <Play size={14} />
-                    {scriptDraft
-                      ? "대본 다시 생성"
-                      : automation.status === "waiting"
-                        ? automation.phase === "script"
-                          ? "승인 상태 다시 확인"
-                          : "업로드 상태 다시 확인"
-                        : automation.status === "attention" && automation.policy.mode === "creative"
-                          ? "검토 결과 확인 후 계속 진행"
-                          : automation.status === "attention"
-                            ? "기존 Veo 작업 재확인"
-                            : "중지된 작업 재개"}
-                  </Button>
-                )}
-              {(automation.status === "stopped" || automation.status === "blocked") && (
-                <Button
-                  variant="ghost"
-                  pending={pending}
-                  onClick={async () => {
-                    if (
-                      await confirmDialog(
-                        "자동 운영과 생성 결과물을 초기화할까요? 되돌릴 수 없습니다.",
-                        { confirmLabel: "초기화", danger: true },
-                      )
-                    )
-                      void mutate("reset");
-                  }}
-                >
-                  초기화 후 새로 시작
-                </Button>
-              )}
-              {automation.status === "blocked" && (
-                <Button variant="ghost" onClick={onSettings}>
-                  <Settings2 size={14} />
-                  연결 설정
-                </Button>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            <p>
-              프로젝트 자료와 이미지 모델을 확인한 뒤 시작하세요. 광고 계정이나 예산 없이 소재를
-              제작하고 검토합니다.
-            </p>
-            {job.sourceSnapshot && (
-              <Notice>
-                프로젝트 자료를 분석해 영상별 대본·컷·Flow 지시를 먼저 저장하고 이미지를 제작합니다.
-                영상을 요청하면 내레이션 → AI 정지 이미지(최대 14장) → 시작 이미지 → Veo 클립(실사
-                컷만, 최대 4개) → 모션그래픽 → 조립 순서로 30~60초 완성 영상(자막·BGM 포함)을
-                저장합니다.
-              </Notice>
-            )}
-            {missingTools.length > 0 && (
-              <Notice tone="warning">
-                제작 연결 대기: {missingTools.join(" · ")}. 연결 설정에서 입력할 수 있습니다.
-              </Notice>
-            )}
-            {missingVideoTools.length > 0 && (
-              <Notice>
-                완성 영상 제작에 필요(영상 0개면 무관): {missingVideoTools.join(" · ")}. 키는 연결
-                설정에서, ffmpeg·폰트는 서버 환경에서 준비합니다.
-              </Notice>
-            )}
-            {legacy && (
-              <Notice>
-                이미 결과물이 있는 작업입니다. 기존 작업은 자동 운영에 등록되지 않습니다. 새
-                작업에서 자동 운영을 설정하세요.
-              </Notice>
-            )}
-            {needsCliModel && (
-              <Notice tone="warning">
-                선택한 AI의 자동 운영에는 고정할 모델 ID가 필요합니다. 연결 설정에서 모델을
-                입력하세요.
-              </Notice>
-            )}
-            <div className="cluster operation-actions">
-              <Button
-                variant="primary"
-                disabled={legacy || needsCliModel || job.status === "running"}
-                onClick={() => setSetup(true)}
-              >
-                <Play size={15} />
-                소재 자동 제작 설정
-              </Button>
-              {legacy && <Button onClick={onCreate}>새 작업 만들기</Button>}
-              {(missingTools.length > 0 || needsCliModel) && (
-                <Button variant="ghost" onClick={onSettings}>
-                  연결 설정
-                </Button>
-              )}
-            </div>
-          </>
-        )}
-        <ModelProvenance job={job} />
+    <Suspense fallback={<Notice>시작 설정을 불러오고 있습니다…</Notice>}>
+      <AutomationSetup
+        job={job}
+        imageProvider={config.modelSettings.imageProvider ?? "openai"}
+        geminiConnected={config.gemini}
+        typecastConnected={config.typecast}
+        ffmpegReady={config.ffmpeg && config.captionFont}
+        onClose={onClose}
+        onSaved={onSaved}
+      />
+    </Suspense>
+  );
+}
+
+// 고급 · 자동 운영 상세 안쪽: 실행 범위·예약·고정된 AI 모델·엔진 상태. 평소에는 열지 않아도 되는 정보다.
+export function AutomationAdvanced({
+  job,
+  engine,
+  actions,
+  manual,
+}: {
+  readonly job: Job;
+  readonly engine: StudioState["engine"];
+  readonly actions: AutomationActions;
+  readonly manual: {
+    readonly pending: boolean;
+    readonly onRun: () => void;
+    readonly onCancel: () => void;
+  };
+}) {
+  const automation = job.automation;
+  const canReset = automation?.status === "stopped" || automation?.status === "blocked";
+  const issues = job.automation?.planChoice?.issues ?? [];
+  const isRetry = ["blocked", "cancelled", "failed"].includes(job.status);
+  return (
+    <div className="stack">
+      {automation && <AutomationStatus job={job} automation={automation} />}
+      {automation?.planChoice?.action === "use" && issues.length > 0 && (
         <p className="muted small-copy">
-          운영 엔진: {engine.running ? "가동 중" : "중지됨"} · 자동 운영 {engine.activeJobs}개 ·
-          마지막 확인 {operationDate(engine.lastTickAt)}. 이 컴퓨터의 서버가 실행 중이어야 예약
-          작업이 진행됩니다.
+          구성 경고를 확인하고 이 기획으로 제작하기로 했어요. {issues.map(planIssueText).join(" ")}
         </p>
-        {error && <Notice tone="error">{error}</Notice>}
-      </div>
-      {setup && (
-        <Suspense fallback={<Notice>운영 설정을 불러오고 있습니다…</Notice>}>
-          <AutomationSetup
-            job={job}
-            imageProvider={config.modelSettings.imageProvider ?? "openai"}
-            geminiConnected={config.gemini}
-            typecastConnected={config.typecast}
-            ffmpegReady={config.ffmpeg && config.captionFont}
-            onClose={() => setSetup(false)}
-            onSaved={onRefresh}
-          />
-        </Suspense>
       )}
-    </section>
+      {automation?.lastError && (
+        <p className="muted small-copy">마지막 안내: {automation.lastError}</p>
+      )}
+      {!job.sourceSnapshot && (job.productDescription || job.audience) && (
+        <dl className="definition-list">
+          {job.productDescription && (
+            <div>
+              <dt>제품 설명</dt>
+              <dd>{job.productDescription}</dd>
+            </div>
+          )}
+          {job.audience && (
+            <div>
+              <dt>타깃 고객</dt>
+              <dd>{job.audience}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+      {!automation && !job.sourceSnapshot && (
+        <div className="manual-run">
+          <p className="muted small-copy">
+            필요한 경우에만 개별 단계를 직접 실행합니다.{" "}
+            {job.status === "review" && "직접 준비한 광고는 게시 검토에서 확인할 수 있습니다."}
+          </p>
+          {job.status === "running" ? (
+            <Button variant="secondary" pending={manual.pending} onClick={manual.onCancel}>
+              <Square size={13} aria-hidden="true" />
+              작업 중지
+            </Button>
+          ) : (
+            <Button
+              pending={manual.pending}
+              disabled={job.status === "review" || job.status === "completed"}
+              onClick={manual.onRun}
+            >
+              <Play size={14} aria-hidden="true" />
+              {isRetry ? "이어서 진행" : "시작"}
+            </Button>
+          )}
+        </div>
+      )}
+      <ModelProvenance job={job} />
+      <p className="muted small-copy">
+        운영 엔진: {engine.running ? "가동 중" : "중지됨"} · 자동 운영 {engine.activeJobs}개 ·
+        마지막 확인 {operationDate(engine.lastTickAt)}. 이 컴퓨터의 서버가 실행 중이어야 예약 작업이
+        진행됩니다.
+      </p>
+      {canReset && (
+        <div>
+          <Button
+            variant="ghost"
+            pending={actions.pending === "reset"}
+            onClick={() => {
+              void actions.reset();
+            }}
+          >
+            초기화 후 새로 시작
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }

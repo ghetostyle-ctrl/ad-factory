@@ -11,7 +11,7 @@ import type { Job } from "../shared/schema";
 import { thresholds } from "../shared/thresholds";
 import type { InfoClipId } from "../shared/video-script";
 import { api, errorMessage } from "./api";
-import { Button, Notice } from "./primitives";
+import { Button, Disclosure, Notice } from "./primitives";
 
 const stages = {
   real_cause: "진짜 원인",
@@ -32,8 +32,8 @@ function ExplainerScene({ clip }: { readonly clip: FlowExportInfoClip }) {
       {clip.labelLayer ? (
         <>
           <p className="muted small-copy">
-            INFO에는 글자 없이 3D 구조·윤곽선·가이드선·흐름 화살표를 완성합니다. 라벨판·문구용
-            연결선·끝점은 넣지 않습니다. 업로드 때 글자와 라벨용 그래픽을 검사합니다.
+            설명 장면 이미지에는 글자 없이 3D 구조·윤곽선·가이드선·흐름 화살표를 완성합니다.
+            라벨판·문구용 연결선·끝점은 넣지 않습니다. 업로드 때 글자와 라벨용 그래픽을 검사합니다.
           </p>
           <p className="small-copy">
             <strong>별도 합성할 문구:</strong> {clip.infoLines.join(" / ")}
@@ -46,10 +46,11 @@ function ExplainerScene({ clip }: { readonly clip: FlowExportInfoClip }) {
       ) : clip.infoLines.length > 0 ? (
         <>
           <p className="muted small-copy">
-            혼합형 설명 장면({scene}): 사람 없는 클레이·화이트 3D 모형 세계입니다. INFO 에는 강조와
-            인포그래픽(굵은 화살표·치수선·강조 링·한글 라벨·숫자)을 완성하고, 글자는 아래 문구와
-            정확히 같아야 합니다. 업로드 때 글자를 자동 대조하고(다르면 거부, 이미지 재생성은 크레딧
-            0), 사람이 없는지는 눈으로 확인합니다. 실사 시작 이미지는 참조로 첨부하지 마세요.
+            혼합형 설명 장면({scene}): 사람 없는 클레이·화이트 3D 모형 세계입니다. 설명 장면
+            이미지에는 강조와 인포그래픽(굵은 화살표·치수선·강조 링·한글 라벨·숫자)을 완성하고,
+            글자는 아래 문구와 정확히 같아야 합니다. 업로드 때 글자를 자동 대조하고(다르면 거부,
+            이미지 재생성은 크레딧 0), 사람이 없는지는 눈으로 확인합니다. 실사 시작 이미지는 참조로
+            첨부하지 마세요.
           </p>
           <p className="small-copy">
             <strong>넣을 문구(정확히):</strong> {clip.infoLines.join(" / ")}
@@ -57,10 +58,10 @@ function ExplainerScene({ clip }: { readonly clip: FlowExportInfoClip }) {
         </>
       ) : (
         <p className="muted small-copy">
-          혼합형 설명 장면({scene}): 사람 없는 클레이·화이트 3D 모형 세계입니다. INFO 에는
-          글자·숫자·이름표·지시선을 넣지 않고 강조만 더합니다(설명 세계의 글자는 앱 자막 한 줄뿐).
-          업로드 때 글자 유무를 자동 검사하고, 사람이 없는지는 눈으로 확인합니다. 실사 시작 이미지는
-          참조로 첨부하지 마세요.
+          혼합형 설명 장면({scene}): 사람 없는 클레이·화이트 3D 모형 세계입니다. 설명 장면
+          이미지에는 글자·숫자·이름표·지시선을 넣지 않고 강조만 더합니다(설명 세계의 글자는 앱 자막
+          한 줄뿐). 업로드 때 글자 유무를 자동 검사하고, 사람이 없는지는 눈으로 확인합니다. 실사
+          시작 이미지는 참조로 첨부하지 마세요.
         </p>
       )}
       <p className="small-copy">
@@ -131,7 +132,7 @@ export function FlowInfoClips({
   };
   return (
     <div className="stack">
-      <h4>설명 컷 · CLEAN → INFO → 영상 {clips.length}개</h4>
+      <h4>설명 컷 · 깨끗한 장면 → 설명 장면 → 영상 {clips.length}개</h4>
       <ul className="stack flow-clips">
         {clips.map((clip) => {
           const id = clip.id as InfoClipId;
@@ -141,15 +142,16 @@ export function FlowInfoClips({
           const video = artifact(render?.clips[id]?.name);
           return (
             <li className="flow-clip flow-info-clip stack-tight" key={clip.id}>
-              <strong>
-                {clip.id} · {stages[clip.stage as keyof typeof stages] ?? clip.stage}
+              <strong title={clip.id}>
+                설명 컷 {clip.id.replace(/^I/u, "")} ·{" "}
+                {stages[clip.stage as keyof typeof stages] ?? clip.stage}
               </strong>
               {explainer ? (
                 <ExplainerScene clip={clip} />
               ) : expectsLabels ? (
                 <p>
                   {clip.explanation
-                    ? "화살표·연결선·라벨을 함께 넣은 INFO 이미지를 완성한 뒤 영상으로 만듭니다. "
+                    ? "화살표·연결선·라벨을 함께 넣은 설명 장면 이미지를 완성한 뒤 영상으로 만듭니다. "
                     : ""}
                   <strong>넣을 문구(정확히):</strong> {clip.infoLines.join(" / ")}
                 </p>
@@ -157,8 +159,8 @@ export function FlowInfoClips({
                 <>
                   <p className="muted small-copy">
                     {clip.explanation
-                      ? "이 설명 컷에는 이름표 문구가 없습니다. INFO 이미지의 구조·비교 그래픽을 완성한 뒤 영상으로 만듭니다. 글자·숫자·라벨을 추가하지 마세요."
-                      : "INFO 이미지에는 글자·숫자·라벨을 넣지 않습니다. 글자는 앱이 콜아웃으로 그리고, 업로드 때 글자 유무를 자동 검사합니다."}
+                      ? "이 설명 컷에는 이름표 문구가 없습니다. 설명 장면 이미지의 구조·비교 그래픽을 완성한 뒤 영상으로 만듭니다. 글자·숫자·라벨을 추가하지 마세요."
+                      : "설명 장면 이미지에는 글자·숫자·라벨을 넣지 않습니다. 글자는 앱이 콜아웃으로 그리고, 업로드 때 글자 유무를 자동 검사합니다."}
                     그래픽은 중간 띠(높이 {thresholds().INFO_GRAPHIC_BAND_TOP}~
                     {thresholds().INFO_GRAPHIC_BAND_BOTTOM}%) 안에 아래 순서로 넣습니다.
                   </p>
@@ -171,21 +173,25 @@ export function FlowInfoClips({
                   ) : null}
                 </>
               )}
-              <details>
-                <summary>Flow 프롬프트 보기 (CLEAN · INFO · 영상)</summary>
-                <p className="muted small-copy">CLEAN 프롬프트</p>
-                <pre className="flow-prompt">{clip.cleanPrompt}</pre>
-                <p className="muted small-copy">INFO 프롬프트</p>
-                <pre className="flow-prompt">{clip.infoPrompt}</pre>
-                <p className="muted small-copy">영상 프롬프트</p>
-                <pre className="flow-prompt">{clip.motionPrompt}</pre>
-              </details>
+              <Disclosure
+                variant="plain"
+                summary="Flow 프롬프트 보기 (깨끗한 장면 · 설명 장면 · 영상)"
+              >
+                <div className="stack-tight">
+                  <p className="muted small-copy">깨끗한 장면 프롬프트</p>
+                  <pre className="flow-prompt">{clip.cleanPrompt}</pre>
+                  <p className="muted small-copy">설명 장면 프롬프트</p>
+                  <pre className="flow-prompt">{clip.infoPrompt}</pre>
+                  <p className="muted small-copy">영상 프롬프트</p>
+                  <pre className="flow-prompt">{clip.motionPrompt}</pre>
+                </div>
+              </Disclosure>
               {(["clean", "info"] as const).map((which) => {
                 const key = `${clip.id}-${which}`;
                 const saved = artifact(which === "clean" ? state?.clean : state?.info);
                 const infoLabel = expectsLabels
-                  ? "INFO 이미지 (지정 문구 자동 대조)"
-                  : "INFO 이미지 (글자 없음 자동 확인)";
+                  ? "설명 장면 이미지 (지정 문구 자동 대조)"
+                  : "설명 장면 이미지 (글자 없음 자동 확인)";
                 const infoStatus = state?.verified
                   ? " · 글자 확인 통과"
                   : expectsLabels
@@ -196,7 +202,7 @@ export function FlowInfoClips({
                 return (
                   <label className="stack-tight" key={which}>
                     <span>
-                      {which === "clean" ? "CLEAN 이미지" : infoLabel}
+                      {which === "clean" ? "깨끗한 장면 이미지" : infoLabel}
                       {saved ? " · 업로드됨" : ""}
                       {which === "info" && state?.info ? infoStatus : ""}
                     </span>
@@ -232,14 +238,14 @@ export function FlowInfoClips({
               </label>
               {clip.labelLayer ? (
                 <p className="muted small-copy">
-                  글자 없는 원본을 올리면 03 라벨·연결선이 자동 합성됩니다. 완성본에서 대상 위치와
+                  글자 없는 원본을 올리면 설명 라벨이 자동으로 합성됩니다. 완성본에서 대상 위치와
                   가독성을 확인하세요.
                 </p>
               ) : !state?.verified ? (
                 <p className="muted small-copy">
                   {expectsLabels
-                    ? "INFO 이미지의 글자 확인을 통과해야 영상을 올릴 수 있습니다."
-                    : "INFO 이미지에 읽히는 글자가 없어야 영상을 올릴 수 있습니다."}
+                    ? "설명 장면 이미지의 글자 확인을 통과해야 영상을 올릴 수 있습니다."
+                    : "설명 장면 이미지에 읽히는 글자가 없어야 영상을 올릴 수 있습니다."}
                 </p>
               ) : null}
               {video ? (

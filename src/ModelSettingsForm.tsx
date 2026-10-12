@@ -90,7 +90,7 @@ export function ModelSettingsForm({
             setTtsSelection(event.target.value === "manual" ? "manual" : "auto");
           }}
         >
-          <option value="auto">에이전트가 자동 선택</option>
+          <option value="auto">자동 선택</option>
           <option value="manual">내가 보이스 선택</option>
         </select>
       </Field>

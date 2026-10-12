@@ -108,6 +108,22 @@ const emphasisKinds = {
 function isPurpose(value: string): value is keyof typeof purposes {
   return value in purposes;
 }
+// 영상 상세의 대본 보기(문장 목록)가 쓰는 짧은 목적 라벨. 예전 문장·목적이 없는 문장은 빈 문자열.
+const sentenceLabels = {
+  hook: "도입",
+  pain: "고통",
+  story: "이야기",
+  mechanism: "원리",
+  proof: "근거",
+  offer: "혜택",
+  cta: "행동",
+  rehook: "다시 붙잡기",
+  problem: "문제",
+  solution: "장면",
+} as const satisfies Record<keyof typeof purposes, string>;
+export function sentenceLabel(purpose: string): string {
+  return isPurpose(purpose) ? sentenceLabels[purpose] : "";
+}
 // 대본 카드 머리글의 시각 정책 배지 문구. 정책이 없는 예전 대본은 빈 문자열(배지 없음).
 export function visualPolicyLabel(policy: VisualPolicyId | undefined): string {
   return policy ? policies[policy] : "";
@@ -141,8 +157,202 @@ type Props = {
   readonly busy: boolean;
   readonly onVoiceChange: (index: number, text: string) => void;
   readonly onCaptionChange: (index: number, text: string) => void;
+  // full: 문장 아래 컷 줄 + 컷별 섹션(전체, 기본) · lines: 문장 목록만 · cuts: 문장별로 묶은 컷 설계 한 벌
+  readonly layout?: "full" | "lines" | "cuts";
 };
-export function ScriptFields({
+export function ScriptFields(props: Props) {
+  if (props.layout === "lines") return <SentenceLines {...props} />;
+  if (props.layout === "cuts") return <CutDesign {...props} />;
+  return <FullFields {...props} />;
+}
+
+// 콜아웃 목록(문장 아래). 어절이 문장에서 사라지면 저장 규칙(hard)에 걸리므로 여기서 먼저 알린다.
+function CalloutList({
+  voice,
+  index,
+  onlyMissing = false,
+}: {
+  readonly voice: VideoScript["voiceover"][number];
+  readonly index: number;
+  readonly onlyMissing?: boolean;
+}) {
+  const items = onlyMissing
+    ? voice.callouts.filter((callout) => !calloutWordInText(callout.word, voice.text))
+    : voice.callouts;
+  if (items.length === 0) return null;
+  return (
+    <ul className="script-cuts" aria-label={`${index + 1}번째 문장의 콜아웃`}>
+      {items.map((callout) => {
+        const present = calloutWordInText(callout.word, voice.text);
+        return (
+          <li key={`${callout.kind}-${callout.anchor}-${callout.word}-${callout.text}`}>
+            <span className="script-cut-head">
+              콜아웃 · {callout.word} → {callout.text}
+              <span className="badge badge-neutral">{calloutKinds[callout.kind]}</span>
+              <span className="badge badge-neutral">{calloutAnchors[callout.anchor]}</span>
+              {!present && <span className="badge badge-danger">문장에 없는 어절</span>}
+            </span>
+            {!present && (
+              <span className="muted">
+                어절 "{callout.word}"가 문장에 없어 저장할 수 없습니다. 어절을 되살리거나 다시
+                쓰기로 콜아웃을 바꾸세요.
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+const rangeLabel = (range: readonly [number, number]) =>
+  `컷 ${range[0]}${range[1] !== range[0] ? `~${range[1]}` : ""}`;
+
+// 대본 보기: 문장 번호 · 목적 · 문장(15px). 고칠 수 있을 때는 문장 칸이 입력창이 된다.
+function SentenceLines({ script, original, voices, editable, busy, onVoiceChange }: Props) {
+  return (
+    <ol className="sentence-lines" aria-label="내레이션 문장">
+      {script.voiceover.map((voice, index) => {
+        const range = voiceCutRange(voice, script.cuts);
+        const label = sentenceLabel(voicePurposeOf(voice, script.cuts));
+        return (
+          <li className="sentence-line" key={original.voiceover[index]?.startSec ?? index}>
+            <span className="sentence-no">{index + 1}</span>
+            <span className="sentence-meta" title={range ? rangeLabel(range) : undefined}>
+              {label && <span className="sentence-purpose">{label}</span>}
+            </span>
+            <div className="sentence-body">
+              {editable ? (
+                <textarea
+                  className="script-line-input"
+                  readOnly={busy}
+                  rows={2}
+                  value={voices[index] ?? ""}
+                  aria-label={`${index + 1}번째 내레이션 문장`}
+                  onChange={(event) => onVoiceChange(index, event.target.value)}
+                />
+              ) : (
+                <p className="sentence-text">{voice.text}</p>
+              )}
+              <CalloutList voice={voice} index={index} onlyMissing />
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+// 컷 설계: 문장별로 컷을 묶어 한 벌만 보여 준다. 문장에 묶이지 않은 컷은 맨 아래 따로 모은다.
+function CutDesign({ script, captions, editable, busy, onCaptionChange }: Props) {
+  const hybrid = isHybrid(script);
+  const covered = new Set<number>();
+  const groups = script.voiceover.map((voice, index) => {
+    const range = voiceCutRange(voice, script.cuts);
+    const indexes: number[] = [];
+    if (range)
+      for (let cut = range[0]; cut <= range[1]; cut++)
+        if (script.cuts[cut]) {
+          indexes.push(cut);
+          covered.add(cut);
+        }
+    return { voice, index, range, indexes, purpose: voicePurposeOf(voice, script.cuts) };
+  });
+  const leftover = script.cuts.map((_, cut) => cut).filter((cut) => !covered.has(cut));
+  const renderCut = (cutIndex: number, purpose: string) => {
+    const cut = script.cuts[cutIndex];
+    if (!cut) return null;
+    return (
+      <li className="cut-item" key={cutIndex}>
+        <span className="script-cut-head">
+          컷 {cutIndex} · {cut.startSec}–{cut.endSec}초 · {sources[cut.source]}
+          {cut.veoClip && ` ${cut.veoClip}`}
+          {cut.stillId && ` ${cut.stillId}`}
+          <CutWorldBadge cut={cut} hybrid={hybrid} />
+          {cut.phase !== "" && (
+            <span className="badge badge-accent">{clipPhaseLabel(cut.phase)}</span>
+          )}
+          {purpose !== "" && cut.purpose !== purpose && cut.purpose !== "rehook" && (
+            <span className="badge badge-neutral">목적 {purposes[cut.purpose]}</span>
+          )}
+          {effects[cut.effect] && (
+            <span className="badge badge-neutral">{effects[cut.effect]}</span>
+          )}
+        </span>
+        <span className="cut-compose">{cut.screenComposition}</span>
+        {cut.goal && <span className="muted">이해 목표: {cut.goal}</span>}
+        {editable ? (
+          <label className="script-caption">
+            <span>자막</span>
+            <textarea
+              rows={2}
+              readOnly={busy}
+              aria-label={`컷 ${cutIndex} 자막`}
+              value={captions[cutIndex] ?? ""}
+              placeholder="없음"
+              maxLength={120}
+              onChange={(event) => onCaptionChange(cutIndex, event.target.value)}
+            />
+            {captions[cutIndex]?.trim() !== cut.onScreenText && (
+              <span className="script-caption-preview muted">
+                저장될 자막: {cut.onScreenText.replaceAll("\n", " / ") || "없음"}
+              </span>
+            )}
+          </label>
+        ) : (
+          cut.onScreenText && (
+            <span className="muted">자막: {cut.onScreenText.replace("\n", " / ")}</span>
+          )
+        )}
+        {cut.graphicLines.length > 0 && (
+          <span className="muted">
+            화면 글줄{cut.graphicKind ? `(${graphics[cut.graphicKind]})` : ""}:{" "}
+            {cut.graphicLines.join(" / ")}
+          </span>
+        )}
+      </li>
+    );
+  };
+  return (
+    <div className="cut-design">
+      {groups.map(({ voice, index, range, indexes, purpose }) => (
+        <section className="cut-group" key={`${index}-${voice.startSec}`}>
+          <header className="cut-group-head">
+            <span className="sentence-no">{index + 1}</span>
+            <span className="cut-group-text">{voice.text}</span>
+            <span className="cut-group-tags">
+              {sentenceLabel(purpose) && (
+                <span className="badge badge-neutral">{sentenceLabel(purpose)}</span>
+              )}
+              {voice.chainStep !== "" && (
+                <span className="badge badge-neutral">{CHAIN_STEP_LABELS[voice.chainStep]}</span>
+              )}
+              {range && <span className="sentence-range">{rangeLabel(range)}</span>}
+            </span>
+          </header>
+          <CalloutList voice={voice} index={index} />
+          {indexes.length > 0 && (
+            <ul className="cut-list" aria-label={`${index + 1}번째 문장의 컷`}>
+              {indexes.map((cutIndex) => renderCut(cutIndex, purpose))}
+            </ul>
+          )}
+        </section>
+      ))}
+      {leftover.length > 0 && (
+        <section className="cut-group">
+          <header className="cut-group-head">
+            <span className="cut-group-text muted">문장에 묶이지 않은 컷</span>
+          </header>
+          <ul className="cut-list" aria-label="문장에 묶이지 않은 컷">
+            {leftover.map((cutIndex) => renderCut(cutIndex, ""))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function FullFields({
   script,
   original,
   voices,
@@ -202,38 +412,7 @@ export function ScriptFields({
                 ) : (
                   <p className="script-line-text">{voice.text}</p>
                 )}
-                {voice.callouts.length > 0 && (
-                  <ul className="script-cuts" aria-label={`${index + 1}번째 문장의 콜아웃`}>
-                    {voice.callouts.map((callout) => {
-                      // 문장을 고쳐 어절이 사라지면 저장 규칙(hard)에 걸리므로 여기서 먼저 알린다.
-                      const present = calloutWordInText(callout.word, voice.text);
-                      return (
-                        <li
-                          key={`${callout.kind}-${callout.anchor}-${callout.word}-${callout.text}`}
-                        >
-                          <span className="script-cut-head">
-                            콜아웃 · {callout.word} → {callout.text}
-                            <span className="badge badge-neutral">
-                              {calloutKinds[callout.kind]}
-                            </span>
-                            <span className="badge badge-neutral">
-                              {calloutAnchors[callout.anchor]}
-                            </span>
-                            {!present && (
-                              <span className="badge badge-danger">문장에 없는 어절</span>
-                            )}
-                          </span>
-                          {!present && (
-                            <span className="muted">
-                              어절 "{callout.word}"가 문장에 없어 저장할 수 없습니다. 어절을
-                              되살리거나 다시 쓰기로 콜아웃을 바꾸세요.
-                            </span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
+                <CalloutList voice={voice} index={index} />
                 {range && (
                   <ul className="script-cuts" aria-label={`${index + 1}번째 문장의 컷`}>
                     {script.cuts.slice(range[0], range[1] + 1).map((cut, offset) => {

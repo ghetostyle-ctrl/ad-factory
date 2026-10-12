@@ -1,0 +1,627 @@
+/* UI v2 ⑤: 대본·영상 탭 — 영상 목록(마스터) + 영상 상세(디테일) · 스텝퍼 · 플레이어 · 토스트 (docs/UI-V2-2026-10-12.md 8-4절).
+   색은 토큰만 쓴다. 글자 12px 이상, 굵기 400/500/600 만. warning 면·손 아이콘은 '당신 차례' 요소(Flow 올리기 상자·승인 바·스텝)에만. */
+
+/* 마스터-디테일 */
+.video-split {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: var(--s5);
+  align-items: start;
+}
+.video-split:focus {
+  outline: none;
+}
+
+/* 영상 목록 */
+.video-list {
+  position: sticky;
+  top: calc(var(--header-height) + var(--s4));
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - var(--header-height) - var(--s8));
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.video-list-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s3);
+  height: 44px;
+  padding: 0 var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+.video-list-head h2 {
+  font-size: var(--text-sm);
+}
+.video-list-counts {
+  display: flex;
+  gap: var(--s3);
+  margin-left: auto;
+}
+.count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.count > i {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+}
+.count-done > i {
+  background: var(--success-fill);
+}
+.count-turn {
+  color: var(--warning);
+  font-weight: var(--weight-strong);
+}
+.count-turn > i {
+  background: var(--warning-fill);
+}
+.video-rows {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.video-rows > li + li {
+  border-top: 1px solid var(--line);
+}
+.video-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 60px;
+  padding: 5px 12px 5px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  text-align: left;
+  transition: var(--transition-colors);
+}
+.video-row:hover {
+  background: var(--sidebar-hover);
+}
+.video-row[aria-current="true"] {
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+.video-row[aria-current="true"]::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+.row-thumb {
+  display: block;
+  width: 28px;
+  height: 50px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--surface-sunken);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.row-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.row-thumb-empty {
+  background: var(--surface-soft);
+  border: 1px dashed var(--line-strong);
+  box-shadow: none;
+}
+.row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.row-title {
+  overflow: hidden;
+  font-weight: var(--weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-meta {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+.row-meta > * + *::before {
+  content: "·";
+  margin: 0 6px;
+  color: var(--faint);
+}
+.row-meta > .status-dot::before {
+  content: none;
+}
+.row-meta > .status-dot {
+  margin-left: 6px;
+}
+.row-state {
+  display: none;
+}
+.video-row.is-done .row-state {
+  display: inline-flex;
+}
+.video-list-hint {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 10px var(--s3);
+  border-top: 1px solid var(--line);
+  color: var(--faint);
+  font-size: var(--text-xs);
+}
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--surface-soft);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+/* 영상 상세 */
+.video-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-width: 0;
+}
+.video-detail:focus {
+  outline: none;
+}
+.vd-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s6);
+}
+.vd-title {
+  flex: 1;
+  min-width: 0;
+}
+.vd-eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.vd-eyebrow > * + *::before {
+  content: "·";
+  margin-right: 8px;
+  color: var(--faint);
+}
+.vd-title h2 {
+  margin: 3px 0 4px;
+  font-size: var(--text-xl);
+  letter-spacing: -0.025em;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.vd-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s4);
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.vd-actions {
+  display: flex;
+  flex: none;
+  gap: var(--s2);
+  align-items: center;
+  margin-left: auto;
+  padding-top: 2px;
+}
+.vd-actions .menu-pop {
+  right: 0;
+}
+.vd-empty {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+/* 스텝퍼 6단 */
+.stepper-card {
+  padding: 0 var(--s4);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.step {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+.step::after {
+  content: "";
+  flex: 1;
+  min-width: 8px;
+  height: 1px;
+  margin: 0 10px;
+  background: var(--line);
+}
+.step:last-child {
+  flex: none;
+}
+.step:last-child::after {
+  display: none;
+}
+.step-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+  color: var(--canvas);
+}
+.step-done {
+  color: var(--ink);
+}
+.step-done .step-mark {
+  background: var(--success-fill);
+  box-shadow: none;
+}
+.step-current {
+  color: var(--ink);
+}
+.step-current .step-mark {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.step-turn {
+  color: var(--warning);
+  font-weight: var(--weight-strong);
+}
+.step-turn .step-mark {
+  background: var(--warning-fill);
+  box-shadow: none;
+}
+
+/* 플레이어 + 대본 카드 */
+.vd-grid {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: var(--s5);
+  align-items: start;
+}
+.vd-player-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-width: 0;
+}
+.vd-player {
+  display: block;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  border-radius: var(--radius-media);
+  background: var(--canvas);
+  box-shadow: var(--shadow-media);
+  object-fit: contain;
+}
+.vd-player-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  padding: var(--s6);
+  border: 1px dashed var(--line-strong);
+  background: var(--surface-sunken);
+  box-shadow: none;
+  text-align: center;
+}
+.vd-player-empty p {
+  max-width: 24ch;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.vd-player-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+.vd-player-links .disclosure > summary {
+  min-height: 32px;
+  font-size: var(--text-sm);
+}
+.link-button {
+  align-self: flex-start;
+  min-height: 32px;
+  padding: 0 var(--s2);
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-button:hover {
+  color: var(--accent-ink);
+}
+
+/* 대본 카드 아래 접힘 행(제작 소스·타겟과 메시지·렌더 보고·다시 조립 기록·내레이션) */
+.card-fold {
+  border-top: 1px solid var(--line);
+}
+.card-fold .disclosure > summary {
+  gap: 10px;
+  min-height: var(--touch);
+  padding: 0 var(--s4);
+  border-radius: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+.card-fold .disclosure > summary > svg {
+  color: var(--faint);
+}
+.card-fold .disclosure-plain > .disclosure-body {
+  padding: var(--s2) var(--s4) var(--s4);
+}
+.fold-title {
+  flex: none;
+  font-weight: var(--weight-strong);
+}
+.fold-sub {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--faint);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fold-aside {
+  flex: none;
+  margin-left: auto;
+}
+.fold-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.fold-state > i {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1.5px var(--line-control);
+}
+.fold-state > i.is-ok {
+  background: var(--success-fill);
+  box-shadow: none;
+}
+.card-fold .flow-panel {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+.history-list > .history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+/* 토스트: 하단 중앙, ink 바탕 */
+.toast-host {
+  position: fixed;
+  bottom: var(--s16);
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  width: min(360px, calc(100% - var(--s8)));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.toast {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--ink);
+  box-shadow: var(--shadow-pop);
+  color: var(--canvas);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  animation: toast-in var(--motion-normal) var(--ease);
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+/* 사이드바가 남아 있는 좁은 화면(상세 폭 약 600px 아래): 스텝퍼는 3칸씩 두 줄 */
+@media (max-width: 1160px) {
+  .stepper {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--s3) var(--s2);
+    padding: var(--s3) 0;
+  }
+  .step {
+    white-space: normal;
+  }
+  .step::after {
+    display: none;
+  }
+}
+@media (max-width: 1100px) {
+  .vd-grid {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+}
+/* 가로 칩 행으로 바뀌는 구간: 목록이 위로 올라가고 상세는 한 열 */
+@media (max-width: 900px) {
+  .video-split {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s4);
+  }
+  .video-list {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .video-list-head,
+  .video-list-hint {
+    display: none;
+  }
+  .video-rows {
+    display: flex;
+    gap: var(--s2);
+    padding: 2px 2px var(--s1);
+    overflow: auto hidden;
+  }
+  .video-rows > li {
+    flex: none;
+  }
+  .video-rows > li + li {
+    border-top: 0;
+  }
+  .video-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-height: var(--touch);
+    padding: 0 var(--s3);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-card);
+    white-space: nowrap;
+  }
+  .video-row[aria-current="true"] {
+    background: var(--surface-soft);
+    box-shadow: 0 0 0 1px var(--accent-line);
+  }
+  .video-row[aria-current="true"]::before {
+    content: none;
+  }
+  .row-thumb,
+  .row-title {
+    display: none;
+  }
+  .row-meta > * + *::before {
+    content: none;
+  }
+  .row-meta > :not(.row-k) {
+    display: none;
+  }
+  .row-k {
+    color: var(--ink);
+    font-size: var(--text-sm);
+  }
+  .video-row .row-state {
+    display: inline-flex;
+  }
+  .vd-head {
+    flex-wrap: wrap;
+    gap: var(--s3);
+  }
+  .vd-actions {
+    margin-left: 0;
+  }
+  .vd-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .vd-player-col {
+    max-width: 300px;
+  }
+}
+@media (max-width: 760px) {
+  .vd-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .vd-actions .button {
+    min-height: var(--touch);
+  }
+  .vd-actions .button-icon {
+    width: var(--touch);
+  }
+  .link-button,
+  .vd-player-links .disclosure > summary {
+    min-height: var(--touch);
+  }
+  /* 완성본이 아직 없으면 9:16 빈 자리가 첫 화면을 다 차지해 대본·승인이 두 화면 아래로 밀린다 — 낮게 접는다 */
+  .vd-player-empty {
+    aspect-ratio: auto;
+    min-height: 120px;
+    padding-block: var(--s4);
+  }
+  .script-card-head .segmented > button {
+    min-width: var(--touch);
+    justify-content: center;
+  }
+  /* 토스트·sticky 승인 바가 하단 탭 바와 겹치는 문제는 mobile.css 가 맡는다(본문이 탭 바 위에서 스크롤). */
+}

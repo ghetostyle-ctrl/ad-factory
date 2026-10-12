@@ -132,7 +132,7 @@ export function AutomationSetup({
   };
   return (
     <Dialog
-      title="소재 자동 제작"
+      title="시작 설정"
       description="영상은 대본·컷·필요 소스를 먼저 설계한 뒤 이미지를 제작하고, 내레이션·Veo 클립·모션그래픽을 조립해 완성합니다."
       onClose={onClose}
     >
@@ -216,7 +216,7 @@ export function AutomationSetup({
                     onChange={() => setClipMode("api")}
                   />
                   <span>
-                    <strong>Veo API 자동</strong>
+                    <strong>자동(API 요금)</strong>
                     <br />
                     <small className="muted">
                       Gemini API 키로 클립을 자동 생성합니다. 클립 1개(8초)당 약 US$
@@ -232,7 +232,7 @@ export function AutomationSetup({
                     onChange={() => setClipMode("flow")}
                   />
                   <span>
-                    <strong>Google Flow 수동(웹 구독 크레딧)</strong>
+                    <strong>Google Flow(내 구독 크레딧, 직접 올림)</strong>
                     <br />
                     <small className="muted">
                       Veo API를 부르지 않아 API 사용료와 Gemini 키가 필요 없습니다. Google AI Pro
@@ -301,7 +301,14 @@ export function AutomationSetup({
                     <option value="720p">720p (업스케일)</option>
                   </select>
                 </Field>
-                <Field label="BGM" help="assets/bgm 라이브러리에서 가설 단계별 무드로 고릅니다.">
+                <Field
+                  label="배경음악"
+                  help={
+                    bgmMode === "none"
+                      ? "배경음악: 넣지 않음"
+                      : "배경음악: 자동 선택 · 라이브러리가 비어 있으면 넣지 않아요"
+                  }
+                >
                   <select
                     value={bgmMode}
                     onChange={(event) =>
@@ -424,7 +431,7 @@ export function AutomationSetup({
           </Button>
           <Button type="submit" variant="primary" pending={pending} disabled={!confirmed}>
             <Play size={15} />
-            소재 제작 시작
+            시작
           </Button>
         </div>
       </form>

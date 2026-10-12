@@ -21,8 +21,10 @@ import { jobRoutes } from "./job-routes";
 import { logger } from "./logger";
 import { saveModelSettings } from "./model-settings";
 import { Pipeline } from "./pipeline";
+import { servePoster } from "./poster";
 import { projectRoutes } from "./project-routes";
 import { ProjectStore } from "./project-store";
+import type { FfmpegRunner } from "./render/ffmpeg";
 import { installStatic } from "./static";
 import type { JobStore } from "./store";
 import { SuiteApps, type SuiteAppsOptions } from "./suite-apps";
@@ -32,6 +34,8 @@ export type AppOptions = {
   readonly instructions?: InstructionsOptions;
   // AD 스위트 다른 앱 찾기·켜기(테스트가 포트 검사·실행을 주입한다).
   readonly suite?: SuiteAppsOptions;
+  // 완성 영상 포스터 추출기(테스트가 ffmpeg 호출 횟수를 세려고 주입한다). 기본은 runFfmpeg.
+  readonly poster?: { readonly runner?: FfmpegRunner };
 };
 export function createApp(
   store: JobStore,
@@ -144,6 +148,16 @@ export function createApp(
     engine.wakeBlocked();
     return c.json(configStatus(store.root));
   });
+  // 완성 영상 포스터(JPG, 읽기 전용). jobRoutes 의 '/:id/*' 변경 뮤텍스를 타지 않도록 그보다 먼저 등록한다.
+  app.get("/api/jobs/:id/videos/:n/poster.jpg", (c) =>
+    servePoster({
+      store,
+      assets: pipeline.assets,
+      jobId: c.req.param("id"),
+      n: c.req.param("n"),
+      ...(options.poster?.runner ? { runner: options.poster.runner } : {}),
+    }),
+  );
   app.route("/api/jobs", jobRoutes(store, pipeline, engine));
   app.route("/api/projects", projectRoutes(library, store.root));
   app.get("/api/events", (c) =>

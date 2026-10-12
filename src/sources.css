@@ -10,7 +10,7 @@
 }
 .source-library-tabs .button[aria-pressed="true"] {
   background: var(--accent-soft);
-  border-color: var(--accent-line);
+  border-color: var(--accent-ink);
   color: var(--accent-ink);
 }
 .source-record-title {
@@ -35,7 +35,7 @@
 }
 .source-details summary,
 .evidence-details summary {
-  color: var(--accent);
+  color: var(--accent-ink);
   cursor: pointer;
   font-size: var(--text-sm);
 }
@@ -43,6 +43,20 @@
   .evidence-details summary {
     min-height: var(--touch);
     padding-block: var(--s3);
+  }
+  /* 자료 카드: 접기 요약·수정 버튼·상세 안 단독 링크를 손가락 크기(44px)로. 문장 속 링크는 그대로 둔다. */
+  .source-details summary {
+    display: flex;
+    align-items: center;
+    min-height: var(--touch);
+  }
+  .source-record-heading .button {
+    min-height: var(--touch);
+  }
+  .source-details .stack > a {
+    display: flex;
+    align-items: center;
+    min-height: var(--touch);
   }
 }
 .source-details > div,

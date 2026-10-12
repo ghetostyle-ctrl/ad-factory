@@ -1,6 +1,29 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
+import { useStudio } from "./api";
+import { FinishedVideos } from "./FinishedVideos";
 import { Button, Dialog, Field, Notice, StatusBadge } from "./primitives";
+
+// 완성 영상 뷰(사이드바 '완성 영상')를 실제 작업 데이터로 그려 보는 확인용 섹션. App 연결 전 화면 확인에 쓴다.
+function FinishedVideosDemo() {
+  const { state, loading } = useStudio();
+  const [opened, setOpened] = useState<string | null>(null);
+  return (
+    <section className="stack" aria-label="완성 영상 · 실제 작업 데이터">
+      <h2>Finished videos · 실제 작업 데이터</h2>
+      {loading || !state ? (
+        <Notice>작업 목록을 불러오고 있습니다…</Notice>
+      ) : (
+        <FinishedVideos
+          jobs={state.jobs}
+          onOpen={(jobId, number) => setOpened(`작업 ${jobId.slice(0, 8)} · 영상 ${number}`)}
+        />
+      )}
+      {opened && <p className="muted">onOpen 호출: {opened}</p>}
+    </section>
+  );
+}
+
 export function Showcase() {
   const [open, setOpen] = useState(false);
   return (
@@ -65,9 +88,10 @@ export function Showcase() {
         </div>
       </section>
       <section className="panel empty-small">
-        <h3>아직 생성된 결과물이 없어요</h3>
-        <p>에이전트가 작업을 마치면 실제 파일이 이곳에 모입니다.</p>
+        <h3>아직 파일이 없어요</h3>
+        <p>작업이 끝나면 실제 파일이 이곳에 모입니다.</p>
       </section>
+      <FinishedVideosDemo />
       {open && (
         <Dialog
           title="작업 설정"

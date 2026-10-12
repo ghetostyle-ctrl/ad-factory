@@ -51,10 +51,12 @@
   }
 }
 
+/* 기획 선택·대본 초안 같은 처리 패널은 평범한 패널이다(노란 면·선은 지금 할 일 카드에만) */
 .plan-choice {
-  border: 1px solid var(--warning-line);
+  border: 0;
   border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow-card);
   padding: var(--s5);
   min-width: 0;
 }

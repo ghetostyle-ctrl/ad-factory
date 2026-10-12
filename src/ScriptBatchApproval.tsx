@@ -17,9 +17,12 @@ function showScript(number?: number) {
 export function ScriptBatchApproval({
   job,
   onRefresh,
+  onShowScript = showScript,
 }: {
   readonly job: Job;
   readonly onRefresh: () => void;
+  // 대본 카드는 대본·영상 탭에만 있다. 개요 탭에서는 호출한 쪽이 탭을 옮겨 해당 대본을 연다.
+  readonly onShowScript?: (number?: number) => void;
 }) {
   const [summary, setSummary] = useState<ScriptApprovalSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +119,7 @@ export function ScriptBatchApproval({
             ? "대본 승인 중…"
             : `모든 대본 승인${eligible.length ? ` (${eligible.length}개)` : ""}`}
         </Button>
-        <Button onClick={() => showScript()}>
+        <Button onClick={() => onShowScript()}>
           <List size={15} aria-hidden="true" />
           대본 목록 보기
         </Button>
@@ -142,7 +145,7 @@ export function ScriptBatchApproval({
                 {item.problems.map((problem) => (
                   <p key={problem}>{problem}</p>
                 ))}
-                <Button size="sm" onClick={() => showScript(item.number)}>
+                <Button size="sm" onClick={() => onShowScript(item.number)}>
                   {item.number}번 대본 보기
                 </Button>
               </div>

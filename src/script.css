@@ -131,3 +131,246 @@
   grid-column: 2;
   white-space: pre-line;
 }
+
+/* ───── UI v2 ⑤ 대본 카드: 문장 목록 · 컷 설계 · 수정 모드 · 하단 승인 바 (docs/UI-V2-2026-10-12.md 8-4절) ───── */
+.script-card {
+  min-width: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.script-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  min-height: 52px;
+  padding: var(--s2) var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+.script-card-head h2 {
+  font-size: var(--text-md);
+}
+.card-sub {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.card-spacer {
+  flex: 1;
+}
+.seg-count {
+  color: var(--faint);
+}
+.script-card-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4) 0;
+}
+/* 노란 면은 '당신 차례' 요소에만: 카드 안 경고 안내는 평범한 면으로 낮춘다 */
+.script-card .notice-warning {
+  border-color: var(--line);
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+.script-card .notice-warning > svg {
+  color: var(--muted);
+}
+.script-notes {
+  border-top: 1px solid var(--line);
+}
+.script-notes > summary,
+.rewrite-box > summary {
+  min-height: var(--touch);
+  padding: 0 var(--s4);
+  border-radius: 0;
+  color: var(--ink);
+}
+.script-notes > .disclosure-body,
+.rewrite-box > .disclosure-body {
+  padding: var(--s2) var(--s4) var(--s4);
+}
+.rewrite-box {
+  border-top: 1px solid var(--line);
+}
+.script-card-note {
+  padding: var(--s3) var(--s4);
+  border-top: 1px solid var(--line);
+}
+.script-card-body {
+  padding: var(--s1) 0;
+}
+
+/* 대본 보기: 번호 · 목적 · 문장(15px) */
+.sentence-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sentence-line {
+  display: grid;
+  grid-template-columns: 24px 56px minmax(0, 1fr);
+  gap: var(--s3);
+  align-items: baseline;
+  padding: 11px var(--s4);
+  border-top: 1px solid var(--line);
+}
+.sentence-line:first-child {
+  border-top: 0;
+}
+.sentence-no {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.sentence-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.sentence-range {
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+.sentence-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-width: 0;
+}
+.sentence-text {
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: 1.6;
+}
+
+/* 컷 설계: 문장별로 컷을 묶는다 */
+.cut-design {
+  display: flex;
+  flex-direction: column;
+}
+.cut-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  border-top: 1px solid var(--line);
+}
+.cut-group:first-child {
+  border-top: 0;
+}
+.cut-group-head {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: var(--s3);
+  align-items: baseline;
+}
+.cut-group-text {
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  line-height: 1.5;
+}
+.cut-group-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.cut-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0 0 0 36px;
+  padding: 0 0 0 var(--s3);
+  border-left: 2px solid var(--line);
+  list-style: none;
+}
+.cut-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.cut-compose {
+  color: var(--ink);
+}
+.cut-item .script-cut-head {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+/* 수정 모드 하단 바(저장 · 다시 쓰기 · 승인): 카드 아래쪽에 붙어 스크롤해도 보인다 */
+.script-bar {
+  min-width: 0;
+  margin: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: center;
+  justify-content: flex-end;
+  padding: var(--s3) var(--s4);
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--surface);
+}
+/* 노란 면은 내가 승인할 차례일 때만 */
+.script-bar.is-turn {
+  border-top-color: var(--warning-line);
+  background: linear-gradient(var(--warning-soft), var(--warning-soft)), var(--surface);
+}
+.script-bar-msg {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  .script-warnings summary {
+    display: flex;
+    align-items: center;
+    min-height: var(--touch);
+  }
+  .sentence-line {
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: var(--s1) var(--s3);
+  }
+  .sentence-no {
+    grid-row: 1 / span 2;
+  }
+  .sentence-meta {
+    flex-direction: row;
+    gap: var(--s2);
+    grid-column: 2;
+  }
+  .sentence-body {
+    grid-column: 2;
+  }
+  .cut-group-head {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+  .cut-group-tags {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+  .cut-list {
+    margin-left: 0;
+  }
+  .script-bar .button {
+    min-height: var(--touch);
+  }
+  .script-card-head .button,
+  .script-card-head .segmented > button {
+    min-height: var(--touch);
+  }
+}

@@ -1,0 +1,349 @@
+/* UI v2 ⑥-B: 모바일 셸 — 앱바 56px · 바텀 시트 · 하단 탭 바 60px (docs/UI-V2-2026-10-12.md 4절·8-5절).
+   ≤760px 에서만 셸이 바뀌고 ≥761px 은 사이드바 + 상단 바 그대로다. 색·크기는 토큰만, 글자 12px 이상·굵기 400/500/600,
+   터치 대상은 44px 이상, 움직임은 prefers-reduced-motion 을 따른다. 이 파일은 App.tsx 에서 마지막에 불러온다. */
+
+.mobile-appbar,
+.bottom-tabbar {
+  display: none;
+}
+
+/* 바텀 시트(<dialog>): 메뉴 · 작업 선택. 앱바가 보이는 좁은 화면에서만 열린다. */
+.sheet {
+  inset: auto 0 0 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 85dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.sheet::backdrop {
+  background: var(--overlay);
+}
+.sheet[open] {
+  animation: sheet-in var(--motion-normal) var(--ease);
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s2) var(--s3) 0;
+}
+.sheet-handle {
+  flex: none;
+  width: 36px;
+  height: 4px;
+  margin: var(--s1) auto var(--s3);
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+.sheet-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--touch);
+  margin-top: var(--s2);
+  padding: 0 var(--s3);
+  border-top: 1px solid var(--line);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.sheet-heading > button {
+  display: grid;
+  place-items: center;
+  width: var(--touch);
+  height: var(--touch);
+  margin-right: calc(-1 * var(--s3));
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+}
+.sheet-heading > button:hover {
+  background: var(--sidebar-hover);
+  color: var(--ink);
+}
+/* 시트가 길어 스크롤돼도 닫기 줄은 아래에 붙어 있다 */
+.sheet-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-top: var(--s2);
+  padding: var(--s2) 0 calc(var(--s4) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.sheet-foot .local-note {
+  padding: 0;
+  font-size: var(--text-xs);
+}
+.sheet .workspace-switcher {
+  margin-bottom: var(--s2);
+}
+.sheet .workspace-switcher.is-inline .workspace-menu {
+  position: static;
+  margin-top: var(--s1);
+  box-shadow: none;
+}
+.sheet .nav-item {
+  min-height: 48px;
+  padding: 0 var(--s3);
+  font-size: var(--text-md);
+}
+.sheet .nav-item > svg {
+  width: 20px;
+  height: 20px;
+}
+.sheet .nav-later {
+  margin-top: var(--s2);
+}
+.sheet .nav-item.is-later {
+  min-height: var(--touch);
+  font-size: var(--text-sm);
+}
+.sheet .sidebar-jobs {
+  flex: none;
+  min-height: 0;
+  overflow: visible;
+}
+.sheet .sidebar-job {
+  min-height: 48px;
+  padding: 10px var(--s3);
+}
+.sheet .job-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet[open] {
+    animation: none;
+  }
+}
+
+@media (max-width: 760px) {
+  /* 셸: 앱바(위) · 본문(스크롤) · 하단 탭 바(아래)의 세 줄. 본문 안에서만 스크롤하므로 sticky 승인 바는 탭 바 바로 위에 붙는다. */
+  .app-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .sidebar {
+    display: none;
+  }
+  .main-shell {
+    grid-row: 2;
+    overscroll-behavior-y: contain;
+  }
+  .mobile-appbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    grid-row: 1;
+    align-items: center;
+    gap: var(--s1);
+    height: 56px;
+    padding: 0 var(--s1) 0 var(--s2);
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .appbar-home {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: var(--touch);
+    height: var(--touch);
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+  }
+  .appbar-tile {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-strong);
+    letter-spacing: 0;
+  }
+  .appbar-title {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    min-height: var(--touch);
+    padding: 0 var(--s2);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink);
+    font-size: var(--text-md);
+    font-weight: var(--weight-strong);
+    line-height: 1.25;
+    text-align: left;
+  }
+  .appbar-title > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow-wrap: anywhere;
+  }
+  .appbar-title > svg {
+    color: var(--faint);
+  }
+  button.appbar-title:hover,
+  .appbar-icon:hover,
+  .appbar-home:hover {
+    background: var(--surface-soft);
+  }
+  .appbar-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: var(--touch);
+    height: var(--touch);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-2);
+  }
+
+  .bottom-tabbar {
+    position: relative;
+    z-index: 20;
+    display: grid;
+    grid-row: 3;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    height: calc(60px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .bottom-tab {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: var(--faint);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+    transition: var(--transition-colors);
+  }
+  .bottom-tab:active {
+    background: var(--surface-soft);
+  }
+  .bottom-tab[aria-current="page"] {
+    color: var(--ink);
+    font-weight: var(--weight-strong);
+  }
+  .bottom-tab[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    right: 22%;
+    left: 22%;
+    height: 2px;
+    border-radius: 0 0 2px 2px;
+    background: var(--ink);
+  }
+  /* 아래쪽 고정 요소는 탭 바(60px)를 피한다: 토스트는 탭 바 위로, 탭 바가 없으면 화면 아래 16px */
+  .toast-host {
+    bottom: calc(var(--s4) + env(safe-area-inset-bottom));
+  }
+  .bottom-tabbar ~ .toast-host {
+    bottom: calc(60px + var(--s4) + env(safe-area-inset-bottom));
+  }
+
+  /* 탭은 하단 바가 맡는다. 앱바가 화면·작업 이름을 보여 주므로 큰 제목(작업 머리·화면 머리)은 화면낭독기용으로만 남긴다. */
+  .job-tabs {
+    display: none;
+  }
+  /* 탭 줄이 숨겨지면 작업 머리와 본문 사이 여백(탭 줄의 위아래 마진)도 함께 사라져 카드가 맞닿는다 */
+  .job-header {
+    margin-bottom: var(--s4);
+  }
+  .page-heading h1,
+  .job-header .job-title h1 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  /* 작업 공간 밖 화면(자료 라이브러리·완성 영상 등): 화면 이름은 앱바가 보여 주므로 큰 제목·위 라벨은 화면낭독기용으로만 남긴다 */
+  .page-heading .eyebrow {
+    display: none;
+  }
+  /* 개요 밖 탭에서는 작업 머리를 줄여 본문이 첫 화면에 들어오게 한다(설정 칩·범례 숨김) */
+  .job-head-compact .tag-row,
+  .job-head-compact .progress-legend {
+    display: none;
+  }
+  .job-head-compact .job-progress {
+    padding-block: var(--s2);
+  }
+  .workspace-body {
+    padding-top: var(--s4);
+  }
+  /* 승인 바: 좁은 화면에서는 안내를 윗줄에, 버튼을 아랫줄에 둔다 */
+  .script-bar-msg {
+    flex: 1 1 100%;
+  }
+  .script-bar .button {
+    flex: 1 1 auto;
+  }
+  /* 앱바는 스크롤 바깥이라 앵커로 이동할 때 비워 둘 위쪽 여백이 작다 */
+  .anchor,
+  [id^="video-script-"] {
+    scroll-margin-top: var(--s4);
+  }
+  .skip-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch);
+  }
+}

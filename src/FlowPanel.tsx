@@ -1,4 +1,4 @@
-import { Copy, Download, ExternalLink, Upload } from "lucide-react";
+import { Copy, Download, ExternalLink, FileText, Play, Upload } from "lucide-react";
 import { type DragEvent, useEffect, useRef, useState } from "react";
 import {
   FLOW_CLIP_MAX_BYTES,
@@ -11,10 +11,12 @@ import {
 import type { ClipId } from "../shared/render-state";
 import type { Job } from "../shared/schema";
 import { scriptDigestOf } from "../shared/script-approval";
+import { flowClipUiState } from "../shared/ui-state";
 import { type VideoScript, videoPolicyOf } from "../shared/video-script";
 import { api, errorMessage } from "./api";
 import { FlowInfoClips } from "./FlowInfoClips";
-import { Button, Notice } from "./primitives";
+import { Button, Disclosure, Notice, StatusDot } from "./primitives";
+import { toast } from "./toast-store";
 import "./flow.css";
 
 // Flow 모드 대본 카드 섹션: 클립 A~D 마다 시작 이미지·Veo 프롬프트·업로드 상태. 클립은 사용자(또는 브라우저 에이전트)가
@@ -27,9 +29,17 @@ type ExportState =
   | { readonly kind: "ready"; readonly data: FlowExportPreview }
   | { readonly kind: "error"; readonly message: string };
 
-export function FlowPanel({ job, script }: { readonly job: Job; readonly script: VideoScript }) {
+export function FlowPanel({
+  job,
+  script,
+  turn = false,
+}: {
+  readonly job: Job;
+  readonly script: VideoScript;
+  // 내가 올릴 차례(Flow 클립 대기)일 때만 노란 면으로 보여 준다.
+  readonly turn?: boolean;
+}) {
   const [ui, setUi] = useState<Partial<Record<ClipId, ClipUi>>>({});
-  const [copied, setCopied] = useState<string | null>(null);
   const [exported, setExported] = useState<ExportState>({ kind: "loading" });
   const number = script.number;
   const render = job.renders.find((item) => item.number === number);
@@ -91,25 +101,36 @@ export function FlowPanel({ job, script }: { readonly job: Job; readonly script:
   };
   const copy = (id: string, text: string) => {
     void navigator.clipboard.writeText(text).then(
-      () => setCopied(id),
-      () => setCopied(null),
+      () => toast(`클립 ${id} 프롬프트를 복사했습니다.`),
+      () => toast("복사하지 못했습니다. 프롬프트를 직접 선택해 주세요."),
     );
   };
   return (
-    <section className="stack final-section flow-panel" aria-label={`영상 ${number} Flow 클립`}>
+    <section
+      className={`stack flow-panel ${turn ? "is-turn" : ""}`}
+      aria-label={`영상 ${number} Flow 클립`}
+    >
       <div className="flow-heading">
         <h4>
           Google Flow 클립 · {total - pending.length}/{total}
         </h4>
-        <a href={FLOW_URL} target="_blank" rel="noreferrer" className="flow-link">
-          Flow 열기
-          <ExternalLink size={14} aria-hidden="true" />
-        </a>
+        <div className="flow-links">
+          {exportMarkdown && (
+            <a href={exportMarkdown.url} target="_blank" rel="noreferrer" className="flow-link">
+              <FileText size={14} aria-hidden="true" />
+              영상 {number} Flow 지시서 보기
+            </a>
+          )}
+          <a href={FLOW_URL} target="_blank" rel="noreferrer" className="flow-link">
+            Flow 열기
+            <ExternalLink size={14} aria-hidden="true" />
+          </a>
+        </div>
       </div>
       {hfLabels ? (
         <Notice tone="warning">
-          CLEAN·INFO 확인 후 글자 없는 Veo 원본을 올리면 HyperFrames가 03 라벨·연결선을 자동
-          합성합니다. 앵커는 계획 좌표이므로 완성본에서 대상 일치와 모바일 가독성을 확인하세요.
+          설명 라벨은 업로드 뒤 자동으로 합성됩니다. 완성본에서 대상 위치와 모바일 가독성을
+          확인하세요.
         </Notice>
       ) : pending.length > 0 ? (
         <Notice tone="warning">
@@ -123,18 +144,6 @@ export function FlowPanel({ job, script }: { readonly job: Job; readonly script:
       ) : (
         <p className="muted small-copy">이 영상의 Flow 클립이 모두 올라왔습니다.</p>
       )}
-      <p className="muted small-copy">
-        Flow 화면 조작 순서는 실제 화면에서 확인된 적이 없어 미검증입니다. 절차는 FLOW-MODE.md,
-        내보내기 파일은{" "}
-        {exportMarkdown ? (
-          <a href={exportMarkdown.url} target="_blank" rel="noreferrer">
-            {exportMarkdown.name}
-          </a>
-        ) : (
-          "시작 이미지가 만들어진 뒤 생성됩니다"
-        )}
-        를 보세요.
-      </p>
       {exported.kind === "loading" && (
         <p className="muted small-copy">Flow 프롬프트를 서버에서 읽는 중…</p>
       )}
@@ -162,7 +171,6 @@ export function FlowPanel({ job, script }: { readonly job: Job; readonly script:
               attempts={state?.attempts ?? 0}
               status={status}
               canUpload={canUpload}
-              copied={copied === clip.id}
               onCopy={() => copy(clip.id, clip.prompt)}
               onUpload={(file) => {
                 void upload(clip.id, file);
@@ -180,8 +188,7 @@ export function FlowPanel({ job, script }: { readonly job: Job; readonly script:
           void upload(id, file);
         }}
       />
-      <details className="evidence-details">
-        <summary>명령줄로 내보내기·업로드</summary>
+      <Disclosure variant="plain" summary="고급 · 명령줄로 내보내기·올리기">
         <div className="stack">
           <p className="mono small-copy">
             bun run flow export {job.id} {number}
@@ -190,7 +197,7 @@ export function FlowPanel({ job, script }: { readonly job: Job; readonly script:
             bun run flow import {job.id} {number} A &lt;내려받은-파일-경로&gt;
           </p>
         </div>
-      </details>
+      </Disclosure>
     </section>
   );
 }
@@ -206,7 +213,6 @@ function FlowClipCard({
   attempts,
   status,
   canUpload,
-  copied,
   onCopy,
   onUpload,
 }: {
@@ -220,14 +226,12 @@ function FlowClipCard({
   readonly attempts: number;
   readonly status: ClipUi;
   readonly canUpload: boolean;
-  readonly copied: boolean;
   readonly onCopy: () => void;
   readonly onUpload: (file: File) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
-  const label = status.error ? "검증 실패" : videoUrl ? `업로드됨 · ${attempts}번째` : "대기";
-  const tone = status.error ? "danger" : videoUrl ? "success" : "neutral";
+  const uiState = flowClipUiState(Boolean(videoUrl), Boolean(status.error));
   const drop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setOver(false);
@@ -237,29 +241,46 @@ function FlowClipCard({
   return (
     <li className="flow-clip">
       <div className="flow-thumb">
-        {videoUrl ? (
-          <video preload="metadata" muted controls src={videoUrl}>
-            <track kind="captions" />
-          </video>
-        ) : startUrl ? (
+        {startUrl ? (
           <img src={startUrl} alt={`클립 ${id} 시작 이미지`} loading="lazy" />
         ) : (
           <div className="card-slide-pending">시작 이미지 대기</div>
+        )}
+        {videoUrl && (
+          // 클립 재생기를 화면에 늘어놓지 않고, 올린 클립은 새 탭에서 본다.
+          <a
+            className="clip-play"
+            href={videoUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`클립 ${id} 새 탭에서 재생`}
+          >
+            <Play size={10} fill="currentColor" strokeWidth={0} aria-hidden="true" />
+            재생
+          </a>
         )}
       </div>
       <div className="stack flow-body">
         <div className="flow-clip-heading">
           <strong>클립 {id}</strong>
-          <span className={`badge badge-${tone}`}>{label}</span>
+          <span className="flow-clip-state">
+            <StatusDot state={uiState} />
+            {videoUrl && attempts > 0 && (
+              <span className="muted small-copy">{attempts}번째 올림</span>
+            )}
+          </span>
         </div>
-        <p className="muted small-copy">
-          {model} · 9:16 · 8초 · 내려받을 파일 이름 {outputFile}
-        </p>
-        <pre className="flow-prompt">{prompt}</pre>
+        <p className="muted small-copy">{model} · 9:16 · 8초</p>
+        <Disclosure variant="plain" summary="프롬프트 보기">
+          <div className="stack-tight">
+            <pre className="flow-prompt">{prompt}</pre>
+            <p className="muted small-copy">내려받을 파일 이름 {outputFile}</p>
+          </div>
+        </Disclosure>
         <div className="cluster">
           <Button size="sm" onClick={onCopy}>
             <Copy size={14} aria-hidden="true" />
-            {copied ? "복사됨" : "프롬프트 복사"}
+            프롬프트 복사
           </Button>
           {startUrl && (
             <a

@@ -1,54 +1,50 @@
-import { Activity, ArrowUpRight, Radio } from "lucide-react";
-import type { Job } from "../shared/schema";
-import { agentMeta } from "./agentMeta";
-import { timeLabel } from "./api";
+import { Activity, Radio } from "lucide-react";
+import type { ActivityEvent, Job } from "../shared/schema";
+import { EventRow, groupEvents } from "./ActivityLog";
 
-export function ActivityRail({ job, live }: { readonly job: Job | null; readonly live: boolean }) {
-  const events = job?.events.slice().reverse() ?? [];
+const RAIL_ROWS = 7;
+// 레일에는 완성·확인할 점·당신 차례 신호만 올린다. 진행 로그(info)는 사용자가 움직일 일이 있는 말만 통과한다.
+const ACTION_WORDS = /완성|올려|업로드|승인|대기/u;
+export function isRailEvent(event: ActivityEvent): boolean {
+  return event.kind !== "info" || ACTION_WORDS.test(event.message);
+}
+
+export function ActivityRail({
+  job,
+  live,
+  onOpenLog,
+}: {
+  readonly job: Job;
+  readonly live: boolean;
+  readonly onOpenLog: () => void;
+}) {
+  const recent = groupEvents(job.events.filter(isRailEvent).reverse()).slice(0, RAIL_ROWS);
   return (
-    <aside className="activity-rail" aria-label="실행 기록">
-      <div className="spread activity-heading">
-        <h2>실행 기록</h2>
+    <aside className="activity-rail" aria-label="최근 기록">
+      <div className="rail-head">
+        <h2>최근 기록</h2>
         <span className={`stream-status ${live ? "connected" : ""}`}>
-          <Radio size={12} />
+          <Radio size={14} strokeWidth={1.75} aria-hidden="true" />
           {live ? "실시간" : "연결 대기"}
         </span>
       </div>
-      <p className="rail-description">에이전트의 실행과 결과를 확인하세요.</p>
-      {events.length > 0 ? (
-        <ol className="activity-list">
-          {events.map((event) => (
-            <li className={`activity-item activity-${event.kind}`} key={event.id}>
-              <span className="event-mark" aria-hidden="true" />
-              <div>
-                <div className="spread">
-                  <strong>{event.agentId ? agentMeta[event.agentId].title : "작업"}</strong>
-                  <time dateTime={event.at}>{timeLabel(event.at)}</time>
-                </div>
-                <p>{event.message}</p>
-              </div>
-            </li>
+      <p className="rail-description">완성·확인할 점·당신 차례만 보여 주고 같은 안내는 묶습니다.</p>
+      {recent.length > 0 ? (
+        <ol className="event-list">
+          {recent.map((group) => (
+            <EventRow key={group.id} group={group} />
           ))}
         </ol>
       ) : (
         <div className="rail-empty">
           <Activity size={20} strokeWidth={1.75} aria-hidden="true" />
-          <h3>아직 실행 기록이 없어요</h3>
-          <p>
-            작업을 실행하면 도구 호출과
-            <br />
-            완료된 결과가 시간순으로 쌓입니다.
-          </p>
+          <h3>아직 기록이 없어요</h3>
+          <p>완성·확인할 점·당신 차례가 생기면 여기에 쌓여요.</p>
         </div>
       )}
-      <div className="rail-note">
-        <ArrowUpRight size={14} />
-        <p>
-          상태는 실제 서버 기록을 반영합니다.
-          <br />
-          연결이 끊기면 새로고침으로 확인하세요.
-        </p>
-      </div>
+      <button type="button" className="rail-more" onClick={onOpenLog}>
+        전체 기록 보기 <span>{job.events.length}건</span>
+      </button>
     </aside>
   );
 }

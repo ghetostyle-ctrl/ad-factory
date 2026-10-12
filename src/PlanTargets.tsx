@@ -6,6 +6,7 @@ import {
   type SolutionPath,
   targetFitScore,
 } from "../shared/creative-plan";
+import { Disclosure } from "./primitives";
 
 const experiences = {
   tried_failed: "해 봤는데 실패한 경험이 있음 · 원인 재해석",
@@ -74,10 +75,14 @@ export function PlanTargetsSection({ plan }: { readonly plan: CreativePlan }) {
   const fragments = plan.fragments ?? [];
   if (targets.length === 0) return null;
   return (
-    <details className="evidence-details" open>
-      <summary>
-        타겟 {targets.length}명 · 시장에서 뽑은 장면 조각 {fragments.length}개
-      </summary>
+    <Disclosure
+      summary={
+        <>
+          <span className="ds-title">{`타겟 ${targets.length}명`}</span>
+          <span className="ds-sub">{`시장에서 뽑은 장면 조각 ${fragments.length}개`}</span>
+        </>
+      }
+    >
       <div className="stack">
         {targets.map((target) => {
           const used = plan.hypotheses
@@ -95,7 +100,8 @@ export function PlanTargetsSection({ plan }: { readonly plan: CreativePlan }) {
                 </p>
               )}
               <p className="muted small-copy">
-                이 타겟을 쓰는 광고안: {used.length ? used.map((n) => `${n}번`).join(", ") : "없음"}
+                이 타겟을 쓰는 광고안:{" "}
+                {used.length ? used.map((n) => `광고안 ${n}`).join(", ") : "없음"}
               </p>
               <ul className="evidence-list stack">
                 {fragments
@@ -108,7 +114,7 @@ export function PlanTargetsSection({ plan }: { readonly plan: CreativePlan }) {
           );
         })}
       </div>
-    </details>
+    </Disclosure>
   );
 }
 

@@ -171,3 +171,68 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* 연결 설정 창 4구역 탭: 가로를 가득 채운 조각 선택, 안 보이는 구역은 접되 마운트는 유지 */
+.settings-tabs .segmented {
+  display: flex;
+  width: 100%;
+}
+.settings-tabs .segmented > button {
+  flex: 1;
+  justify-content: center;
+}
+.stack[hidden] {
+  display: none;
+}
+/* 연결 행 상태: 점 + 글자. 있는 사실만(미설정 · 키 있음 미검증) 적고 초록 '확인됨'은 실제 확인 결과가 있을 때만 쓴다 */
+.conn-state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+.conn-state > i {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1.5px var(--line-control);
+}
+.conn-state.is-set > i {
+  background: var(--faint);
+  box-shadow: none;
+}
+.conn-state.is-verified {
+  color: var(--success);
+}
+.conn-state.is-verified > i,
+.conn-state.is-failed > i {
+  box-shadow: none;
+}
+.conn-state.is-verified > i {
+  background: var(--success-fill);
+}
+.conn-state.is-failed > i {
+  background: var(--warning-fill);
+}
+@media (max-width: 760px) {
+  .settings-details > summary,
+  .instructions-card summary {
+    display: flex;
+    align-items: center;
+    min-height: var(--touch);
+  }
+}
+@media (max-width: 480px) {
+  .connection-row {
+    flex-wrap: wrap;
+  }
+  .connection-row > div {
+    min-width: 0;
+  }
+  .conn-state {
+    flex-basis: 100%;
+  }
+}

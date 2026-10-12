@@ -5,7 +5,11 @@ import { api, errorMessage } from "./api";
 import { Button, Notice } from "./primitives";
 
 const labels = { codex: "Codex", claudeCode: "Claude Code" } as const;
-export function CliConnectionsCard() {
+export function CliConnectionsCard({
+  onChecked,
+}: {
+  readonly onChecked?: (result: CliConnections) => void;
+}) {
   const [result, setResult] = useState<CliConnections | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -13,11 +17,11 @@ export function CliConnectionsCard() {
     setPending(true);
     setError(null);
     try {
-      setResult(
-        CliConnectionsSchema.parse(
-          await api.post("cli-connections/check", { timeout: 35_000 }).json(),
-        ),
+      const checked = CliConnectionsSchema.parse(
+        await api.post("cli-connections/check", { timeout: 35_000 }).json(),
       );
+      setResult(checked);
+      onChecked?.(checked);
     } catch (cause) {
       setError(await errorMessage(cause));
     } finally {
@@ -54,7 +58,7 @@ export function CliConnectionsCard() {
                         ready: "로그인 확인",
                         login_required: "로그인 필요",
                         unavailable: "설치 필요",
-                        unknown: "확인 필요",
+                        unknown: "로그인 확인 필요",
                       } as const
                     )[result[key].authentication]
                   }

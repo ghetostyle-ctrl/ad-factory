@@ -1,16 +1,10 @@
-import { Lightbulb } from "lucide-react";
 import type { LearningSignal } from "../shared/creative-plan";
 import type { Job } from "../shared/schema";
-import { ChainView, entryPoints, PlanTargetsSection, SolutionPathView } from "./PlanTargets";
-import { Notice } from "./primitives";
-import { VariantStatus } from "./VariantStatus";
+import { AdGrid, PlanSummary, STAGE_LABELS, StageSummary, stageCounts } from "./EvidenceTab";
+import { PlanTargetsSection } from "./PlanTargets";
+import { Disclosure, Notice } from "./primitives";
 import "./sources.css";
 
-const angles = {
-  problem_solution: "문제 해결",
-  usage_context: "사용 상황",
-  objection_answer: "구매 망설임 해소",
-} as const;
 const questionKinds = {
   buying_reason: "사는 이유",
   hesitation: "망설이는 이유",
@@ -21,72 +15,66 @@ const questionBases = {
   product_fact: "제품 자료",
   inferred: "추정 · 검증 필요",
 } as const;
-const decisionRoles = {
-  need_awareness: "TOFU · 필요성 인식",
-  comparison: "MOFU · 비교·검토",
-  final_decision: "BOFU · 마지막 구매 결정",
-} as const;
-const formats = {
-  problem_empathy: "문제 제기형",
-  mechanism_explainer: "메커니즘 설명형 카드뉴스",
-  review_proof: "사용자 리뷰·비포애프터",
-  benefit_offer: "혜택 강조형",
-  risk_reversal: "리스크 제거 강조",
-} as const;
-const mechanismModes = {
-  unique_mechanism: "고유 메커니즘",
-  cause_reframe: "원인 재해석",
-  social_proof: "고객 후기 증거",
-} as const;
-const offerTypes = {
-  none: "오퍼 없음",
-  value_bundle: "가치 더하기(번들·보너스)",
-  free_trial: "무료 체험",
-  discount: "할인",
-  urgency: "기한·수량 한정",
-  risk_reversal: "환불·보증",
-} as const;
 
+function Title({ children, sub }: { readonly children: string; readonly sub?: string }) {
+  return (
+    <>
+      <span className="ds-title">{children}</span>
+      {sub && <span className="ds-sub">{sub}</span>}
+    </>
+  );
+}
+
+// 기획 근거 탭: 광고안 요약 카드 격자가 먼저, 광고안 사이를 가르는 근거(고객 질문·자료·레퍼런스·한계)는 접어 둔다.
 export function CreativeEvidence({ job }: { readonly job: Job }) {
   const plan = job.creativePlan;
   if (!plan) return null;
   const sourceName = (id: string) =>
     job.sourceSnapshot?.sources.find((source) => source.id === id)?.title ?? id;
+  const counts = stageCounts(plan);
+  const staged = plan.hypotheses.some((item) => item.decisionRole);
   return (
-    <section className="panel">
-      <header className="panel-header">
-        <div className="cluster">
-          <Lightbulb size={18} />
-          <h2>자료에서 설계한 광고별 타깃과 소재</h2>
+    <section className="evidence-tab" aria-label="기획 근거">
+      <header className="tab-head">
+        <div>
+          <h2>
+            광고안 <span className="count-label">{plan.hypotheses.length}</span>
+          </h2>
+          <p>광고안은 타겟 한 명·고통 하나·메시지 하나입니다. 제작과 검토는 자동으로 이어집니다.</p>
         </div>
-        <p>가설은 실제 성과로 검증할 아이디어입니다. 제작과 검토는 자동으로 이어집니다.</p>
+        <StageSummary plan={plan} />
       </header>
-      <div className="panel-body stack">
-        <div className="evidence-summary stack">
-          <h3>광고안이 서로 다른 이유</h3>
-          <p>{plan.diversityRationale}</p>
-          {plan.hypotheses.some((item) => item.decisionRole) && (
-            <p className="muted small-copy">
-              한 세트 편성 ·{" "}
-              {(["need_awareness", "comparison", "final_decision"] as const)
-                .map(
-                  (stage) =>
-                    `${decisionRoles[stage].split(" · ")[0]} ${
-                      plan.hypotheses.filter((item) => item.decisionRole === stage).length
-                    }개`,
-                )
-                .join(" · ")}
-              . 같은 오디언스 안에도 인식 단계가 다른 사람이 섞여 있어, 단계별 소재를 함께 둡니다.
-            </p>
-          )}
-        </div>
+      <PlanSummary job={job} plan={plan} />
+      <AdGrid job={job} plan={plan} />
+      <div className="evidence-more">
+        <Disclosure
+          summary={
+            <Title sub="같은 근거 안에서 서로 다른 설득을 검증합니다">
+              광고안이 서로 다른 이유
+            </Title>
+          }
+        >
+          <div className="stack">
+            <p>{plan.diversityRationale}</p>
+            {staged && (
+              <p className="muted small-copy">
+                한 세트 편성 · {STAGE_LABELS.need_awareness} {counts.need_awareness}개 ·{" "}
+                {STAGE_LABELS.comparison} {counts.comparison}개 · {STAGE_LABELS.final_decision}{" "}
+                {counts.final_decision}개. 같은 오디언스 안에도 인식 단계가 다른 사람이 섞여 있어,
+                단계별 소재를 함께 둡니다.
+              </p>
+            )}
+          </div>
+        </Disclosure>
         <PlanTargetsSection plan={plan} />
         {plan.customerQuestions.length > 0 && (
-          <details className="evidence-details" open>
-            <summary>
-              고객 질문 {plan.customerQuestions.length}개 · 왜 사고, 왜 망설이고, 무엇을 확인하면
-              사는가
-            </summary>
+          <Disclosure
+            summary={
+              <Title sub="왜 사고, 왜 망설이고, 무엇을 확인하면 사는가">
+                {`고객 질문 ${plan.customerQuestions.length}개`}
+              </Title>
+            }
+          >
             <div className="stack">
               {plan.customerQuestions.map((question) => {
                 const answeredBy = plan.hypotheses
@@ -122,7 +110,9 @@ export function CreativeEvidence({ job }: { readonly job: Job }) {
                       <div>
                         <dt>이 질문에 답하는 광고안</dt>
                         <dd>
-                          {answeredBy.length ? answeredBy.map((n) => `${n}번`).join(", ") : "없음"}
+                          {answeredBy.length
+                            ? answeredBy.map((n) => `광고안 ${n}`).join(", ")
+                            : "없음"}
                         </dd>
                       </div>
                     </dl>
@@ -130,15 +120,22 @@ export function CreativeEvidence({ job }: { readonly job: Job }) {
                 );
               })}
             </div>
-          </details>
+          </Disclosure>
         )}
-        {plan.learningSignal && <LearningSignalNote signal={plan.learningSignal} />}
-        <details className="evidence-details">
-          <summary>
-            실제로 사용한 자료 · 제품 근거 {plan.sourceCoverage.factsUsed.length}개 · 레퍼런스{" "}
-            {plan.sourceCoverage.referencesUsed.length}개 · 고객 언어{" "}
-            {plan.sourceCoverage.voicesUsed.length}개
-          </summary>
+        {plan.learningSignal && (
+          <Disclosure summary={<Title>학습에 쓸 신호가 충분한가</Title>}>
+            <LearningSignalNote signal={plan.learningSignal} />
+          </Disclosure>
+        )}
+        <Disclosure
+          summary={
+            <Title
+              sub={`제품 근거 ${plan.sourceCoverage.factsUsed.length}개 · 레퍼런스 ${plan.sourceCoverage.referencesUsed.length}개 · 고객 언어 ${plan.sourceCoverage.voicesUsed.length}개`}
+            >
+              실제로 사용한 자료
+            </Title>
+          }
+        >
           <div className="stack">
             <p className="muted small-copy">
               제품 근거는 최대 {plan.sourceCoverage.limits.maxFactSources}개·
@@ -168,11 +165,12 @@ export function CreativeEvidence({ job }: { readonly job: Job }) {
               )}
             />
           </div>
-        </details>
-        <details className="evidence-details">
-          <summary>
-            레퍼런스 역분석 {plan.referenceAnalyses.length}개 · 관측·추론·확인 불가 구분
-          </summary>
+        </Disclosure>
+        <Disclosure
+          summary={
+            <Title sub="관측·추론·확인 불가 구분">{`레퍼런스 역분석 ${plan.referenceAnalyses.length}개`}</Title>
+          }
+        >
           <div className="stack">
             {plan.referenceAnalyses.length === 0 ? (
               <p className="muted">
@@ -192,234 +190,25 @@ export function CreativeEvidence({ job }: { readonly job: Job }) {
               ))
             )}
           </div>
-        </details>
-        {plan.hypotheses.map((hypothesis, index) => {
-          const variant = job.creativeVariants.find((item) => item.id === hypothesis.id);
-          const image = variant?.approvedImageId
-            ? job.artifacts.find((artifact) => artifact.id === variant.approvedImageId)
-            : null;
-          const staged = job.staged?.variants.find((item) => item.id === hypothesis.id);
-          return (
-            <article className="hypothesis-card stack" key={hypothesis.id}>
-              <div className="hypothesis-heading">
-                <span className="hypothesis-number">{index + 1}</span>
-                <div>
-                  <span className="eyebrow">{angles[hypothesis.angle]}</span>
-                  <h3>{hypothesis.creative.concept}</h3>
-                  <p>{hypothesis.difference}</p>
-                </div>
-              </div>
-              <dl className="definition-list operation-definition">
-                {hypothesis.targetId && (
-                  <div>
-                    <dt>타겟</dt>
-                    <dd>
-                      {plan.targets?.find((item) => item.id === hypothesis.targetId)?.label ??
-                        hypothesis.targetId}
-                    </dd>
-                  </div>
-                )}
-                {hypothesis.entryPoint && (
-                  <div>
-                    <dt>앞에 세우는 것</dt>
-                    <dd>{entryPoints[hypothesis.entryPoint]}</dd>
-                  </div>
-                )}
-                {hypothesis.chain && (
-                  <div>
-                    <dt>설득 사슬 (이 영상의 메시지 하나)</dt>
-                    <dd>
-                      <ChainView chain={hypothesis.chain} />
-                    </dd>
-                  </div>
-                )}
-                {hypothesis.solutionPath && (
-                  <div>
-                    <dt>
-                      해결 과정 ·{" "}
-                      {hypothesis.solutionPath.flow === "cause_reframe"
-                        ? "원인 재해석"
-                        : "기준 선점"}
-                    </dt>
-                    <dd>
-                      <SolutionPathView path={hypothesis.solutionPath} />
-                    </dd>
-                  </div>
-                )}
-                {hypothesis.customerQuestionId && (
-                  <div>
-                    <dt>답하는 고객 질문</dt>
-                    <dd>
-                      {plan.customerQuestions.find(
-                        (item) => item.id === hypothesis.customerQuestionId,
-                      )?.question ?? hypothesis.customerQuestionId}
-                    </dd>
-                  </div>
-                )}
-                {hypothesis.decisionRole && (
-                  <div>
-                    <dt>구매 여정의 역할 · 가설</dt>
-                    <dd>{decisionRoles[hypothesis.decisionRole]}</dd>
-                  </div>
-                )}
-                {hypothesis.proofShown && (
-                  <div>
-                    <dt>보여 줄 증거</dt>
-                    <dd>{hypothesis.proofShown}</dd>
-                  </div>
-                )}
-                {hypothesis.signals && (
-                  <>
-                    <div>
-                      <dt>소재 유형</dt>
-                      <dd>{formats[hypothesis.signals.format]}</dd>
-                    </div>
-                    <div>
-                      <dt>신호 1 · 부르는 대상</dt>
-                      <dd>{hypothesis.signals.avatarCallout}</dd>
-                    </div>
-                    <div>
-                      <dt>신호 2 · 페인포인트</dt>
-                      <dd>{hypothesis.signals.painPoint}</dd>
-                    </div>
-                    <div>
-                      <dt>신호 3 · {mechanismModes[hypothesis.signals.mechanism.mode]}</dt>
-                      <dd>{hypothesis.signals.mechanism.statement}</dd>
-                    </div>
-                    <div>
-                      <dt>신호 4 · {offerTypes[hypothesis.signals.offer.type]}</dt>
-                      <dd>
-                        {hypothesis.signals.offer.statement || "이 단계에서는 오퍼를 쓰지 않음"}
-                      </dd>
-                    </div>
-                  </>
-                )}
-                <div>
-                  <dt>소재 타깃 오디언스</dt>
-                  <dd>{hypothesis.targetAudience}</dd>
-                </div>
-                <div>
-                  <dt>고객의 상황</dt>
-                  <dd>{hypothesis.customerSituation}</dd>
-                </div>
-                <div>
-                  <dt>타깃 선정 근거 · 추론</dt>
-                  <dd>{hypothesis.targetReason}</dd>
-                </div>
-                <div>
-                  <dt>해결할 문제</dt>
-                  <dd>{hypothesis.problem}</dd>
-                </div>
-                <div>
-                  <dt>첫 문장 · 후킹</dt>
-                  <dd>{hypothesis.hook}</dd>
-                </div>
-                <div>
-                  <dt>전달할 메시지</dt>
-                  <dd>{hypothesis.message}</dd>
-                </div>
-                <div>
-                  <dt>시각적 표현</dt>
-                  <dd>{hypothesis.visualMechanism}</dd>
-                </div>
-              </dl>
-              <details className="evidence-details">
-                <summary>제품 근거 {hypothesis.claimCitations.length}개와 참고 구조 확인</summary>
-                <div className="stack">
-                  {hypothesis.claimCitations.map((citation) => (
-                    <blockquote
-                      key={`${citation.sourceId}-${citation.quote}`}
-                      className="source-citation"
-                    >
-                      <p>“{citation.quote}”</p>
-                      <cite>{sourceName(citation.sourceId)}</cite>
-                    </blockquote>
-                  ))}
-                  <p className="muted small-copy">
-                    참고한 광고 구조:{" "}
-                    {hypothesis.referenceSourceIds.length
-                      ? hypothesis.referenceSourceIds.map(sourceName).join(" · ")
-                      : "없음"}
-                  </p>
-                </div>
-              </details>
-              <section className="copy-preview">
-                <span className="eyebrow">실제 광고 카피</span>
-                <p>{hypothesis.creative.primaryText}</p>
-                <div>
-                  <h3>{hypothesis.creative.headline}</h3>
-                  <p>{hypothesis.creative.description}</p>
-                  <span className="copy-cta">
-                    {hypothesis.creative.callToAction === "SHOP_NOW"
-                      ? "지금 쇼핑하기"
-                      : "더 알아보기"}
-                  </span>
-                </div>
-              </section>
-              <VariantStatus variant={variant} job={job} />
-              {image && (
-                <a href={image.url} target="_blank" rel="noreferrer">
-                  <img
-                    className="variant-preview"
-                    src={image.url}
-                    alt={`${hypothesis.creative.concept} 검토 통과 이미지`}
-                    loading="lazy"
-                    width={1024}
-                    height={1024}
-                  />
-                </a>
-              )}
-              {hypothesis.cardSlides.length > 0 && (
-                <div className="stack">
-                  <span className="eyebrow">
-                    카드뉴스 {hypothesis.cardSlides.length + 1}장 · 1장은 위 대표 이미지
-                  </span>
-                  <ol className="card-slides">
-                    {hypothesis.cardSlides.map((slide, slideIndex) => {
-                      const cardId = variant?.cardImageIds[slideIndex];
-                      const card = cardId
-                        ? job.artifacts.find((artifact) => artifact.id === cardId)
-                        : null;
-                      return (
-                        <li key={`${hypothesis.id}-card-${slide.headline}`}>
-                          {card ? (
-                            <a href={card.url} target="_blank" rel="noreferrer">
-                              <img
-                                src={card.url}
-                                alt={`카드뉴스 ${slideIndex + 2}장: ${slide.headline}`}
-                                loading="lazy"
-                                width={1024}
-                                height={1024}
-                              />
-                            </a>
-                          ) : (
-                            <div className="card-slide-pending">제작 대기</div>
-                          )}
-                          <strong>
-                            {slideIndex + 2}. {slide.headline}
-                          </strong>
-                          {slide.body && <span className="muted">{slide.body}</span>}
-                        </li>
-                      );
-                    })}
-                  </ol>
-                </div>
-              )}
-              {staged && (
-                <p className="muted small-copy">
-                  Meta 광고 ID {staged.adId ?? "준비 중"} · 전달 상태{" "}
-                  {staged.deliveryStatus ?? "확인 대기"}
-                </p>
-              )}
-            </article>
-          );
-        })}
-        <EvidenceList title="근거와 분석의 한계" items={plan.limitations} />
-        <Notice>
-          고객 후기는 개별 경험이며 제품 전체의 효능을{" "}
-          <span className="text-phrase">증명하지 않습니다.</span> 레퍼런스의 노출·등록 정보만으로
-          성공 광고라고 판단하지 않습니다.
-        </Notice>
+        </Disclosure>
+        <Disclosure summary={<Title>근거와 분석의 한계</Title>}>
+          <div className="stack">
+            {plan.limitations.length ? (
+              <ul className="evidence-list">
+                {plan.limitations.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">기록된 항목 없음</p>
+            )}
+            <Notice>
+              고객 후기는 개별 경험이며 제품 전체의 효능을{" "}
+              <span className="text-phrase">증명하지 않습니다.</span> 레퍼런스의 노출·등록
+              정보만으로 성공 광고라고 판단하지 않습니다.
+            </Notice>
+          </div>
+        </Disclosure>
       </div>
     </section>
   );
@@ -429,8 +218,7 @@ function LearningSignalNote({ signal }: { readonly signal: LearningSignal }) {
   const money = (value: number) => `${Math.round(value).toLocaleString()} ${signal.currency}`;
   const result = signal.optimizationResult === "purchase" ? "구매" : "링크 클릭";
   return (
-    <div className="evidence-summary stack">
-      <h3>학습에 쓸 신호가 충분한가</h3>
+    <div className="stack">
       <p>
         일 예산 {money(signal.dailyBudget)} × 7일 = 주 {money(signal.weeklyBudget)}. 광고 세트가 주{" "}
         {signal.weeklyResultsReference}건 전후의 {result}를 얻으려면 {result} 1건당 비용이{" "}

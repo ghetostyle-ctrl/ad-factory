@@ -71,9 +71,7 @@ export function CalloutPreview({
               setProgress(1);
             } else setProgress(Math.max(0, at));
           }}
-        >
-          <track kind="captions" />
-        </video>
+        />
         {position && (
           <div className="callout-preview-overlay" aria-hidden="true">
             <svg viewBox="0 0 1000 1000" preserveAspectRatio="none">

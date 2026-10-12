@@ -1,14 +1,40 @@
-/* Flow 모드 클립 패널: 클립 카드(시작 이미지·프롬프트·업로드). 토큰만 사용, 새 색 없음. */
+/* Flow 모드 클립 패널: 클립 행(시작 이미지·상태·프롬프트 접힘·업로드). 토큰만 사용, 새 색 없음.
+   노란 면은 내가 올릴 차례(is-turn)일 때만 쓴다. */
+.flow-panel {
+  padding: var(--s4);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.flow-panel.is-turn {
+  background: var(--warning-soft);
+  box-shadow: 0 0 0 1px var(--warning-line);
+}
+/* 카드 안 카드를 만들지 않는다: 클립 행은 선으로만 나눈다 */
+.flow-panel .notice-warning {
+  border-color: var(--line);
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+.flow-panel .notice-warning > svg {
+  color: var(--muted);
+}
 .flow-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s3);
+  gap: var(--s2) var(--s3);
 }
 .flow-heading h4 {
   margin: 0;
-  font-size: var(--text-base);
-  font-weight: 600;
+  font-size: var(--text-md);
+  font-weight: var(--weight-strong);
+}
+.flow-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s4);
 }
 .flow-link {
   display: inline-flex;
@@ -17,39 +43,51 @@
   font-size: var(--text-sm);
 }
 .flow-clips {
-  display: grid;
-  gap: var(--s4);
+  display: flex;
+  flex-direction: column;
   margin: 0;
   padding: 0;
   list-style: none;
 }
+/* 클립 A~D 는 두 열로 나란히 놓아 업로드 패널이 화면을 다 차지하지 않게 한다 */
+.flow-panel > .flow-clips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--s6);
+}
 .flow-clip {
   display: grid;
-  grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 96px) minmax(0, 1fr);
   gap: var(--s4);
   align-items: start;
-  padding: var(--s4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
+  padding: var(--s4) 0;
+  border-top: 1px solid var(--line);
+}
+.is-turn .flow-clip {
+  border-top-color: var(--warning-line);
 }
 .flow-info-clip {
   grid-template-columns: minmax(0, 1fr);
 }
+.flow-thumb {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
 .flow-thumb img,
-.flow-thumb video,
 .flow-thumb .card-slide-pending {
+  display: grid;
+  place-items: center;
   width: 100%;
   height: auto;
   aspect-ratio: 9 / 16;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-soft);
-  object-fit: cover;
-}
-.flow-thumb .card-slide-pending {
   padding: var(--s2);
-  font-size: var(--text-sm);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  object-fit: cover;
   text-align: center;
 }
 .flow-body {
@@ -57,19 +95,25 @@
 }
 .flow-clip-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--s3);
+  gap: var(--s2) var(--s3);
   font-size: var(--text-base);
+}
+.flow-clip-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
 }
 .flow-prompt {
   margin: 0;
   padding: var(--s3);
   max-height: 160px;
   overflow: auto;
-  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface-soft);
+  box-shadow: 0 0 0 1px var(--line);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   white-space: pre-wrap;
@@ -84,15 +128,53 @@
   border: 1px dashed var(--line-strong);
   border-radius: var(--radius-sm);
 }
+.is-turn .flow-drop {
+  border-color: var(--warning-line);
+}
 .flow-drop-over {
   border-color: var(--accent-line);
   background: var(--accent-soft);
+}
+/* 설명 컷의 파일 선택: 브라우저 기본 모양 대신 앱 버튼 톤으로 */
+.flow-info-clip input[type="file"] {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.flow-info-clip input[type="file"]::file-selector-button {
+  min-height: var(--control-sm);
+  margin-right: var(--s3);
+  padding: 0 var(--s3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  box-shadow: 0 0 0 1px var(--line-control);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.flow-info-clip input[type="file"]:disabled::file-selector-button {
+  opacity: 0.48;
+}
+@media (max-width: 1100px) {
+  .flow-panel > .flow-clips {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 @media (max-width: 760px) {
   .flow-clip {
     grid-template-columns: minmax(0, 1fr);
   }
   .flow-thumb {
-    max-width: 160px;
+    max-width: 120px;
+  }
+  .flow-link {
+    min-height: var(--touch);
+  }
+  .flow-info-clip input[type="file"] {
+    min-height: var(--touch);
+  }
+  .flow-info-clip input[type="file"]::file-selector-button {
+    min-height: var(--touch);
   }
 }

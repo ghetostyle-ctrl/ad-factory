@@ -1,4 +1,95 @@
-/* 색·크기 토큰은 suite-tokens.css(스위트 공유 스펙)에 있다. 여기에는 요소 리셋과 유틸리티만 둔다. */
+/* 색·크기 토큰의 기본값은 suite-tokens.css(스위트 공유 스펙, 수정 금지)에 있다.
+   이 파일 맨 위의 AD FACTORY 오버라이드 블록이 그 값을 덮어쓴다(기준: docs/UI-V2-2026-10-12.md 1절, 다크 전용).
+   그 아래에는 요소 리셋과 유틸리티를 둔다. */
+@font-face {
+  font-family: "Pretendard";
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("../assets/fonts/Pretendard-Medium.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Pretendard";
+  font-style: normal;
+  font-weight: 600 700;
+  font-display: swap;
+  src: url("../assets/fonts/Pretendard-Bold.ttf") format("truetype");
+}
+:root[data-app="adfactory"] {
+  color-scheme: dark;
+
+  /* 중립(웜 다크) */
+  --canvas: #141311;
+  --surface: #1d1c19;
+  --surface-soft: #242320;
+  --surface-sunken: #2b2a26;
+  --ink: #f1efea;
+  --ink-2: #d3d1ca;
+  --muted: #aaa8a0;
+  --faint: #93918a; /* 문서 #8f8d86 → 상향: sunken 위 4.32 → 4.55 */
+  --line: #31302b;
+  --line-strong: #403e38;
+  --line-control: #706e67; /* 문서 #68665f → 상향: surface 2.97 → 3.34, soft 3.08 */
+  --overlay: rgba(0, 0, 0, 0.6);
+
+  /* 사이드바는 캔버스와 같은 톤 */
+  --sidebar: var(--canvas);
+  --sidebar-elevated: var(--surface);
+  --sidebar-line: var(--line);
+  --sidebar-hover: rgba(255, 255, 255, 0.04);
+  --sidebar-text: var(--ink);
+  --sidebar-muted: var(--muted);
+  --sidebar-faint: var(--faint);
+  --sidebar-success: var(--success-fill);
+  --sidebar-danger: var(--danger-fill);
+  --accent-on-dark: var(--accent-ink);
+
+  /* accent: 버튼 바탕 · 선택 표시 · 실시간 점 · 포커스 */
+  --accent: #5963d9; /* 문서 #6b74dd → 하향: 흰 글자 4.06 → 4.99, 포커스 링 surface 3.42 */
+  --accent-hover: #616bdb; /* 문서 #7d85e6 → 조정: 흰 글자 3.30 → 4.53 */
+  --accent-soft: rgba(123, 131, 230, 0.16);
+  --accent-line: rgba(123, 131, 230, 0.45);
+  --accent-ink: #aab0f3;
+  --on-accent: #ffffff;
+
+  /* 의미색: 글자(밝음) · 점/채움(중간, 글자 금지) · 면(투명 틴트) */
+  --success: #5fcf95;
+  --success-fill: #3fb27f;
+  --success-soft: rgba(63, 178, 127, 0.14);
+  --success-line: rgba(63, 178, 127, 0.3);
+  --warning: #f2c04e;
+  --warning-fill: #e0a526;
+  --warning-soft: rgba(224, 165, 38, 0.1);
+  --warning-line: rgba(224, 165, 38, 0.3);
+  --danger: #f08a92;
+  --danger-fill: #e05a66;
+  --danger-soft: rgba(224, 90, 102, 0.12);
+  --danger-line: rgba(224, 90, 102, 0.3);
+
+  /* 글자 */
+  --font-sans: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --text-md: 15px;
+  --text-xl: 22px;
+  --text-title: 24px;
+  --text-display: 32px;
+  --tracking-body: -0.01em;
+  --tracking-heading: -0.02em;
+  --tracking-title: -0.02em;
+
+  /* 모서리·그림자·크기 */
+  --radius: 8px;
+  --radius-media: 10px;
+  --radius-lg: 12px;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 0 0 1px var(--line), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-media: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-pop: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.6);
+  --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.6);
+  --control: 36px;
+  --control-sm: 32px;
+  --sidebar-width: 240px;
+  --header-height: 48px;
+}
 :root {
   font-family: var(--font-sans);
   color: var(--ink);
@@ -23,7 +114,8 @@ body {
   margin: 0;
   background: var(--canvas);
   font-size: var(--text-base);
-  line-height: 1.6;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
   letter-spacing: var(--tracking-body);
   word-break: keep-all;
   overflow-wrap: anywhere;
@@ -78,16 +170,39 @@ h3 {
   font-size: var(--text-base);
 }
 p {
+  line-height: 1.6;
   text-wrap: pretty;
 }
 a {
-  color: var(--accent);
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+/* accent 는 글자색으로 쓰지 않는다(docs/UI-V2 1절: accent 글자 = accent-ink). sources.css 의 summary 색을 다크 대비에 맞게 덮어쓴다. */
+.source-details summary,
+.evidence-details summary {
+  color: var(--accent-ink);
+}
+/* 버튼·카드·내비 모양의 링크는 밑줄을 만들지 않는다 */
+.button,
+.brand,
+.skip-link,
+.artifact-card a,
+.sidebar a,
+a:has(> img, > video) {
+  text-decoration: none;
 }
 svg {
   flex-shrink: 0;
 }
 small {
   font-size: var(--text-xs);
+}
+/* 굵기는 400/500/600 세 단계만(docs/UI-V2 3절): 기본 700 을 600 으로 낮춘다 */
+strong,
+b {
+  font-weight: var(--weight-strong);
 }
 .muted {
   color: var(--muted);
