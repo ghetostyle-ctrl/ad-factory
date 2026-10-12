@@ -39,7 +39,8 @@ test("connector request stays on fixed loopback when a keyword contains URL synt
   const observed = requested[0];
   expect(observed).toBeDefined();
   if (!observed) return;
-  expect(new URL(observed.url).origin).toBe("http://localhost:3000");
+  // Success AI 는 3001 이다(3000 은 키워드와처). 기본 주소는 shared/suite-apps.ts 와 같다.
+  expect(new URL(observed.url).origin).toBe("http://127.0.0.1:3001");
   expect(new URL(observed.url).searchParams.get("keyword")).toBe("http://attacker.test/?token=x");
   expect(observed.redirect).toBe("error");
 });

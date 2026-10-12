@@ -11,9 +11,16 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { Job } from "../shared/schema";
+import {
+  SUITE_APPS,
+  type SuiteAppId,
+  type SuiteAppStatus,
+  SuiteAppsResponseSchema,
+} from "../shared/suite-apps";
 import type { View } from "./agentMeta";
+import { api } from "./api";
 
 type SidebarProps = {
   readonly jobs: readonly Job[];
@@ -24,7 +31,8 @@ type SidebarProps = {
   readonly onCreate: () => void;
   readonly onDelete: (id: string) => void;
   readonly onSettings: () => void;
-  readonly onSuccessAi: () => void;
+  // 다른 스위트 앱(키워드와처·Success AI)을 고르면 부른다. 앱이 꺼져 있으면 서버가 켠 뒤 이동한다(SuiteLaunchDialog).
+  readonly onOpenApp: (id: SuiteAppId) => void;
   readonly live: boolean;
 };
 export function Sidebar({
@@ -36,10 +44,33 @@ export function Sidebar({
   onCreate,
   onDelete,
   onSettings,
-  onSuccessAi,
+  onOpenApp,
   live,
 }: SidebarProps) {
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  // 메뉴를 열 때마다 다른 앱이 켜져 있는지 묻는다(실패해도 메뉴는 그대로).
+  const [suite, setSuite] = useState<readonly SuiteAppStatus[] | null>(null);
+  useEffect(() => {
+    if (!workspaceOpen) return;
+    let cancelled = false;
+    setSuite(null);
+    api
+      .get("suite/apps")
+      .json()
+      .then((body) => {
+        if (!cancelled) setSuite(SuiteAppsResponseSchema.parse(body).apps);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceOpen]);
+  const suiteHint = (id: SuiteAppId) => {
+    const status = suite?.find((item) => item.id === id);
+    if (!status) return SUITE_APPS[id].summary;
+    if (status.up) return "켜져 있음 · 바로 열기";
+    return status.dir ? "꺼져 있음 · 누르면 켭니다" : "꺼져 있음 · 폴더를 찾지 못함";
+  };
   const inSuccessAi = view === "success-ai";
   const links = [
     { id: "overview", label: "작업 공간", icon: Layers3, count: jobs.length },
@@ -98,13 +129,13 @@ export function Sidebar({
               role="menuitem"
               onClick={() => {
                 setWorkspaceOpen(false);
-                window.location.href = "http://127.0.0.1:3000/";
+                onOpenApp("keyword-watcher");
               }}
             >
               <span className="workspace-avatar app-trendwatch">K</span>
               <span>
-                <strong>키워드워처</strong>
-                <small>검색량·시장 트렌드 추적</small>
+                <strong>{SUITE_APPS["keyword-watcher"].name}</strong>
+                <small>{suiteHint("keyword-watcher")}</small>
               </span>
             </button>
             <button
@@ -113,13 +144,13 @@ export function Sidebar({
               aria-current={inSuccessAi ? "true" : undefined}
               onClick={() => {
                 setWorkspaceOpen(false);
-                onSuccessAi();
+                onOpenApp("success-ai");
               }}
             >
               <span className="workspace-avatar app-successai">S</span>
               <span>
-                <strong>Success AI 광고수집기</strong>
-                <small>구글·메타 광고 레퍼런스 수집</small>
+                <strong>{SUITE_APPS["success-ai"].name}</strong>
+                <small>{suiteHint("success-ai")}</small>
               </span>
               {inSuccessAi && <Check size={14} strokeWidth={1.75} aria-hidden="true" />}
             </button>

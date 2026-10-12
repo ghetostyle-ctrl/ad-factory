@@ -7,19 +7,23 @@ import {
 } from "../shared/sources";
 import { StudioError } from "./errors";
 import { logger } from "./logger";
+import { successAiBaseUrl } from "./suite-apps";
 
 export async function previewSuccessAi(
   input: SuccessAiPreview,
   transport: KyInstance = ky,
 ): Promise<SuccessAiExport> {
   try {
-    const response = await transport.get("http://localhost:3000/api/references/export", {
-      searchParams: { platform: input.platform, keyword: input.keyword, limit: input.limit },
-      redirect: "error",
-      retry: 0,
-      timeout: 10000,
-      signal: AbortSignal.timeout(10000),
-    });
+    const response = await transport.get(
+      new URL("api/references/export", successAiBaseUrl()).href,
+      {
+        searchParams: { platform: input.platform, keyword: input.keyword, limit: input.limit },
+        redirect: "error",
+        retry: 0,
+        timeout: 10000,
+        signal: AbortSignal.timeout(10000),
+      },
+    );
     if (Number(response.headers.get("content-length")) > 2000000)
       throw new StudioError(
         "reference_size",

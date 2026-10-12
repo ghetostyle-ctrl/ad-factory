@@ -10,6 +10,7 @@ import { ZodError } from "zod";
 import { ModelSettingsSchema } from "../shared/models";
 import { PRODUCTION_UPLOAD_MAX_BYTES } from "../shared/production-assets";
 import { ConnectionsSchema } from "../shared/schema";
+import { SuiteAppIdSchema, SuiteStartRequestSchema } from "../shared/suite-apps";
 import { AutomationEngine } from "./automation";
 import { checkCliConnections } from "./cli-connections";
 import { configStatus, credentials, env, persistCredentials } from "./config";
@@ -24,10 +25,13 @@ import { projectRoutes } from "./project-routes";
 import { ProjectStore } from "./project-store";
 import { installStatic } from "./static";
 import type { JobStore } from "./store";
+import { SuiteApps, type SuiteAppsOptions } from "./suite-apps";
 
 export type AppOptions = {
   // 지시 파일 로더 옵션(테스트가 임시 폴더·작은 절 목록을 주입한다). 기본은 저장소의 instructions/.
   readonly instructions?: InstructionsOptions;
+  // AD 스위트 다른 앱 찾기·켜기(테스트가 포트 검사·실행을 주입한다).
+  readonly suite?: SuiteAppsOptions;
 };
 export function createApp(
   store: JobStore,
@@ -108,6 +112,15 @@ export function createApp(
   // 지시 파일 상태(읽기 전용, 동일 출처 GET): 파일 목록·해시·마지막 로드·경고·임계값·절 KEY 와 글자 수. 절 본문은 보내지 않는다.
   // 호출마다 로더가 파일 변경을 확인하므로 파일을 고친 뒤 이 요청으로 파싱 결과를 확인할 수 있다.
   app.get("/api/instructions", (c) => c.json(instructionsStatus(options.instructions)));
+  // AD 스위트 다른 앱(키워드와처·Success AI): 켜져 있는지·폴더를 찾았는지(GET), 꺼져 있으면 같은 PC 에서 켜고 포트가 열릴 때까지
+  // 기다린 뒤 주소를 돌려준다(POST, 동일 출처). 사이드바 앱 전환 메뉴가 쓴다.
+  const suite = new SuiteApps({ dataDir: store.root, ...options.suite });
+  app.get("/api/suite/apps", async (c) => c.json({ apps: await suite.statuses() }));
+  app.post("/api/suite/apps/:id/start", validator("json", SuiteStartRequestSchema), async (c) => {
+    const id = SuiteAppIdSchema.safeParse(c.req.param("id"));
+    if (!id.success) return c.json({ error: "알 수 없는 앱입니다." }, 404);
+    return c.json(await suite.ensureUp(id.data, c.req.valid("json").dir));
+  });
   app.post("/api/model-settings", validator("json", ModelSettingsSchema), (c) => {
     saveModelSettings(store.root, c.req.valid("json"));
     return c.json(configStatus(store.root));

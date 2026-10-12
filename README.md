@@ -25,6 +25,7 @@ iwr https://raw.githubusercontent.com/ghetostyle-ctrl/ad-factory/main/install-su
 1. Windows에서 `start-local.cmd`를 더블클릭합니다.
 2. Bun이 없으면 **Bun 1.3.14 자동 설치 → 의존성 설치 → 화면 빌드 → 서버 시작**을 진행합니다. 첫 실행에는 인터넷 연결과 몇 분의 시간이 필요합니다.
 3. 자동으로 열린 브라우저에서 **연결 설정**에 본인의 API 키를 저장합니다. 직접 접속할 주소는 `http://127.0.0.1:4317/`입니다.
+4. 왼쪽 위 앱 전환 메뉴에서 **Success AI 광고수집기**·**키워드와처**를 고르면, 그 앱이 꺼져 있어도 AD FACTORY가 같은 PC에서 찾아서 켜고 엽니다(통합 설치 폴더·`Downloads`·홈 폴더 순으로 찾고, 못 찾으면 폴더 경로를 묻습니다. 설치가 안 끝났으면 터미널에 붙여 넣을 명령을 보여 줍니다). 폴더 위치를 직접 정하려면 `.env`에 `SUCCESS_AI_DIR=`·`KEYWORD_WATCHER_DIR=`를 적습니다.
 
 영상 기능에는 별도로 [FFmpeg](https://ffmpeg.org/download.html) 8.x full 빌드(libass·libx264 포함)의 `ffmpeg`와 `ffprobe`를 설치하고 PATH에 추가해야 합니다. 자막 폰트 5종(Pretendard·Nanum Pen·Black Han Sans·Jua·Gowun Batang, OFL)은 라이선스와 함께 저장소에 들어 있습니다.
 

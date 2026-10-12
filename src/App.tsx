@@ -2,6 +2,7 @@ import { ChevronRight, Plus, RefreshCw, Settings2 } from "lucide-react";
 import { lazy, Suspense, useDeferredValue, useEffect, useRef, useState } from "react";
 import type { AgentId, Job } from "../shared/schema";
 import type { ProjectId } from "../shared/sources";
+import type { SuiteAppId } from "../shared/suite-apps";
 import { ActivityRail } from "./ActivityRail";
 import { AgentBoard } from "./AgentBoard";
 import { Artifacts } from "./Artifacts";
@@ -16,6 +17,7 @@ import { Button, Notice } from "./primitives";
 import { Sidebar } from "./Sidebar";
 import { SourceScope } from "./SourceScope";
 import { StudioDialogs, type StudioModal } from "./StudioDialogs";
+import { SuiteLaunchDialog } from "./SuiteLaunchDialog";
 import { VideoScripts } from "./VideoScripts";
 import "./workspace.css";
 import "./content.css";
@@ -69,6 +71,8 @@ export function App() {
   const [filter, setFilter] = useState<AgentId | null>(null);
   const [modal, setModal] = useState<StudioModal>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  // 사이드바에서 고른 다른 스위트 앱(꺼져 있으면 서버가 켠 뒤 이동).
+  const [launchApp, setLaunchApp] = useState<SuiteAppId | null>(null);
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const jobs = state?.jobs ?? [];
@@ -128,9 +132,7 @@ export function App() {
         onCreate={() => setModal("create")}
         onDelete={setDeleteId}
         onSettings={() => setModal("settings")}
-        onSuccessAi={() => {
-          window.location.href = "http://127.0.0.1:3001/";
-        }}
+        onOpenApp={setLaunchApp}
         live={live}
       />
       <main className="main-shell" id="main-content">
@@ -288,6 +290,7 @@ export function App() {
           )}
         </div>
       </main>
+      {launchApp && <SuiteLaunchDialog appId={launchApp} onClose={() => setLaunchApp(null)} />}
       {deleteTarget && (
         <DeleteJobDialog
           job={deleteTarget}

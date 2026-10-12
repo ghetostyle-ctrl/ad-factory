@@ -6,6 +6,7 @@ import { z } from "zod";
 import { type MediaAsset, MediaAssetSchema } from "../shared/media-assets";
 import { type ProjectSource, SuccessAiExportSchema } from "../shared/sources";
 import { StudioError } from "./errors";
+import { successAiBaseUrl } from "./suite-apps";
 
 const rowSchema = z.object({ body: z.string(), file_path: z.string().nullable() });
 const maxBytes = 200 * 1024 * 1024;
@@ -112,7 +113,7 @@ export class ProjectMedia {
       const identity = source.provenance.externalId?.split(":")[1];
       if (!platform || !identity || !/^[A-Za-z0-9_-]{1,128}$/.test(identity))
         throw new Error("원본 광고 식별자가 없습니다.");
-      const verification = new URL("http://localhost:3000/api/references/export");
+      const verification = new URL("api/references/export", successAiBaseUrl());
       verification.searchParams.set("platform", platform);
       verification.searchParams.set("ids", identity);
       const stored = await this.transport(verification, {
@@ -133,9 +134,9 @@ export class ProjectMedia {
         const youtubeId = video.hostname === "www.youtube.com" ? video.searchParams.get("v") : null;
         if (!youtubeId || !/^[A-Za-z0-9_-]{11}$/.test(youtubeId))
           throw new Error("유튜브 영상 식별자가 올바르지 않습니다.");
-        endpoint = new URL(`http://localhost:3000/api/download?youtubeId=${youtubeId}`);
+        endpoint = new URL(`api/download?youtubeId=${youtubeId}`, successAiBaseUrl());
       } else {
-        endpoint = new URL("http://localhost:3000/api/references/media");
+        endpoint = new URL("api/references/media", successAiBaseUrl());
         endpoint.searchParams.set("platform", platform);
         endpoint.searchParams.set("id", identity);
         endpoint.searchParams.set("kind", asset.kind);
