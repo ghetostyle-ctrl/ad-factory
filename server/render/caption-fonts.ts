@@ -2,7 +2,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { copyFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { CAPTION_TONES, type CaptionTone } from "../../shared/caption-direction";
+import {
+  CAPTION_POP_FONT_FILE,
+  CAPTION_TONES,
+  type CaptionTone,
+} from "../../shared/caption-direction";
 import { sha256Hex } from "../../shared/sha256";
 import { StudioError } from "../errors";
 import { BUNDLED_FONT_DIR, type FontSet } from "./fonts";
@@ -45,6 +49,18 @@ export function captionFont(tone: CaptionTone, fallback: FontSet): FontSet {
   const measured = catalog().find((font) => font.file === style.file);
   if (!measured)
     throw new StudioError("caption_font_missing", `자막 글꼴 ${style.file}의 측정값이 없습니다.`);
+  return {
+    dir,
+    family: measured.family,
+    bold: measured.file,
+    medium: measured.file,
+    metrics: measured,
+  };
+}
+// 강조 문장의 핵심어를 화면 중앙에 크게 찍는 팝 글자 서체(Black Han Sans). 글리프가 없으면 호출 쪽이 기본 서체로 돌린다.
+export function captionPopFont(fallback: FontSet): FontSet {
+  const measured = catalog().find((font) => font.file === CAPTION_POP_FONT_FILE);
+  if (!measured) return fallback;
   return {
     dir,
     family: measured.family,

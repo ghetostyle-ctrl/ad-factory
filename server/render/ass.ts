@@ -44,6 +44,9 @@ export type AssStyle = {
   readonly marginV: number;
   readonly bold?: boolean;
   readonly outlineColor?: string;
+  // 1 = 외곽선 + 그림자(기본), 3 = 글자에 붙는 불투명 박스(박스 색은 OutlineColour, 그림자 박스는 BackColour)
+  readonly borderStyle?: 1 | 3;
+  readonly backColor?: string;
 };
 export function assHeader(
   profile: RenderProfile,
@@ -62,7 +65,7 @@ export function assHeader(
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
     ...styles.map(
       (style) =>
-        `Style: ${style.name},${font.family},${style.fontSize},${style.primary},${assColor("0000FF")},${style.outlineColor ?? assColor("000000")},${assColor("000000", 0x80)},${style.bold === false ? 0 : -1},0,0,0,100,100,0,0,1,${style.outline},${style.shadow},${style.alignment},${style.marginL},${style.marginR},${style.marginV},1`,
+        `Style: ${style.name},${font.family},${style.fontSize},${style.primary},${assColor("0000FF")},${style.outlineColor ?? assColor("000000")},${style.backColor ?? assColor("000000", 0x80)},${style.bold === false ? 0 : -1},0,0,0,100,100,0,0,${style.borderStyle ?? 1},${style.outline},${style.shadow},${style.alignment},${style.marginL},${style.marginR},${style.marginV},1`,
     ),
     "",
     "[Events]",
@@ -97,6 +100,21 @@ function captionStyles(profile: RenderProfile, policy?: VisualPolicy): AssStyle[
       alignment: 5,
       marginV: 0,
       ...common,
+    },
+    // 2026-10-12 레퍼런스 쇼츠 스타일: 말 자막은 글자에 붙는 반투명 검정 박스(BorderStyle 3).
+    // Outline 값이 박스 여백이고, 박스 색은 OutlineColour·그림자 박스는 BackColour 라 둘 다 같은 반투명 검정으로 둔다.
+    {
+      ...common,
+      name: "CaptionBox",
+      fontSize: px(profile, AD_EDIT_STYLE.caption.box.px * (2444 / 2048)),
+      alignment: 5,
+      marginV: 0,
+      borderStyle: 3,
+      primary: assColor(AD_EDIT_STYLE.caption.white),
+      outlineColor: assColor("000000", AD_EDIT_STYLE.caption.box.alpha),
+      backColor: assColor("000000", AD_EDIT_STYLE.caption.box.alpha),
+      outline: px(profile, AD_EDIT_STYLE.caption.box.paddingPx),
+      shadow: 0,
     },
     {
       ...common,

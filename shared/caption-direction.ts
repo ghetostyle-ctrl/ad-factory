@@ -21,45 +21,62 @@ export type CaptionTone = z.infer<typeof CaptionToneSchema>;
 export type CaptionIcon = z.infer<typeof CaptionIconSchema>;
 export type CaptionDirection = z.infer<typeof CaptionDirectionSchema>;
 
+// 2026-10-12 레퍼런스 쇼츠 스타일(사용자 결정): 자막 모양은 두 가지뿐이다.
+// box = 말 자막 기본형(굵은 고딕 + 반투명 검정 박스), emphasis = 강조 문장(박스 없이 크게·외곽선·핵심어 색 + 팝 글자).
+// handwritten·warm·elegant 는 선택을 중단했고(기획 지침), 저장된 옛 대본이 그 값을 갖고 있으면 box 로 그린다.
+export type CaptionLook = "box" | "emphasis";
+export const CAPTION_LOOK = {
+  plain: "box",
+  handwritten: "box",
+  impact: "emphasis",
+  warm: "box",
+  elegant: "box",
+} as const satisfies Record<CaptionTone, CaptionLook>;
+
+// 팝 글자 전용 서체(번들 assets/fonts/captions). 말 자막·강조 문장은 기본 Pretendard Bold 를 쓴다.
+export const CAPTION_POP_FONT_FILE = "BlackHanSans-Regular.ttf";
+
+// tone 별 표시용 정보. file 이 비어 있으면 기본 서체(Pretendard)를 쓴다 — 모든 tone 이 같은 서체다.
+// px·accent 는 shared/ad-edit-style.ts caption.box / caption.emphasis 와 같은 값이다.
 export const CAPTION_TONES = {
   plain: {
-    label: "또렷한 설명",
+    label: "말 자막(박스)",
     file: "",
     family: "Pretendard",
-    px: 64,
-    accent: "FFF1A8",
+    px: 56,
+    accent: "FFE14D",
     bold: true,
   },
   handwritten: {
-    label: "후기·혼잣말",
-    file: "NanumPenScript-Regular.ttf",
-    family: "Nanum Pen",
-    px: 104,
-    accent: "FFD3B0",
-    bold: false,
+    label: "말 자막(박스) — 손글씨 선택 중단",
+    file: "",
+    family: "Pretendard",
+    px: 56,
+    accent: "FFE14D",
+    bold: true,
   },
   impact: {
-    label: "단호한 강조",
-    file: "BlackHanSans-Regular.ttf",
-    family: "Black Han Sans",
-    px: 82,
-    accent: "FF9588",
-    bold: false,
+    label: "강조 문장 + 팝 글자",
+    file: "",
+    family: "Pretendard",
+    px: 74,
+    accent: "FF5A4E",
+    bold: true,
   },
   warm: {
-    label: "친근한 이야기",
-    file: "Jua-Regular.ttf",
-    family: "Jua",
-    px: 76,
-    accent: "ADFFE1",
-    bold: false,
+    label: "말 자막(박스) — 둥근체 선택 중단",
+    file: "",
+    family: "Pretendard",
+    px: 56,
+    accent: "FFE14D",
+    bold: true,
   },
   elegant: {
-    label: "차분한 강조",
-    file: "GowunBatang-Bold.ttf",
-    family: "Gowun Batang",
-    px: 72,
-    accent: "FFE4AA",
+    label: "말 자막(박스) — 바탕체 선택 중단",
+    file: "",
+    family: "Pretendard",
+    px: 56,
+    accent: "FFE14D",
     bold: true,
   },
 } as const satisfies Record<
@@ -107,10 +124,11 @@ export function captionDirectionFor(voice: VoiceLine): CaptionDirection {
     const keyword = planned.keyword && voice.text.includes(planned.keyword) ? planned.keyword : "";
     return { ...planned, keyword, icon: supportedCaptionIcon(planned.icon, keyword) };
   }
+  // 연출이 저장되지 않은 대본: 고통(도입 후킹)과 행동 유도만 강조 문장, 나머지는 말 자막.
   const tones = {
     "": "plain",
-    pain: "handwritten",
-    believed_cause: "handwritten",
+    pain: "impact",
+    believed_cause: "plain",
     real_cause: "plain",
     requirement: "plain",
     product_fact: "plain",

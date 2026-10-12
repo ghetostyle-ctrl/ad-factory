@@ -1,10 +1,12 @@
 import { expect, test } from "bun:test";
 import { captionsAss } from "../server/render/ass";
+import { assColor } from "../server/render/ass-primitives";
 import { directedCaptionEvents } from "../server/render/caption-ass";
-import { captionFont, captionFontSupports } from "../server/render/caption-fonts";
+import { captionFontSupports, captionPopFont } from "../server/render/caption-fonts";
 import { resolveFont } from "../server/render/fonts";
 import { DEFAULT_PROFILE } from "../server/render/theme";
 import { adCaptionPoints } from "../shared/ad-caption-points";
+import { AD_EDIT_STYLE } from "../shared/ad-edit-style";
 import { captionDirectionFor, supportedCaptionIcon } from "../shared/caption-direction";
 import { CaptionSchema } from "../shared/narration-captions";
 import {
@@ -22,6 +24,7 @@ import {
 import { renderScript } from "./render-fixture";
 import { flatOf, nestedScriptResponse } from "./video-script-fixture";
 
+const bs = String.fromCharCode(92);
 const direction = { tone: "handwritten", keyword: "올리브유", icon: "leaf" } as const;
 const text = "올리브유인 줄 알았는데요.";
 const voice: TimelineVoice = {
@@ -39,6 +42,18 @@ function scriptWithDirection() {
     ...script,
     flow: "copy_first",
     voiceover: [{ ...script.voiceover[0], text, captionDirection: direction }],
+  });
+}
+function timelineWith(caption: Record<string, unknown>) {
+  return RenderTimelineSchema.parse({
+    number: 1,
+    durationMs: 2000,
+    extendedMs: 0,
+    scriptDigest: "fixture",
+    cuts: [],
+    voice: [voice],
+    warnings: [],
+    captions: [{ text, startMs: 0, endMs: 2000, style: "bottom", ...caption }],
   });
 }
 
@@ -67,39 +82,79 @@ test("caption selection carries approved direction to spoken text only", () => {
   expect(result[0]?.icon).toBe("leaf");
 });
 
-test("renderer uses actual expressive font and a local vector icon", () => {
+// 2026-10-12 레퍼런스 쇼츠 스타일: 말 자막은 Pretendard Bold + 글자에 붙는 반투명 검정 박스. 옛 손글씨 tone 도 같은 모양.
+test("spoken captions render as bold sans on a translucent box, even for retired tones", () => {
   // Given
   const font = resolveFont();
   if (!font) throw new Error("bundled font expected");
-  const timeline = RenderTimelineSchema.parse({
-    number: 1,
-    durationMs: 2000,
-    extendedMs: 0,
-    scriptDigest: "fixture",
-    cuts: [],
-    voice: [voice],
-    warnings: [],
-    captions: [
-      {
-        text,
-        startMs: 0,
-        endMs: 2000,
-        style: "bottom",
-        tone: "handwritten",
-        keyword: "올리브유",
-        icon: "leaf",
-        placement: "chest",
-      },
-    ],
+  const timeline = timelineWith({
+    tone: "handwritten",
+    keyword: "올리브유",
+    icon: "leaf",
+    placement: "chest",
   });
   // When
   const ass = captionsAss(timeline, DEFAULT_PROFILE, font);
+  const dialogue = ass.split("\n").find((line) => line.includes(",CaptionBox,"));
   // Then
-  expect(ass).toContain(String.fromCharCode(92) + "fnNanum Pen");
-  expect(ass).toContain(String.fromCharCode(92) + "p1");
+  expect(ass).toMatch(/Style: CaptionBox,[^\n]*,3,\d+,0,5,/);
+  expect(dialogue).toBeDefined();
+  expect(dialogue).toContain(`${bs}fn${font.family}`);
+  expect(dialogue).not.toContain("Nanum Pen");
+  expect(dialogue).toContain(`${bs}3a&H70&`);
+  expect(dialogue).toContain(`${bs}c${assColor(AD_EDIT_STYLE.caption.box.keyword)}&`);
+  expect(ass).toContain(`${bs}p1`);
   expect(ass).toContain("올리브유");
   expect(ass).toContain("인 줄 알았는데요.");
+  expect(ass).not.toContain(",Pop,");
   expect(ass).not.toContain("undefined");
+});
+
+test("impact captions render larger with an outline and repeat the keyword as a pop word", () => {
+  // Given
+  const font = resolveFont();
+  if (!font) throw new Error("bundled font expected");
+  const timeline = timelineWith({ tone: "impact", keyword: "올리브유", placement: "chest" });
+  // When
+  const lines = captionsAss(timeline, DEFAULT_PROFILE, font).split("\n");
+  const line = lines.find(
+    (event) => event.startsWith("Dialogue: 0,") && event.includes(",Caption,"),
+  );
+  const pop = lines.find((event) => event.startsWith("Dialogue: 1,") && event.includes(",Pop,"));
+  // Then
+  expect(line).toBeDefined();
+  expect(line).toContain(`${bs}fn${font.family}`);
+  expect(line).toContain(`${bs}c${assColor(AD_EDIT_STYLE.caption.emphasis.keyword)}&`);
+  expect(line).not.toContain(`${bs}3a`);
+  expect(pop).toBeDefined();
+  expect(pop).toContain(`${bs}fnBlack Han Sans`);
+  expect(pop).toContain(`${bs}c${assColor(AD_EDIT_STYLE.caption.pop.fill)}&`);
+  expect(pop).toContain(`${bs}pos(540,${AD_EDIT_STYLE.caption.pop.y})`);
+  expect(pop).toContain("올리브유");
+  const size = (event: string | undefined) => Number(/\\fs(\d+)/.exec(event ?? "")?.[1] ?? 0);
+  expect(size(line)).toBeGreaterThan(
+    size(lines.find((event) => event.includes(",CaptionBox,")) ?? `${bs}fs0`) || 0,
+  );
+});
+
+test("impact captions on explainer cuts keep the lower box look without a pop word", () => {
+  const font = resolveFont();
+  if (!font) throw new Error("bundled font expected");
+  const events = directedCaptionEvents(
+    CaptionSchema.parse({
+      text,
+      startMs: 0,
+      endMs: 2000,
+      style: "bottom",
+      tone: "impact",
+      keyword: "올리브유",
+      placement: "lower",
+    }),
+    DEFAULT_PROFILE,
+    font,
+  );
+  expect(events.some((event) => event.includes(",Pop,"))).toBe(false);
+  expect(events[0]).toContain(`${bs}pos(540,${AD_EDIT_STYLE.caption.centerY})`);
 });
 
 test("INFO overlap keeps neutral captions below labels without extra emphasis", () => {
@@ -155,24 +210,39 @@ test("absent emphasis and coincidental Korean syllables do not create icons", ()
   expect(supportedCaptionIcon("clock", "5분")).toBe("clock");
 });
 
-test("unsupported expressive glyph falls back to bundled plain font without deleting text", () => {
+test("scripts without stored direction emphasize only the pain hook and the call to action", () => {
+  const line = scriptWithDirection().voiceover[0];
+  if (!line) throw new Error("fixture voice missing");
+  const toneOf = (chainStep: typeof line.chainStep) =>
+    captionDirectionFor({ ...line, captionDirection: undefined, chainStep }).tone;
+  expect(toneOf("pain")).toBe("impact");
+  expect(toneOf("cta")).toBe("impact");
+  expect(toneOf("product_fact")).toBe("plain");
+  expect(toneOf("")).toBe("plain");
+});
+
+test("pop word glyphs missing from Black Han Sans fall back to the bundled plain font", () => {
   const font = resolveFont();
   if (!font) throw new Error("bundled font expected");
   const unusual = "갂";
-  expect(captionFontSupports(captionFont("warm", font), unusual)).toBe(false);
-  const result = directedCaptionEvents(
+  expect(captionFontSupports(captionPopFont(font), unusual)).toBe(false);
+  const pop = directedCaptionEvents(
     CaptionSchema.parse({
       text: unusual,
       startMs: 0,
       endMs: 1000,
       style: "bottom",
-      tone: "warm",
+      tone: "impact",
+      keyword: unusual,
+      placement: "chest",
     }),
     DEFAULT_PROFILE,
     font,
-  ).join("");
-  expect(result).toContain(String.fromCharCode(92) + "fn" + font.family);
-  expect(result).toContain(unusual);
+  ).find((event) => event.includes(",Pop,"));
+  expect(pop).toBeDefined();
+  expect(pop).toContain(`${bs}fn${font.family}`);
+  expect(pop).not.toContain("Black Han Sans");
+  expect(pop).toContain(unusual);
 });
 
 test("unreadably long captions stop rendering instead of shrinking or cutting copy", () => {
