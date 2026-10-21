@@ -25,7 +25,9 @@ import {
   CalloutKindSchema,
   CLIP_PHASE_RANGES_MS,
   CutEffectSchema,
+  CutMechanismSchema,
   CutPhaseSchema,
+  CutScreenSchema,
   calloutWordIndex,
   GraphicKindSchema,
   isClipPhaseId,
@@ -118,6 +120,18 @@ export const SourceRefSchema = z.discriminatedUnion("kind", [
     offsetIndex: ms,
   }),
   z.object({ kind: z.literal("graphic") }),
+  // 폰 화면 컷(2026-10-21): 앱이 HyperFrames 로 그린다. artifactName 은 쇼핑·가격 화면의 상품 사진(대표 이미지).
+  z.object({ kind: z.literal("screen"), screen: CutScreenSchema, artifactName: z.string() }),
+  // 작용 원리 컷: 위 = stillId 정지 이미지(없으면 대표 이미지) 위 원리 그래픽, 아래 = veoClip 의 phase 구간 실사(없으면 대표 이미지).
+  // 정지 이미지 이름은 still 컷처럼 조립이 기록(renders.stills)에서 찾는다.
+  z.object({
+    kind: z.literal("mechanism"),
+    mechanism: CutMechanismSchema,
+    stillId: z.union([z.literal(""), StillIdSchema]),
+    veoClip: z.union([z.literal(""), ClipIdSchema]),
+    phase: CutPhaseSchema,
+    artifactName: z.string(),
+  }),
 ]);
 export type SourceRef = z.infer<typeof SourceRefSchema>;
 // 대상(인물·제품)이 프레임에서 차지하는 영역(비율). 콜아웃의 subject 앵커·링 크기가 쓴다. 없으면 그리기가 기본 상자를 쓴다.
@@ -830,6 +844,28 @@ export function buildTimeline(
       case "motion_graphic":
         sourceRef = { kind: "graphic" };
         break;
+      case "phone_screen":
+        if (cut.screen.kind === "none")
+          warn(`컷 ${index + 1}: 폰 화면 컷에 화면 종류가 없어 검색 화면으로 그립니다.`);
+        sourceRef = {
+          kind: "screen",
+          screen: structuredClone(cut.screen),
+          artifactName: sources.approvedImage ?? "",
+        };
+        break;
+      case "mechanism": {
+        const stillId = StillIdSchema.safeParse(cut.stillId);
+        const clipId = ClipIdSchema.safeParse(cut.veoClip);
+        sourceRef = {
+          kind: "mechanism",
+          mechanism: structuredClone(cut.mechanism),
+          stillId: stillId.success ? stillId.data : "",
+          veoClip: clipId.success ? clipId.data : "",
+          phase: cut.phase,
+          artifactName: sources.approvedImage ?? "",
+        };
+        break;
+      }
       case "approved_image":
         if (!sources.approvedImage)
           warn("대표 이미지 이름이 없어 approved_image 컷 이름이 비어 있습니다.");

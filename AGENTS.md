@@ -8,6 +8,7 @@
 2. [docs/USER-GUIDE.md](docs/USER-GUIDE.md) — 사용자 흐름
 3. [FLOW-MODE.md](FLOW-MODE.md) — Google Flow 에서 Veo 클립·설명 이미지를 만들어 올리는 절차(13절: Veo 3.1 Lite + HyperFrames 분담)
 4. [FLOW-AGENT-RUN-BRIEF.md](FLOW-AGENT-RUN-BRIEF.md) — 영상 1편 단위 실행 순서·상한·보고 형식
+- [BROLL-AGENT-BRIEF.md](BROLL-AGENT-BRIEF.md) — 일상 컷(음식·몸 핏·손·운동)은 샤오홍슈 실사를 `bun run broll` 로 자료 라이브러리에 올려 쓴다(작업 만들기 전에)
 5. [FLOW-AGENT-BRIEF-VEO-HYPERFRAMES.md](FLOW-AGENT-BRIEF-VEO-HYPERFRAMES.md) — 설명 컷 분담 규칙(INFO 그래픽은 Veo, 글자·라벨판·연결선은 HyperFrames)
 6. `instructions/README.md` — 편집 가능한 창작 지시 파일과 임계값
 
@@ -27,6 +28,8 @@ bun run flow export <jobId> <영상번호>          # Flow 번들(프롬프트·
 bun run flow import <jobId> <영상번호> <클립ID> <mp4> --model "Veo 3.1 - Lite"
 bun run flow import-image <jobId> <영상번호> <I1~I3> clean|info <png>
 bun run script show|approve|rewrite <jobId> <영상번호> ["피드백"]
+bun run broll sheet <샤오홍슈 노트 링크>      # 영상 받기 + 1초 간격 시트(선별용)
+bun run broll add <projectId> <노트 링크> --start <초> --end <초> --title "<장면 이름>"   # 잘라 9:16·폰 색감·무음 → 자료 라이브러리
 curl -s -H "Origin: http://127.0.0.1:4317" http://127.0.0.1:4317/api/state   # 작업·엔진 상태(JSON)
 ```
 

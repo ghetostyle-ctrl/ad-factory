@@ -566,3 +566,14 @@ test("classifyScriptProblems hands copy_first scripts to the v2 scene rules and 
   // 문장을 줄인 대본은 v2 로 hard 가 없다
   expect(classifyScriptProblems(passingScript(), expected).hard).toEqual([]);
 });
+
+test("14. 같은 효과(hard_cut 외)가 연속 두 컷이면 hard, 떨어져 있거나 hard_cut 이면 통과", () => {
+  const base = passingScript();
+  expect(scene(base).hard).toEqual([]);
+  const adjacent = edit(base, { 1: { effect: "shake" }, 2: { effect: "shake" } });
+  expect(has(scene(adjacent).hard, "같은 효과(shake)가 연달아")).toBe(true);
+  const apart = edit(base, { 1: { effect: "shake" }, 3: { effect: "shake" } });
+  expect(has(scene(apart).hard, "같은 효과")).toBe(false);
+  const plain = edit(base, { 1: { effect: "hard_cut" }, 2: { effect: "hard_cut" } });
+  expect(has(scene(plain).hard, "같은 효과")).toBe(false);
+});

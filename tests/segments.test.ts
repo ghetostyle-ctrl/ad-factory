@@ -6,6 +6,7 @@ import { runFfmpeg, runFfprobeJson } from "../server/render/ffmpeg";
 import {
   aiStillSegmentArgs,
   effectFilters,
+  LIVE_GRADE,
   lastFrameArgs,
   projectAudioExtractArgs,
   projectSegmentArgs,
@@ -422,3 +423,14 @@ test.skipIf(!hasFfmpeg)(
   },
   180_000,
 );
+
+test("AI 실사 클립에만 폰 카메라 질감(LIVE_GRADE)을 건다 — 밝기는 낮추지 않는다", () => {
+  const veo = veoSegmentArgs(
+    cut({ sourceRef: { kind: "veo", clipId: "A", offsetMs: 0, padMs: 0 } }),
+    "clip.mp4",
+    renderProfile,
+    "seg.mp4",
+  );
+  expect(veo.join(" ")).toContain(LIVE_GRADE);
+  expect(LIVE_GRADE).not.toContain("brightness");
+});

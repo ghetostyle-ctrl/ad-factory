@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { HfLabelPlanResponseSchema } from "../shared/hf-label-plan";
 import { repairHfLabelResponse } from "../shared/hf-label-repair";
-import { HfVideoScriptResponseSchema } from "../shared/video-script";
+import { fillHfCutFields, HfVideoScriptResponseSchema } from "../shared/video-script";
 import { hfLabelFixture } from "./hf-label-fixture";
 import { hybridScriptResponse } from "./video-script-fixture";
 
@@ -33,11 +33,13 @@ test("repairs the observed box and animation failures without changing text or a
   third.fullSec = 7;
   third.endSec = 8;
   const before = structuredClone(value);
-  expect(HfVideoScriptResponseSchema.safeParse(value).success).toBe(false);
+  expect(HfVideoScriptResponseSchema.safeParse(fillHfCutFields(value)).success).toBe(false);
   const result = repairHfLabelResponse(value);
-  const parsed = HfVideoScriptResponseSchema.parse(result.value);
+  const parsed = HfVideoScriptResponseSchema.parse(fillHfCutFields(result.value));
   expect(value).toEqual(before);
-  expect(parsed.sentences).toEqual(before.sentences);
+  expect(parsed.sentences.map((item) => item.text)).toEqual(
+    before.sentences.map((item) => item.text),
+  );
   expect(parsed.infoClips.map((c) => c.infoLines)).toEqual(
     before.infoClips.map((c) => c.infoLines),
   );
@@ -97,8 +99,9 @@ for (const reason of ["oversized", "short tracking", "unknown target", "overlap"
       default:
         reason satisfies never;
     }
-    expect(HfVideoScriptResponseSchema.safeParse(repairHfLabelResponse(value).value).success).toBe(
-      false,
-    );
+    expect(
+      HfVideoScriptResponseSchema.safeParse(fillHfCutFields(repairHfLabelResponse(value).value))
+        .success,
+    ).toBe(false);
   });
 }

@@ -20,6 +20,7 @@ import {
 import type { VideoPlanning } from "../shared/video-planning";
 import {
   type CopyLine,
+  fillHfCutFields,
   HfVideoScriptResponseSchema,
   hypothesisFactTexts,
   type VideoScript,
@@ -259,7 +260,7 @@ export type VideoScriptProvider = (
 
 // 편지 2 응답 칸 이름(스키마와 묶임, 코드 고정). sentences[i].text·chainStep 은 DATA.copyLines[i] 를 그대로 옮긴다.
 const SCENE_SHAPE =
-  "JSON SHAPE: {title, fixedTitle, disclaimer, voicePersona, openLoop, payoffSec, styleAnchor, explainerAnchor, subjects[{id, traits}], veoClips[{id, startImagePrompt, prompt, plan{early{camera, action}, mid{…}, late{…}}}], stills[{id, prompt}], infoClips[{id, stage, cleanPrompt, infoPrompt, infoLines[], labelLayer, plan, sceneType, objects[{subjectId, color}], actions[], emphasis[{kind, target, afterAction}]}], sentences[{purpose, chainStep, text, captionDirection{tone, keyword, icon}, actionSync, callouts[{word, text, kind, anchor, targetId}], cuts[{len, source, screenComposition, onScreenText, effect, veoClip, stillId, graphicKind, graphicLines, goal, phase}]}], flowPrompt, editInstructions}. sentences[i].text and chainStep are copied from DATA.copyLines[i]; purpose is the sentence's editorial label (hook, pain, story, mechanism, proof, offer, cta or rehook).";
+  "JSON SHAPE: {title, fixedTitle, disclaimer, voicePersona, openLoop, payoffSec, styleAnchor, explainerAnchor, subjects[{id, traits}], veoClips[{id, startImagePrompt, prompt, plan{early{camera, action}, mid{…}, late{…}}}], stills[{id, prompt}], infoClips[{id, stage, cleanPrompt, infoPrompt, infoLines[], labelLayer, plan, sceneType, objects[{subjectId, color}], actions[], emphasis[{kind, target, afterAction}]}], sentences[{purpose, chainStep, text, captionDirection{tone, keyword, icon}, actionSync, callouts[{word, text, kind, anchor, targetId}], cuts[{len, source, screenComposition, onScreenText, effect, veoClip, stillId, graphicKind, graphicLines, goal, phase, screen{kind, title, query, lines[], highlight, numbers[]}, mechanism{chips[], counterLabel, counterSteps[], counterUnit, result}}]}], flowPrompt, editInstructions}. sentences[i].text and chainStep are copied from DATA.copyLines[i]; purpose is the sentence's editorial label (hook, pain, story, mechanism, proof, offer, cta or rehook).";
 // 편지 2 프롬프트(instructions/copy-first.md SCENE_FROM_COPY_RULES + 설명 컷 불가 안내 + 응답 칸 이름 + 피드백). 기존 대본 프롬프트(videoScriptInstructions)는 그대로다.
 export function sceneFromCopyInstructions(
   input: { readonly infoClips: boolean; readonly feedback?: string },
@@ -356,7 +357,8 @@ export const generateVideoScript: VideoScriptProvider = (
       schema,
       parseResponse: async (response) => {
         await options?.onResponse?.(response);
-        const repaired = repairHfLabelResponse(JSON.parse(response.text));
+        const raw: unknown = JSON.parse(response.text);
+        const repaired = repairHfLabelResponse(copyLines ? fillHfCutFields(raw) : raw);
         labelRepairs.push(...repaired.repairs);
         const parsed = schema.parse(repaired.value);
         const font = resolveFont();

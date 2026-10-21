@@ -190,7 +190,17 @@ test("a script stored before scene plans parses with defaults and keeps its dige
   } = current;
   const legacy = {
     ...rest,
-    cuts: current.cuts.map(({ goal: _goal, phase: _phase, stillId: _stillId, ...cut }) => cut),
+    // 폰 화면·작용 원리(2026-10-21) 이전 JSON 에는 screen·mechanism 도 없다
+    cuts: current.cuts.map(
+      ({
+        goal: _goal,
+        phase: _phase,
+        stillId: _stillId,
+        screen: _screen,
+        mechanism: _mechanism,
+        ...cut
+      }) => cut,
+    ),
     voiceover: current.voiceover.map(
       ({ callouts: _callouts, chainStep: _chainStep, ...voice }) => voice,
     ),

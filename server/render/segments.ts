@@ -25,6 +25,9 @@ const px = (profile: RenderProfile, base: number) =>
   Math.max(1, Math.round((base * profile.height) / 1920));
 const even = (value: number) => Math.max(2, Math.round(value / 2) * 2);
 
+// AI 실사 클립(Veo/Flow)에 거는 폰 카메라 질감(2026-10-21 사용자 결정: 화보처럼 매끈한 AI 톤을 폰 촬영처럼).
+// 밝기는 건드리지 않는다 — 원래 어두운 저녁 컷에 밝기까지 낮추면 회색으로 탁해진다(리메이크 스킬 v4 지적).
+export const LIVE_GRADE = "eq=saturation=0.9:contrast=1.04,noise=alls=5:allf=t";
 // 모든 소스를 같은 규격으로: 채우기 스케일→크롭→fps→SAR 1
 export function normalizeChain(profile: RenderProfile): string {
   const { width, height, fps } = profile;
@@ -229,7 +232,7 @@ export function veoSegmentArgs(
   const effect = effectFilters(cut.effect, durMs, profile, withPunch(cut, extras));
   return assemble({
     inputs: ["-ss", sec(ref.offsetMs), "-t", sec(plan.readMs), "-i", clipPath, ...effect.inputs],
-    graph: `[0:v]${extras.clipCrop ? `${extras.clipCrop},` : ""}${normalizeChain(profile)}${effect.chain}${tail(durMs, plan.tailMs)}`,
+    graph: `[0:v]${extras.clipCrop ? `${extras.clipCrop},` : ""}${normalizeChain(profile)},${LIVE_GRADE}${effect.chain}${tail(durMs, plan.tailMs)}`,
     durMs,
     profile,
     out,

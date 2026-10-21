@@ -5,13 +5,14 @@ import { z } from "zod";
 import { FLOW_CLIP_TOLERANCE_MS } from "../shared/flow-mode";
 import { ClipIdSchema } from "../shared/render-state";
 import {
+  type RenderTimeline,
   RenderTimelineSchema,
   storedTimelineMatches,
-  type RenderTimeline,
   type TimelineCut,
 } from "../shared/render-timeline";
 import type { Job } from "../shared/schema";
 import { sha256Hex } from "../shared/sha256";
+import { CLIP_PHASE_RANGES_MS, isClipPhaseId } from "../shared/video-script";
 import { Artifacts } from "./artifacts";
 import { AutomationGuard, contentDigest } from "./automation-guard";
 import {
@@ -38,7 +39,7 @@ import {
 import { fontDigest, resolveFont } from "./render/fonts";
 import { graphicBackgrounds, type RenderCutInput } from "./render/graphic-background";
 import { graphicLinesWithoutCaptions } from "./render/graphic-captions";
-import { assertHfReadTime, renderHfClip } from "./render/hf-render";
+import { assertHfReadTime, renderHfClip, renderScreenClip } from "./render/hf-render";
 import { renderGraphicCut, SEGMENT_TIMEOUT_MS } from "./render/motion-graphics";
 import {
   aiStillSegmentArgs,
@@ -263,6 +264,8 @@ export class RenderProduction {
             cut.sourceRef.kind !== "graphic" &&
             cut.sourceRef.kind !== "image" &&
             cut.sourceRef.kind !== "card" &&
+            cut.sourceRef.kind !== "screen" &&
+            cut.sourceRef.kind !== "mechanism" &&
             (cut.effect === "whip_pan" || cut.effect === "split_screen");
           const digest = segmentDigest({
             cut,
@@ -591,6 +594,62 @@ export class RenderProduction {
         case "graphic":
           cuts.push({ cut, sourcePath: null, sourceDigest: approved?.digest ?? "none" });
           break;
+        case "screen": {
+          // 폰 화면(2026-10-21): 쇼핑·가격 화면의 상품 사진은 대표 이미지. 없으면 그림 없이 그린다.
+          const name = cut.sourceRef.artifactName || sources.approvedImage?.name;
+          const usable = name && hasArtifact(job, name) ? name : null;
+          cuts.push({
+            cut,
+            sourcePath: usable ? this.assets.path(job.id, usable) : null,
+            sourceDigest: usable ? await digestOf(usable) : "none",
+          });
+          break;
+        }
+        case "mechanism": {
+          // 작용 원리: 위 = 정지 이미지(기록 digest 대조) 또는 대표 이미지, 아래 = 클립 구간 또는 대표 이미지.
+          const ref = cut.sourceRef;
+          const still = ref.stillId ? render?.stills[ref.stillId] : undefined;
+          let top: { path: string; digest: string } | null = approved;
+          if (still?.name && still.digest && hasArtifact(job, still.name)) {
+            const digest = await digestOf(still.name);
+            if (digest !== still.digest)
+              throw new BlockedError(
+                `정지 이미지 ${ref.stillId} 파일이 변경되었습니다. 조립을 중단합니다.`,
+              );
+            top = { path: this.assets.path(job.id, still.name), digest };
+          }
+          const clip = ref.veoClip ? render?.clips[ref.veoClip] : undefined;
+          let bottom: RenderCutInput["bottom"] = approved
+            ? { ...approved, video: false, offsetMs: 0 }
+            : null;
+          if (clip?.name && clip.digest && hasArtifact(job, clip.name)) {
+            const digest = await digestOf(clip.name);
+            if (digest !== clip.digest)
+              throw new BlockedError(
+                `클립 ${ref.veoClip} 파일이 변경되었습니다. 조립을 중단합니다.`,
+              );
+            const fromFlow =
+              job.artifacts.find((asset) => asset.name === clip.name)?.model?.provider === "flow";
+            bottom = {
+              path: this.assets.path(job.id, clip.name),
+              digest: fromFlow ? `${digest}:clean1` : digest,
+              video: true,
+              offsetMs: isClipPhaseId(ref.phase) ? CLIP_PHASE_RANGES_MS[ref.phase][0] : 0,
+              ...(fromFlow ? { cleanClip: true } : {}),
+            };
+          }
+          if (!top && !bottom)
+            throw new BlockedError(
+              `컷 ${cut.index + 1}: 작용 원리 컷에 쓸 이미지·클립이 없습니다.`,
+            );
+          cuts.push({
+            cut,
+            sourcePath: top?.path ?? null,
+            sourceDigest: `${top?.digest ?? "none"}|${bottom?.digest ?? "none"}`,
+            bottom,
+          });
+          break;
+        }
         default:
           return cut.sourceRef satisfies never;
       }
@@ -760,6 +819,37 @@ export class RenderProduction {
           "render_graphic",
           `컷 ${cut.index + 1} 모션그래픽 세그먼트가 없습니다.`,
         );
+      case "screen":
+      case "mechanism": {
+        // 폰 화면·작용 원리(2026-10-21): HyperFrames 로 컷 길이만큼 렌더(효과는 템플릿 애니메이션이 대신한다).
+        const font = resolveFont();
+        if (!font)
+          throw new StudioError(
+            "render_unavailable",
+            "화면 컷용 한글 폰트를 찾을 수 없습니다.",
+            503,
+          );
+        const bottom = input.item.bottom;
+        const crop =
+          bottom?.video && bottom.cleanClip
+            ? await this.cleanCropFor(bottom.path, input.signal)
+            : null;
+        return renderScreenClip({
+          kind: cut.sourceRef.kind,
+          ...(cut.sourceRef.kind === "screen"
+            ? { screen: cut.sourceRef.screen }
+            : { mechanism: cut.sourceRef.mechanism }),
+          durationMs: cut.endMs - cut.startMs,
+          image: sourcePath ? { path: sourcePath, digest: input.item.sourceDigest } : null,
+          bottom: bottom ? { ...bottom, ...(crop ? { crop: cropFilter(crop) } : {}) } : null,
+          font,
+          profile: this.profile,
+          scratch: input.scratch,
+          out: input.out,
+          signal: input.signal,
+          run: this.ffmpeg,
+        });
+      }
       default:
         return cut.sourceRef satisfies never;
     }

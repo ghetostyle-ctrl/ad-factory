@@ -14,6 +14,8 @@ import {
   alignmentProblems,
   bindVoiceover,
   cutNarration,
+  emptyMechanism,
+  emptyScreen,
   type FlatScript,
   FlatScriptSchema,
   NARRATION_MAX_CHARS_PER_SEC,
@@ -70,6 +72,8 @@ function cut(
     phase: "",
     narration: "",
     veoPrompt: "",
+    screen: emptyScreen(),
+    mechanism: emptyMechanism(),
   };
 }
 function voice(fromCut: number, toCut: number, purpose: Voice["purpose"], text: string): Voice {

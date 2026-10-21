@@ -12,7 +12,8 @@
     "lint": "biome check src shared server tests scripts package.json tsconfig.json vite.config.ts",
     "test": "bun test",
     "flow": "bun run scripts/flow.ts",
-    "script": "bun run scripts/script.ts"
+    "script": "bun run scripts/script.ts",
+    "broll": "bun run scripts/broll.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

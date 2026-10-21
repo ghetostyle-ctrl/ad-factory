@@ -111,6 +111,8 @@ const SOURCE_LABELS: Record<Cut["source"], string> = {
   project_clip: "촬영본",
   motion_graphic: "모션그래픽",
   still_image: "정지 이미지",
+  phone_screen: "폰 화면",
+  mechanism: "작용 원리",
 };
 function cutLabel(cut: Cut, index: number): string {
   const source = cut.source === "veo_clip" ? `${cut.veoClip} 클립` : SOURCE_LABELS[cut.source];

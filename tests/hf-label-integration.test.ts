@@ -9,7 +9,11 @@ import { Pipeline } from "../server/pipeline";
 import { verifyVideoScript } from "../server/video-scripts";
 import { FlowExportPreviewSchema, flowExportMarkdown } from "../shared/flow-mode";
 import { videoScriptFromResponse } from "../shared/script-repair";
-import { HfVideoScriptResponseSchema, VideoScriptSchema } from "../shared/video-script";
+import {
+  fillHfCutFields,
+  HfVideoScriptResponseSchema,
+  VideoScriptSchema,
+} from "../shared/video-script";
 import { hfLabelFixture } from "./hf-label-fixture";
 import { renderRuntimeFixture, settle } from "./render-runtime-fixture";
 import { fixtureVideoPlanning } from "./video-planning-fixture";
@@ -33,7 +37,7 @@ test("new model schema requires every label-plan field while retaining all copy"
   // Given
   const input = response();
   // When
-  const parsed = HfVideoScriptResponseSchema.parse(input);
+  const parsed = HfVideoScriptResponseSchema.parse(fillHfCutFields(input));
   const missing = HfVideoScriptResponseSchema.safeParse(hybridScriptResponse());
   // Then
   expect(parsed.sentences.map((item) => item.text)).toEqual(

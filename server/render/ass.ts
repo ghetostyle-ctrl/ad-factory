@@ -255,7 +255,13 @@ export function fixedTitleSpans(
   timeline: Pick<RenderTimeline, "durationMs" | "cuts">,
 ): { readonly startMs: number; readonly endMs: number }[] {
   const hidden = timeline.cuts
-    .filter((cut) => cut.sourceRef.kind === "veo" && isInfoClipId(cut.sourceRef.clipId))
+    .filter(
+      (cut) =>
+        (cut.sourceRef.kind === "veo" && isInfoClipId(cut.sourceRef.clipId)) ||
+        // 폰 화면·작용 원리(2026-10-21)도 화면 위쪽에 앱 머리·원리 그래픽이 있어 고정 제목을 숨긴다.
+        cut.sourceRef.kind === "screen" ||
+        cut.sourceRef.kind === "mechanism",
+    )
     .map((cut) => ({ startMs: cut.startMs, endMs: cut.endMs }))
     .sort((left, right) => left.startMs - right.startMs);
   const spans: { startMs: number; endMs: number }[] = [];

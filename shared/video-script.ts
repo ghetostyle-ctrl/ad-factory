@@ -260,6 +260,8 @@ const PurposeSchema = z.enum([
 const ResponsePurposeSchema = PurposeSchema.exclude(["problem", "solution"]);
 // 화면 소스. motion_graphic 은 앱이 직접 그리는 숫자·체크리스트·비교·질문 화면(무료).
 // still_image 는 AI 가 만든 사진풍 정지 이미지를 카메라 무브로 보여 주는 컷(분위기·상황·장소·사물).
+// phone_screen·mechanism(2026-10-21, higgsfield-remake 규칙 반영 ③): 실제 앱처럼 재현한 폰 화면(검색·채팅·쇼핑·가격·문서)과
+// 위=작용 원리 그래픽 / 아래=제품 든 실사 분할 화면. 둘 다 앱이 HyperFrames 로 그린다(카피 먼저 + HF 응답에서만 받는다).
 const SourceSchema = z.enum([
   "approved_image",
   "card_slide",
@@ -267,7 +269,62 @@ const SourceSchema = z.enum([
   "project_clip",
   "motion_graphic",
   "still_image",
+  "phone_screen",
+  "mechanism",
 ]);
+// 예전 응답 스키마(legacy·immersive·혼합형)는 새 두 소스를 받지 않는다.
+const LegacyResponseSourceSchema = SourceSchema.exclude(["phone_screen", "mechanism"]);
+// 폰 화면 컷의 내용. kind 별 뜻(server/render/screens.ts 매퍼와 instructions/copy-first.md 가 같다):
+// search: query=검색어, lines=연관검색어 뒷말(최대 8), highlight=주황으로 바뀔 연관검색어(lines 중 하나).
+// chat: title=상대 이름, lines=메시지("나:"/"상대:" 접두), highlight=확대할 답변 안에서 박스 칠 구절.
+// shop: query=검색어, lines=상품명 4개("가품:" 접두면 빨간 테두리·도장), numbers=가격 4개(같은 순서), highlight=도장 문구.
+// price: title=스토어 이름, lines=[상품명, "할인 줄 이름|값" ...], numbers=[정가, 최종가], highlight=쿠폰 문구.
+// doc: title=출처, lines=[문서 제목, 요약 줄...], highlight=형광펜 칠 구절.
+export const SCREEN_KINDS = ["none", "search", "chat", "shop", "price", "doc"] as const;
+export type ScreenKind = (typeof SCREEN_KINDS)[number];
+export const CutScreenSchema = z.strictObject({
+  kind: z.enum(SCREEN_KINDS),
+  title: z.string().trim().max(40),
+  query: z.string().trim().max(40),
+  lines: z.array(z.string().trim().max(60)).max(8),
+  highlight: z.string().trim().max(40),
+  numbers: z.array(z.string().trim().max(20)).max(5),
+});
+export type CutScreen = z.infer<typeof CutScreenSchema>;
+// 작용 원리 컷의 내용: 칩 1~2개(원료→작용), 숫자 카운터(라벨·단계·단위), 결과 문구.
+export const CutMechanismSchema = z.strictObject({
+  chips: z.array(z.string().trim().min(1).max(20)).max(2),
+  counterLabel: z.string().trim().max(20),
+  counterSteps: z.array(z.string().trim().min(1).max(8)).max(6),
+  counterUnit: z.string().trim().max(8),
+  result: z.string().trim().max(20),
+});
+export type CutMechanism = z.infer<typeof CutMechanismSchema>;
+export function emptyScreen(): CutScreen {
+  return { kind: "none", title: "", query: "", lines: [], highlight: "", numbers: [] };
+}
+export function emptyMechanism(): CutMechanism {
+  return { chips: [], counterLabel: "", counterSteps: [], counterUnit: "", result: "" };
+}
+export function isScreenEmpty(screen: CutScreen): boolean {
+  return (
+    screen.kind === "none" &&
+    screen.title === "" &&
+    screen.query === "" &&
+    screen.lines.length === 0 &&
+    screen.highlight === "" &&
+    screen.numbers.length === 0
+  );
+}
+export function isMechanismEmpty(mechanism: CutMechanism): boolean {
+  return (
+    mechanism.chips.length === 0 &&
+    mechanism.counterLabel === "" &&
+    mechanism.counterSteps.length === 0 &&
+    mechanism.counterUnit === "" &&
+    mechanism.result === ""
+  );
+}
 export const GraphicKindSchema = z.enum([
   "",
   "number",
@@ -311,6 +368,9 @@ export const VideoCutResponseSchema = z.strictObject({
   // 장면 계획(2026-10-06): 컷의 핵심 한 문장과 veo_clip 컷이 읽는 클립 구간. 평면 형태·예전 대본은 기본값("").
   goal: z.string().trim().max(CUT_GOAL_MAX_CHARS).default(""),
   phase: CutPhaseSchema.default(""),
+  // 폰 화면·작용 원리(2026-10-21). 평면 중간 형태는 선택, 저장본(VideoCutSchema)은 기본값(빈 값)이고 다이제스트에서 뺀다.
+  screen: CutScreenSchema.optional(),
+  mechanism: CutMechanismSchema.optional(),
 });
 // 내레이션은 컷과 따로 쓴 음성 트랙(문장 단위)에서 문장이 시작하는 컷에 옮겨 담는다.
 // Veo 프롬프트는 선언한 클립에서 컷마다 옮겨 담는다.
@@ -323,6 +383,8 @@ export const VideoCutSchema = VideoCutResponseSchema.extend({
   veoPrompt: z.string().trim().max(1200).default(""),
   graphicKind: GraphicKindSchema.default(""),
   graphicLines: z.array(z.string().trim().min(1).max(24)).max(4).default([]),
+  screen: CutScreenSchema.default(emptyScreen),
+  mechanism: CutMechanismSchema.default(emptyMechanism),
 });
 
 // 음성 트랙 한 문장(모델 응답): 시간을 따로 적지 않고 그 문장이 흐르는 컷 범위(fromCut~toCut, 0부터, 양끝 포함)에 묶는다.
@@ -548,7 +610,7 @@ export type FlatCut = z.infer<typeof VideoCutResponseSchema>;
 export const SentenceCutResponseSchema = z.strictObject({
   // 컷 길이(초)는 동작·이해에 맞춰 정한다. 전체 길이와 실제 소스 예산은 별도로 검사한다.
   len: z.number().min(SHOT_MIN_SEC).max(VIDEO_MAX_SEC),
-  source: SourceSchema,
+  source: LegacyResponseSourceSchema,
   screenComposition: line,
   // 한 줄 7~12자가 권장이다. 긴 문구는 경고하되 내용을 자동 삭제하지 않는다.
   onScreenText: z.string().trim().max(120),
@@ -577,6 +639,43 @@ export const SentenceResponseSchema = z.strictObject({
   // 이 문장이 흐르는 동안 보이는 컷(순서대로). 합계 초 = 문장 시간.
   cuts: z.array(SentenceCutResponseSchema).min(1).max(8),
 });
+// 카피 먼저 + HyperFrames 응답(2026-10-21): 컷에 폰 화면(screen)·작용 원리(mechanism)가 더해진다(strict: 모든 컷이 둘 다 적는다,
+// 해당 없으면 kind "none"·빈 값). 예전 응답 스키마는 그대로다.
+export const HfSentenceCutResponseSchema = SentenceCutResponseSchema.extend({
+  source: SourceSchema,
+  screen: CutScreenSchema,
+  mechanism: CutMechanismSchema,
+});
+export const HfSentenceResponseSchema = SentenceResponseSchema.extend({
+  cuts: z.array(HfSentenceCutResponseSchema).min(1).max(8),
+});
+// HF 응답 파싱 전 보정: screen·mechanism 을 적지 않은 컷(예전 픽스처·두 필드 이전 응답)은 빈 값(kind "none")으로 채운다.
+// JSON 스키마는 strict(필수)로 보내고, 빠진 칸은 "해당 없음"과 같으므로 수리 기록에 남기지 않는다.
+export function fillHfCutFields(value: unknown): unknown {
+  if (!value || typeof value !== "object" || !("sentences" in value)) return value;
+  const { sentences } = value as { sentences: unknown };
+  if (!Array.isArray(sentences)) return value;
+  return {
+    ...value,
+    sentences: sentences.map((sentence: unknown) => {
+      if (!sentence || typeof sentence !== "object" || !("cuts" in sentence)) return sentence;
+      const { cuts } = sentence as { cuts: unknown };
+      if (!Array.isArray(cuts)) return sentence;
+      return {
+        ...sentence,
+        cuts: cuts.map((cut: unknown) =>
+          cut && typeof cut === "object"
+            ? {
+                ...cut,
+                ...("screen" in cut ? {} : { screen: emptyScreen() }),
+                ...("mechanism" in cut ? {} : { mechanism: emptyMechanism() }),
+              }
+            : cut,
+        ),
+      };
+    }),
+  };
+}
 // 응답 최상위 필드(정책 공통). 혼합형은 styleAnchor 뒤에 explainerAnchor 를 더하고 설명 컷 형태가 다르다(아래).
 const responseHead = {
   fixedTitle,
@@ -632,14 +731,17 @@ export const HfVideoScriptResponseSchema = HybridVideoScriptResponseSchema.exten
       ),
     )
     .max(INFO_CLIPS_MAX),
+  sentences: z.array(HfSentenceResponseSchema).min(4).max(40),
 });
 export type HfVideoScriptResponse = z.infer<typeof HfVideoScriptResponseSchema>;
 export type HybridVideoScriptResponse = z.infer<typeof HybridVideoScriptResponseSchema>;
 // 정책별 모델 응답 스키마. 수리·평면화(script-repair)는 두 형태를 모두 받는다.
+// 수리·평면화는 세 형태의 문장을 같은 컷 타입(SentenceResponse: 소스 전체·screen/mechanism 선택)으로 다룬다.
+type WithSentences<T> = Omit<T, "sentences"> & { sentences: SentenceResponse[] };
 export type ScriptResponseInput =
-  | VideoScriptResponse
-  | HybridVideoScriptResponse
-  | HfVideoScriptResponse;
+  | WithSentences<VideoScriptResponse>
+  | WithSentences<HybridVideoScriptResponse>
+  | WithSentences<HfVideoScriptResponse>;
 export function videoScriptResponseSchemaFor(
   policy: VisualPolicyId | undefined,
 ): z.ZodType<ScriptResponseInput> {
@@ -649,11 +751,17 @@ export function videoScriptResponseSchemaFor(
 }
 export function isHybridResponse(
   response: ScriptResponseInput,
-): response is HybridVideoScriptResponse | HfVideoScriptResponse {
+): response is WithSentences<HybridVideoScriptResponse> | WithSentences<HfVideoScriptResponse> {
   return "explainerAnchor" in response;
 }
-export type SentenceResponse = z.infer<typeof SentenceResponseSchema>;
-export type SentenceCutResponse = z.infer<typeof SentenceCutResponseSchema>;
+// 수리·평면화가 다루는 컷: 예전 응답 컷이거나 폰 화면·작용 원리가 있는 HF 응답 컷.
+export type SentenceCutResponse = Omit<
+  z.infer<typeof HfSentenceCutResponseSchema>,
+  "screen" | "mechanism"
+> & { readonly screen?: CutScreen; readonly mechanism?: CutMechanism };
+export type SentenceResponse = Omit<z.infer<typeof SentenceResponseSchema>, "cuts"> & {
+  cuts: SentenceCutResponse[];
+};
 // 저장본은 예전 8초 대본도 읽는다.
 export const VideoScriptSchema = z.strictObject({
   planning: VideoPlanningSchema.optional(),
@@ -877,6 +985,8 @@ export function videoScriptFromFlat(flat: FlatScript): VideoScript {
     infoClips: (flat.infoClips ?? []).map((clip) => ({ ...clip })),
     cuts: flat.cuts.map((cut, index) => ({
       ...cut,
+      screen: cut.screen ?? emptyScreen(),
+      mechanism: cut.mechanism ?? emptyMechanism(),
       veoPrompt:
         flat.veoClips.find((clip) => clip.id === cut.veoClip)?.prompt ??
         infoClipMotionText(flat.infoClips?.find((clip) => clip.id === cut.veoClip)) ??
@@ -1302,8 +1412,11 @@ export function scriptDigestJson(script: VideoScript): string {
               withoutDefaults(
                 cut,
                 (cutKey, cutValue) =>
-                  (cutKey === "stillId" || cutKey === "goal" || cutKey === "phase") &&
-                  cutValue === "",
+                  ((cutKey === "stillId" || cutKey === "goal" || cutKey === "phase") &&
+                    cutValue === "") ||
+                  // 폰 화면·작용 원리(2026-10-21)가 생기기 전 대본은 두 필드가 없었다(기본 빈 값이면 뺀다).
+                  (cutKey === "screen" && isScreenEmpty(cutValue as CutScreen)) ||
+                  (cutKey === "mechanism" && isMechanismEmpty(cutValue as CutMechanism)),
               ),
             ),
           ];

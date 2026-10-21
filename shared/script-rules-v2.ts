@@ -18,6 +18,8 @@ import {
   isExplainerScene,
   isHybrid,
   isInfoClipId,
+  isMechanismEmpty,
+  isScreenEmpty,
   memoEnding,
   sentenceSimilarity,
   VEO_CLIP_MS,
@@ -240,6 +242,8 @@ const SOURCE_LABELS: Record<Cut["source"], string> = {
   project_clip: "촬영본",
   motion_graphic: "모션그래픽",
   still_image: "정지 이미지",
+  phone_screen: "폰 화면",
+  mechanism: "작용 원리",
 };
 function cutWhere(cut: Cut, index: number): string {
   const source = cut.source === "veo_clip" ? `${cut.veoClip} 클립` : SOURCE_LABELS[cut.source];
@@ -291,13 +295,23 @@ export function sceneProblemsV2(script: VideoScript, expected: ScriptExpectation
       );
   });
   for (const clip of script.veoClips)
-    if (!cuts.some((cut) => cut.source === "veo_clip" && cut.veoClip === clip.id))
+    if (
+      !cuts.some(
+        (cut) =>
+          (cut.source === "veo_clip" || cut.source === "mechanism") && cut.veoClip === clip.id,
+      )
+    )
       warn(`선언한 Veo 클립 ${clip.id}를 쓰는 컷이 없습니다.`);
   for (const clip of script.infoClips)
     if (!cuts.some((cut) => cut.source === "veo_clip" && cut.veoClip === clip.id))
       warn(`선언한 설명 컷 ${clip.id}를 쓰는 컷이 없습니다.`);
   for (const still of script.stills)
-    if (!cuts.some((cut) => cut.source === "still_image" && cut.stillId === still.id))
+    if (
+      !cuts.some(
+        (cut) =>
+          (cut.source === "still_image" || cut.source === "mechanism") && cut.stillId === still.id,
+      )
+    )
       warn(`선언한 정지 이미지 ${still.id}를 쓰는 컷이 없습니다.`);
 
   // 2. 컷 시간이 이어지고 합계가 영상 길이와 같으며 길이는 30~60초.
@@ -417,6 +431,8 @@ export function sceneProblemsV2(script: VideoScript, expected: ScriptExpectation
       for (let cutIndex = range[0]; cutIndex <= range[1]; cutIndex++) {
         const cut = cuts[cutIndex];
         if (!cut) continue;
+        // 폰 화면은 증거 장면이라 실사 칸에서도 막지 않는다(cta 의 가격 화면 등). 고통·믿는 원인 아래는 경고만(13번).
+        if (cut.source === "phone_screen") continue;
         if (!isLiveCut(cut) || (cut.source === "approved_image" && step !== "cta"))
           fail(
             `${index + 1}번째 문장(${CHAIN_STEP_LABELS[step]}) "${shorten(voice.text)}"의 ${cutWhere(cut, cutIndex)}은 실사가 아닙니다. 고통·믿는 원인·결과·행동 문장의 컷은 사람·상황이 보이는 실사(Veo 클립 또는 정지 이미지)만 쓰고, 승인 이미지는 행동 문장에서만 씁니다.`,
@@ -546,8 +562,114 @@ export function sceneProblemsV2(script: VideoScript, expected: ScriptExpectation
       `정지 이미지 컷이 합계 ${stillTotalMs / 1000}초입니다. 영상 전체에서 ${STILL_TOTAL_MAX_MS / 1000}초 이하로 줄이고 실사 움직임을 늘리세요.`,
     );
 
+  // 13. 폰 화면·작용 원리(2026-10-21): 내용이 있고, 숫자는 사실에 있는 것만, 개수·길이 한도, 첫/마지막 컷 금지.
+  screenProblems(script, factNumbers, fail, warn);
+
+  // 14. 같은 효과 연속 금지(2026-10-21 사용자 지적: 충격선이 두 컷 연속 → 어색함). hard_cut 외 효과가 붙은 두 컷에 같으면 거부.
+  cuts.forEach((cut, index) => {
+    const previous = cuts[index - 1];
+    if (index > 0 && previous && cut.effect !== "hard_cut" && cut.effect === previous.effect)
+      fail(
+        `${cutWhere(previous, index - 1)}과 ${cutWhere(cut, index)}에 같은 효과(${cut.effect})가 연달아 있습니다. 한 컷은 hard_cut 이나 다른 효과로 바꾸세요.`,
+      );
+  });
+
   // 설명 장면 자체의 깨짐(물체·동작·강조 정합, 영문 INFO 문구)은 hard 만 그대로 가져온다.
   for (const problem of explainerSceneProblems(script.infoClips, script.subjects).hard)
     fail(problem);
   return { hard, soft };
+}
+
+// --- 13. 폰 화면·작용 원리(2026-10-21, higgsfield-remake 규칙 반영 ③) ----------------------------------------------
+export const PHONE_SCREEN_CUTS_MAX = 3;
+export const MECHANISM_CUTS_MAX = 2;
+export const PHONE_SCREEN_SEC: readonly [number, number] = [1.5, 4];
+export const MECHANISM_SEC: readonly [number, number] = [3, 5.5];
+// 폰 화면이 증거가 아닌 자리(고통·믿는 원인 문장 아래)면 경고한다.
+const SCREEN_SOFT_STEPS = new Set<string>(["pain", "believed_cause"]);
+function screenProblems(
+  script: VideoScript,
+  factNumbers: ReadonlySet<string>,
+  fail: (message: string) => void,
+  warn: (message: string) => void,
+): void {
+  const { cuts } = script;
+  const declaredClips = new Set<string>(script.veoClips.map((clip) => clip.id));
+  const declaredStills = new Set<string>(script.stills.map((still) => still.id));
+  let phoneCount = 0;
+  let mechanismCount = 0;
+  cuts.forEach((cut, index) => {
+    const where = cutWhere(cut, index);
+    const sec = cutMs(cut) / 1000;
+    const screenEmpty = isScreenEmpty(cut.screen);
+    const mechanismEmpty = isMechanismEmpty(cut.mechanism);
+    if (cut.source !== "phone_screen" && !screenEmpty)
+      fail(
+        `${where}은 폰 화면 컷이 아닌데 화면 내용(screen)이 있습니다. screen.kind "none"·빈 값으로 두세요.`,
+      );
+    if (cut.source !== "mechanism" && !mechanismEmpty)
+      fail(
+        `${where}은 작용 원리 컷이 아닌데 작용 원리 내용(mechanism)이 있습니다. 빈 값으로 두세요.`,
+      );
+    if (cut.source === "phone_screen") {
+      phoneCount++;
+      if (cut.screen.kind === "none")
+        fail(
+          `${where}에 화면 종류가 없습니다. screen.kind 를 search·chat·shop·price·doc 중 하나로 적으세요.`,
+        );
+      if (sec < PHONE_SCREEN_SEC[0] || sec > PHONE_SCREEN_SEC[1])
+        fail(
+          `${where} 길이 ${sec}초 — 폰 화면 컷은 ${PHONE_SCREEN_SEC[0]}~${PHONE_SCREEN_SEC[1]}초입니다.`,
+        );
+    }
+    if (cut.source === "mechanism") {
+      mechanismCount++;
+      const chips = cut.mechanism.chips.length;
+      if (chips < 1 || chips > 2)
+        fail(`${where}의 칩(chips)이 ${chips}개입니다. 원료→작용을 1~2개로 적으세요.`);
+      if (cut.mechanism.result.trim() === "") fail(`${where}에 결과 문구(result)가 없습니다.`);
+      if (sec < MECHANISM_SEC[0] || sec > MECHANISM_SEC[1])
+        fail(
+          `${where} 길이 ${sec}초 — 작용 원리 컷은 ${MECHANISM_SEC[0]}~${MECHANISM_SEC[1]}초입니다.`,
+        );
+      if (cut.veoClip !== "" && !declaredClips.has(cut.veoClip))
+        fail(
+          `${where}이 선언하지 않은 실사 클립 "${cut.veoClip}"을 가리킵니다. veoClips(A~D)에 선언한 ID 만 쓰세요.`,
+        );
+      if (cut.stillId !== "" && !declaredStills.has(cut.stillId))
+        fail(`${where}이 선언하지 않은 정지 이미지 "${cut.stillId}"를 가리킵니다.`);
+    }
+    if (cut.source !== "phone_screen" && cut.source !== "mechanism") return;
+    if (index === 0 || index === cuts.length - 1)
+      fail(`${where}: 첫 컷과 마지막 컷은 실사여야 합니다(폰 화면·작용 원리 불가).`);
+    // 화면 숫자는 등록된 사실에 있는 것만(계산해서 나오는 값도 예외 없이).
+    if (factNumbers.size > 0) {
+      const shown =
+        cut.source === "phone_screen"
+          ? [...cut.screen.lines, ...cut.screen.numbers, cut.screen.highlight]
+          : [...cut.mechanism.counterSteps, cut.mechanism.result];
+      for (const value of digitSet(shown.join(" ")))
+        if (!factNumbers.has(value))
+          fail(
+            `${where}의 화면 글에 사실에 없는 숫자(${value})가 있습니다. 자료에 있는 숫자만 쓰세요.`,
+          );
+    }
+  });
+  if (phoneCount > PHONE_SCREEN_CUTS_MAX)
+    fail(`폰 화면 컷이 ${phoneCount}개입니다. 영상 1편에 ${PHONE_SCREEN_CUTS_MAX}개까지입니다.`);
+  if (mechanismCount > MECHANISM_CUTS_MAX)
+    fail(`작용 원리 컷이 ${mechanismCount}개입니다. 영상 1편에 ${MECHANISM_CUTS_MAX}개까지입니다.`);
+  // soft: 고통·믿는 원인 문장 아래의 폰 화면(증거가 아닌 자리).
+  script.voiceover.forEach((voice, index) => {
+    if (!SCREEN_SOFT_STEPS.has(voice.chainStep)) return;
+    const range = voiceCutRange(voice, cuts);
+    if (!range) return;
+    for (let cutIndex = range[0]; cutIndex <= range[1]; cutIndex++) {
+      const cut = cuts[cutIndex];
+      if (cut?.source === "phone_screen")
+        warn(
+          `${index + 1}번째 문장(${CHAIN_STEP_LABELS[voice.chainStep as keyof typeof CHAIN_STEP_LABELS]}) 아래 ${cutWhere(cut, cutIndex)}은 증거가 아닌 자리입니다. 폰 화면은 진짜 원인·해결 조건·제품 사실·이유(가격이면 행동) 문장에 쓰세요.`,
+        );
+    }
+  });
 }

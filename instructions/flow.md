@@ -24,7 +24,7 @@ Start exactly from the supplied image. Keep the same product, person and setting
 
 ## HYBRID_LIVE_TAIL
 
-Photographic live action: a real person in a real setting with the real product, natural light and skin; not a clay model, illustration or 3D explainer world. The person's face stays inside the frame; any phone, tablet or monitor screen is switched off (dark glass, no readable content).
+Photographic live action: a real person in a real setting with the real product, natural light and skin; not a clay model, illustration or 3D explainer world. The person's face stays inside the frame; any phone, tablet or monitor screen is switched off (dark glass, no readable content). The person does not speak: lips stay closed, no talking mouth movement; the reaction is small and natural, not theatrical, and she keeps moving slightly instead of freezing in a pose. Smartphone footage at arm's length; the room light comes from one side (a lamp or window) and the face keeps that light direction, one side slightly darker, no flat front light.
 
 ## EXPLAINER_WORLD
 

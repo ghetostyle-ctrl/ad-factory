@@ -6,6 +6,14 @@ export type RenderCutInput = {
   readonly sourcePath: string | null;
   readonly sourceDigest: string;
   readonly cleanClip?: boolean;
+  // 작용 원리 컷(2026-10-21)의 아래쪽 실사: Veo/Flow 클립(구간 offsetMs 부터) 또는 대표 이미지. 위쪽 그림은 sourcePath.
+  readonly bottom?: {
+    readonly path: string;
+    readonly digest: string;
+    readonly video: boolean;
+    readonly offsetMs: number;
+    readonly cleanClip?: boolean;
+  } | null;
 };
 type Background = { readonly path: string; readonly digest: string };
 
@@ -44,6 +52,8 @@ export function graphicBackgrounds(inputs: readonly RenderCutInput[]): RenderCut
       case "card":
       case "veo":
       case "project":
+      case "screen":
+      case "mechanism":
         photograph = null;
         return input;
       default:

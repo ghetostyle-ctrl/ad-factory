@@ -1,8 +1,12 @@
 import { explanationLabels } from "./explanation-prompt";
 import {
+  emptyMechanism,
+  emptyScreen,
   type FlatCut,
   type FlatScript,
   isHybridResponse,
+  isMechanismEmpty,
+  isScreenEmpty,
   type ScriptResponseInput,
   type SentenceCutResponse,
   type SentenceResponse,
@@ -38,6 +42,8 @@ const SOURCE_LABELS: Record<SentenceCutResponse["source"], string> = {
   project_clip: "촬영본",
   motion_graphic: "모션그래픽",
   still_image: "정지 이미지",
+  phone_screen: "폰 화면",
+  mechanism: "작용 원리",
 };
 
 // R4 소스별 부속 필드 정리: 모션그래픽이 아닌데 글줄/종류, Veo 클립이 아닌데 veoClip, 정지 이미지가 아닌데 stillId 가 있으면 비운다.
@@ -79,16 +85,27 @@ function hygiene(
       repairs.push(`${where}(모션그래픽)의 graphicKind 가 비어 callout 으로 채움`);
     }
   }
-  if (next.source !== "veo_clip" && next.veoClip !== "") {
+  // 폰 화면·작용 원리(2026-10-21)의 내용 칸은 그 소스 컷에만 둔다.
+  if (next.source !== "phone_screen" && next.screen && !isScreenEmpty(next.screen)) {
+    repairs.push(`${where}(${label})의 폰 화면 내용(screen) 삭제`);
+    next = { ...next, screen: emptyScreen() };
+  }
+  if (next.source !== "mechanism" && next.mechanism && !isMechanismEmpty(next.mechanism)) {
+    repairs.push(`${where}(${label})의 작용 원리 내용(mechanism) 삭제`);
+    next = { ...next, mechanism: emptyMechanism() };
+  }
+  // 작용 원리 컷은 아래쪽 실사(veoClip·phase)와 위쪽 그림(stillId)을 함께 쓴다.
+  const mechanism = next.source === "mechanism";
+  if (next.source !== "veo_clip" && !mechanism && next.veoClip !== "") {
     repairs.push(`${where}(${label})의 veoClip ${next.veoClip} 삭제`);
     next = { ...next, veoClip: "" };
   }
   // 클립 구간(phase)은 veoClip 과 같은 Veo 전용 부속 필드다(2026-10-06). 비어 있는 veo_clip 컷의 구간은 추측하지 않는다(hard).
-  if (next.source !== "veo_clip" && next.phase !== "") {
+  if (next.source !== "veo_clip" && !mechanism && next.phase !== "") {
     repairs.push(`${where}(${label})의 클립 구간(phase ${next.phase}) 삭제`);
     next = { ...next, phase: "" };
   }
-  if (next.source !== "still_image" && next.stillId !== "") {
+  if (next.source !== "still_image" && !mechanism && next.stillId !== "") {
     repairs.push(`${where}(${label})의 stillId ${next.stillId} 삭제`);
     next = { ...next, stillId: "" };
   }
@@ -152,8 +169,10 @@ export function repairSentences(
   const usedStills = new Set<string>();
   for (const sentence of sentences)
     for (const cut of sentence.cuts) {
-      if (cut.source === "veo_clip" && cut.veoClip) usedClips.add(cut.veoClip);
-      if (cut.source === "still_image" && cut.stillId) usedStills.add(cut.stillId);
+      if ((cut.source === "veo_clip" || cut.source === "mechanism") && cut.veoClip)
+        usedClips.add(cut.veoClip);
+      if ((cut.source === "still_image" || cut.source === "mechanism") && cut.stillId)
+        usedStills.add(cut.stillId);
     }
   const veoClips = response.veoClips.filter((clip) => usedClips.has(clip.id));
   const stills = response.stills.filter((still) => usedStills.has(still.id));
@@ -269,6 +288,9 @@ export function flattenSentences(response: ScriptResponseInput, ctx: ScriptConte
         // 장면 계획(2026-10-06): 컷의 핵심 문장과 클립 구간은 그대로 싣는다.
         goal: cut.goal,
         phase: cut.phase,
+        // 폰 화면·작용 원리(2026-10-21): HF 응답 컷에만 있다(예전 응답은 저장 때 빈 값).
+        ...(cut.screen ? { screen: structuredClone(cut.screen) } : {}),
+        ...(cut.mechanism ? { mechanism: structuredClone(cut.mechanism) } : {}),
       });
       start = Math.round((start + cut.len) * 1000) / 1000;
     }

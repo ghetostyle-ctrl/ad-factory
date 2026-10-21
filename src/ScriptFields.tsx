@@ -7,6 +7,8 @@ import {
   CLIP_PHASES,
   type ClipPhaseId,
   type ClipPlan,
+  type CutMechanism,
+  type CutScreen,
   calloutWordInText,
   type ExplainerEmphasis,
   type ExplainerObject,
@@ -40,7 +42,50 @@ const sources = {
   project_clip: "프로젝트 영상",
   motion_graphic: "모션그래픽",
   still_image: "정지 이미지",
+  phone_screen: "폰 화면",
+  mechanism: "작용 원리",
 } as const;
+const screenKinds = {
+  none: "없음",
+  search: "검색",
+  chat: "채팅",
+  shop: "쇼핑 목록",
+  price: "가격",
+  doc: "문서",
+} as const;
+// 폰 화면·작용 원리 컷 내용(읽기 전용 한 줄). 비어 있는 칸은 뺀다.
+export function screenSummary(screen: CutScreen): string {
+  return [
+    `폰 화면(${screenKinds[screen.kind]})`,
+    screen.title && `제목 ${screen.title}`,
+    screen.query && `검색어 ${screen.query}`,
+    screen.lines.length > 0 && `줄 ${screen.lines.join(" / ")}`,
+    screen.numbers.length > 0 && `숫자 ${screen.numbers.join(" / ")}`,
+    screen.highlight && `강조 ${screen.highlight}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+export function mechanismSummary(mechanism: CutMechanism): string {
+  const counter = [mechanism.counterLabel, mechanism.counterSteps.join("→"), mechanism.counterUnit]
+    .filter(Boolean)
+    .join(" ");
+  return [
+    "작용 원리",
+    mechanism.chips.length > 0 && `칩 ${mechanism.chips.join(" → ")}`,
+    counter && `숫자 ${counter}`,
+    mechanism.result && `결과 ${mechanism.result}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+function CutContent({ cut, className }: { readonly cut: VideoCut; readonly className: string }) {
+  if (cut.source === "phone_screen")
+    return <span className={className}>{screenSummary(cut.screen)}</span>;
+  if (cut.source === "mechanism")
+    return <span className={className}>{mechanismSummary(cut.mechanism)}</span>;
+  return null;
+}
 const graphics = {
   "": "",
   number: "숫자",
@@ -310,6 +355,7 @@ function CutDesign({ script, captions, editable, busy, onCaptionChange }: Props)
             {cut.graphicLines.join(" / ")}
           </span>
         )}
+        <CutContent cut={cut} className="muted" />
       </li>
     );
   };
@@ -446,6 +492,7 @@ function FullFields({
                                 `글줄: ${cut.graphicLines.join(" / ")}`}
                             </span>
                           )}
+                          <CutContent cut={cut} className="muted" />
                         </li>
                       );
                     })}
@@ -497,6 +544,11 @@ function FullFields({
             </p>
             {cut.graphicLines.length > 0 && (
               <p className="muted small-copy">화면 글줄: {cut.graphicLines.join(" / ")}</p>
+            )}
+            {(cut.source === "phone_screen" || cut.source === "mechanism") && (
+              <p className="muted small-copy">
+                <CutContent cut={cut} className="" />
+              </p>
             )}
           </section>
         ))}

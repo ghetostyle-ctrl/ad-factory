@@ -820,7 +820,15 @@ test("metadata defaults keep old script serialization stable and explicit metada
   const legacy = {
     ...old,
     cuts: old.cuts.map((cut) =>
-      withoutKeys(cut, (key) => key === "stillId" || (key === "phase" && cut.phase === "")),
+      withoutKeys(
+        cut,
+        // 폰 화면·작용 원리(2026-10-21) 이전 JSON 에는 screen·mechanism 도 없다
+        (key) =>
+          key === "stillId" ||
+          key === "screen" ||
+          key === "mechanism" ||
+          (key === "phase" && cut.phase === ""),
+      ),
     ),
     voiceover: old.voiceover.map((voice) =>
       withoutKeys(
